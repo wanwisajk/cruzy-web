@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1B5E20">
+<title>Cruzy Admin Console — Schedule</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./assets/style.css">
+
+</head>
+<body>
+<nav class="nav">
+  <div class="nav-left"><h1>📋 Cruzy Admin</h1><div class="nav-badge"><div class="dot-live"></div> Realtime</div></div>
+  <div class="nav-right"><button class="nav-btn" onclick="shareLink()">🔗 แชร์</button><button class="nav-btn" onclick="toggleFullscreen()">⛶</button></div>
+</nav>
+
+<div class="tab-bar" id="tabBar">
+  <button class="tab" data-view="daily" onclick="switchView('daily')">📌 รายวัน</button>
+  <button class="tab active" data-view="weekly" onclick="switchView('weekly')">📅 รายสัปดาห์</button>
+  <button class="tab" data-view="monthly" onclick="switchView('monthly')">🗓️ รายเดือน</button>
+  <button class="tab" data-view="branch" onclick="switchView('branch')">🏢 ตามสาขา</button>
+  <button class="tab" data-view="person" onclick="switchView('person')">👤 รายคน</button>
+</div>
+
+<div class="alert-bar" id="alertBar">
+  <div class="alert-title">⚠️ สาขาไม่มีคนเข้า</div>
+  <div class="alert-chips" id="alertChips"></div>
+</div>
+
+<div class="rt-banner" id="rtBanner"><span style="animation:blink 1s infinite">📡</span><span id="rtText"></span></div>
+
+<div class="emp-sidebar" id="empSidebar">
+  <div class="sidebar-title">👥 ลากวางพนักงาน</div>
+  <div id="empList"></div>
+</div>
+
+<div class="content content-with-sidebar" id="mainContent">
+  <div class="controls" id="controls"></div>
+  <div id="viewContainer"></div>
+</div>
+
+<div class="overlay" id="overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="m-head"><h2>เพิ่มตารางงาน</h2><button class="m-close" onclick="closeModal()">&times;</button></div>
+    <div class="m-body">
+      <div class="fg"><label>📅 วันที่</label><input type="date" id="mDate" onchange="populateEmpSelect()"/></div>
+      <div class="fg">
+        <label>👤 พนักงาน</label>
+        <select id="mEmp" onchange="checkConflict()"><option value="">เลือก...</option></select>
+        <div class="conflict" id="conflictMsg"></div>
+      </div>
+      <div class="fg"><label>🏢 สาขา</label><select id="mBranch"><option value="">เลือก...</option></select></div>
+    </div>
+    <div class="m-foot">
+      <button class="btn btn-ghost" onclick="closeModal()">ยกเลิก</button>
+      <button class="btn btn-primary" id="saveBtn" onclick="save()">💾 บันทึก</button>
+    </div>
+  </div>
+</div>
+<div class="toasts" id="toasts"></div>
+
+
+<script src="/app-config.js"></script>
+<script src="./script.js"></script>
+</body>
+</html>

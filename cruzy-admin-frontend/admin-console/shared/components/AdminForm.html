@@ -1,0 +1,29 @@
+<div class="modal-body">
+  <div class="fg">
+    <label>👤 ชื่อ-นามสกุล Admin</label>
+    <input type="text" id="adminName" placeholder="เช่น สมชาย ใจดี">
+  </div>
+  <div class="fg">
+    <label>🔑 Username</label>
+    <input type="text" id="adminUser" placeholder="เช่น somchai_cnx">
+  </div>
+  <div class="fg">
+    <label>🔒 รหัสผ่านเริ่มต้น</label>
+    <input type="password" id="adminPass">
+  </div>
+  <div class="fg">
+    <label>🛡️ ระดับสิทธิ์ (Role)</label>
+    <select id="adminRole" onchange="toggleScopeInput()">
+      <option value="regional">Regional Admin (ดูแลเฉพาะจังหวัด)</option>
+      <option value="owner">Super Admin / Owner (ดูได้ทั้งหมด)</option>
+    </select>
+  </div>
+  
+  <div class="fg" id="scopeGroup">
+    <label>📍 จังหวัดที่ดูแล (Scope)</label>
+    <select id="adminScopeValue">
+      <option value="cnx">เชียงใหม่ (CNX)</option>
+      <option value="bkk">กรุงเทพฯ (BKK)</option>
+    </select>
+  </div>
+</div>
