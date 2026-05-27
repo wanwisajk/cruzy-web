@@ -6,6 +6,7 @@ exports.getAllSchedules = async (req, res) => {
     const { data, error } = await supabase
       .from('schedules')
       .select('*');
+      
 
     if (error) throw error;
 
