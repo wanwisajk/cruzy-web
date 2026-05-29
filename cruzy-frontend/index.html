@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cruzy Admin Console — Employee Management</title>
+<title>Cruzy Admin — Dashboard v2</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="./assets/style.css">
+<link rel="stylesheet" href="./assets/css/app.css">
 </head>
 <body>
 
@@ -14,6 +14,7 @@
 <div class="login-box">
 <div class="logo">🏢</div>
 <h1>Cruzy Admin</h1>
+<div class="sub">Dashboard v2 — Branch Sidebar + Date Picker</div>
 <div class="fg"><label>Username</label><input type="text" id="loginUser" placeholder="username"/></div>
 <div class="fg"><label>Password</label><input type="password" id="loginPass" placeholder="password" onkeypress="if(event.key==='Enter')doLogin()"/></div>
 <button class="login-btn" onclick="doLogin()">เข้าสู่ระบบ</button>
@@ -24,7 +25,7 @@
 <!-- NAV -->
 <nav class="nav" id="mainNav" style="display:none">
 <div style="display:flex;align-items:center;gap:8px"><h1>📋 Cruzy Admin</h1><span class="nav-badge"><span class="dot"></span><span id="navRole">Owner</span></span></div>
-<div class="nav-right"><button class="nav-btn schedule-nav-btn" onclick="openScheduleManager()">📅 จัดตารางงาน</button><span class="nav-user" id="navUser"></span><button class="nav-btn" onclick="logout()">🚪 ออก</button></div>
+<div class="nav-right"><span class="nav-user" id="navUser">👑 owner</span><button class="nav-btn" onclick="logout()">🚪 ออก</button></div>
 </nav>
 
 <!-- APP -->
@@ -46,6 +47,8 @@
 <div class="modal"><div class="m-head"><h2 id="mTitle"></h2><button class="m-close" onclick="closeModal()">&times;</button></div><div class="m-body" id="mBody"></div><div class="m-foot" id="mFoot"></div></div>
 </div>
 
-<script src="./script.js"></script>
+<script src="/app-config.js"></script>
+<script src="./assets/js/app.js"></script>
 </body>
 </html>
+

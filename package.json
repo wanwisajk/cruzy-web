@@ -1,16 +1,22 @@
 {
-  "name": "cruzy-admin-backend",
+  "name": "cruzy-web",
   "version": "1.0.0",
-  "description": "Backend API for Cruzy Admin Schedule Management",
-  "main": "server.js",
+  "description": "Cruzy frontend and backend",
+  "main": "cruzy-backend/server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js"
+    "backend": "node cruzy-backend/server.js",
+    "backend:dev": "node --watch cruzy-backend/server.js",
+    "frontend": "node cruzy-frontend/server.js",
+    "frontend:dev": "node --watch cruzy-frontend/server.js",
+    "start": "npm run backend",
+    "dev": "npm run backend:dev"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.43.4",
+    "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.3"
   }
 }

@@ -1,18 +1,10 @@
-const supabase = require('../config/supabase');
 const crypto = require('crypto');
+const supabase = require('../config/supabase');
 
 async function fetchTable(table, select = '*') {
   const { data, error } = await supabase.from(table).select(select);
   if (error) throw error;
   return data || [];
-}
-
-function normalizeEmployee(employee) {
-  return {
-    ...employee,
-    c: employee.color,
-    pos: employee.position
-  };
 }
 
 function normalizeUser(user) {
@@ -69,61 +61,26 @@ exports.login = async (req, res) => {
   }
 };
 
-exports.getAllEmployees = async (req, res) => {
-  try {
-    const employees = await fetchTable('employees');
-    res.json(employees.map(normalizeEmployee));
-  } catch (error) {
-    console.error('Error fetching employees:', error);
-    res.status(500).json({ message: 'ไม่สามารถดึงข้อมูลพนักงานได้', error: error.message });
-  }
-};
-
-exports.getEmployeeById = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { data, error } = await supabase.from('employees').select('*').eq('id', id).limit(1);
-    if (error) throw error;
-    if (!data || data.length === 0) {
-      return res.status(404).json({ message: 'ไม่พบพนักงาน' });
-    }
-
-    res.json(normalizeEmployee(data[0]));
-  } catch (error) {
-    console.error('Error fetching employee by id:', error);
-    res.status(500).json({ message: 'ไม่สามารถดึงข้อมูลพนักงานได้', error: error.message });
-  }
-};
-
-exports.getAllBranches = async (req, res) => {
-  try {
-    const branches = await fetchTable('branches');
-    res.json(branches);
-  } catch (error) {
-    console.error('Error fetching branches:', error);
-    res.status(500).json({ message: 'ไม่สามารถดึงข้อมูลสาขาได้', error: error.message });
-  }
-};
-
-exports.getBranchById = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { data, error } = await supabase.from('branches').select('*').eq('id', id).limit(1);
-    if (error) throw error;
-    if (!data || data.length === 0) {
-      return res.status(404).json({ message: 'ไม่พบสาขา' });
-    }
-
-    res.json(data[0]);
-  } catch (error) {
-    console.error('Error fetching branch by id:', error);
-    res.status(500).json({ message: 'ไม่สามารถดึงข้อมูลสาขาได้', error: error.message });
-  }
-};
-
 exports.getConsoleData = async (req, res) => {
   try {
-    const [regions, branches, employees, schedules, leaves, leaveBalances, contracts, sales, cashDeposits, users] = await Promise.all([
+    const [
+      regions,
+      branches,
+      employees,
+      schedules,
+      leaves,
+      leaveBalances,
+      contracts,
+      sales,
+      cashDeposits,
+      attendance,
+      attendanceAlerts,
+      bankAccounts,
+      storeInspections,
+      warningLetterTemplates,
+      warningLetters,
+      users
+    ] = await Promise.all([
       fetchTable('regions'),
       fetchTable('branches'),
       fetchTable('employees'),
@@ -133,6 +90,12 @@ exports.getConsoleData = async (req, res) => {
       fetchTable('contracts'),
       fetchTable('sales'),
       fetchTable('cash_deposits'),
+      fetchTable('attendance'),
+      fetchTable('attendance_alerts'),
+      fetchTable('bank_accounts'),
+      fetchTable('store_inspections'),
+      fetchTable('warning_letter_templates'),
+      fetchTable('warning_letters'),
       fetchTable('users', 'id, username, name, role, scope_type, scope_value, created_at')
     ]);
 
@@ -146,11 +109,33 @@ exports.getConsoleData = async (req, res) => {
       contracts,
       sales,
       cashDeposits,
+      attendance,
+      attendanceAlerts,
+      bankAccounts,
+      storeInspections,
+      warningLetterTemplates,
+      warningLetters,
       users: users.map(normalizeUser)
     });
   } catch (error) {
     console.error('Error fetching admin console data:', error);
     res.status(500).json({ message: 'ไม่สามารถดึงข้อมูล Admin Console ได้', error: error.message });
+  }
+};
+
+exports.getAllEmployees = async (req, res) => {
+  try {
+    res.json(await fetchTable('employees'));
+  } catch (error) {
+    res.status(500).json({ message: 'ไม่สามารถดึงข้อมูลพนักงานได้', error: error.message });
+  }
+};
+
+exports.getAllBranches = async (req, res) => {
+  try {
+    res.json(await fetchTable('branches'));
+  } catch (error) {
+    res.status(500).json({ message: 'ไม่สามารถดึงข้อมูลสาขาได้', error: error.message });
   }
 };
 
@@ -174,7 +159,36 @@ exports.updateLeaveStatus = async (req, res) => {
     if (error) throw error;
     res.json({ message: 'อัปเดตสถานะการลาเรียบร้อยแล้ว', data });
   } catch (error) {
-    console.error('Error updating leave status:', error);
     res.status(500).json({ message: 'ไม่สามารถอัปเดตสถานะการลาได้', error: error.message });
+  }
+};
+
+exports.createWarningLetter = async (req, res) => {
+  try {
+    const { employeeId, templateId, level, issueDate, reason, branchId, issuedBy, status } = req.body;
+
+    if (!employeeId || !level || !issueDate || !reason || !issuedBy) {
+      return res.status(400).json({ message: 'ข้อมูลหนังสือเตือนไม่ครบถ้วน' });
+    }
+
+    const { data, error } = await supabase
+      .from('warning_letters')
+      .insert([{
+        employee_id: employeeId,
+        template_id: templateId || null,
+        level,
+        issue_date: issueDate,
+        reason,
+        branch_id: branchId || null,
+        issued_by: issuedBy,
+        status: status || 'draft'
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.status(201).json({ message: 'ออกหนังสือเตือนสำเร็จ', data });
+  } catch (error) {
+    res.status(500).json({ message: 'ไม่สามารถออกหนังสือเตือนได้', error: error.message });
   }
 };
