@@ -1,3 +1,3 @@
 window.__APP_CONFIG = {
-  API_URL: 'http://localhost:5000/api'
+  API_URL: "https://cruzy-web-production.up.railway.app/api"
 };
