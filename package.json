@@ -6,7 +6,8 @@
   "scripts": {
     "backend": "node cruzy-backend/server.js",
     "backend:dev": "node --watch cruzy-backend/server.js",
-    "start": "npm run backend",
+    "start:backend": "node cruzy-backend/server.js",
+    "start": "npm run start:backend",
     "dev": "npm run backend:dev"
   },
   "dependencies": {
