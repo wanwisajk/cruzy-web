@@ -7,6 +7,7 @@ const consoleRoutes = require('./routes/consoleRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const HOST = process.env.HOST || '0.0.0.0';
 const frontendPath = path.join(__dirname, '..', 'cruzy-frontend');
 const serveFrontend = process.env.SERVE_FRONTEND === 'true';
 const allowedOrigins = (process.env.FRONTEND_ORIGIN || '')
@@ -54,8 +55,8 @@ if (serveFrontend) {
   });
 }
 
-app.listen(PORT, () => {
-  console.log(`Cruzy backend API running at http://localhost:${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`Cruzy backend API running on ${HOST}:${PORT}`);
   if (serveFrontend) {
     console.log(`Serving frontend from ${frontendPath}`);
   }
