@@ -1,6 +1,8 @@
 :root{--primary:#1B5E20;--pl:#4CAF50;--pb:#E8F5E9;--accent:#FF9800;--danger:#F44336;--info:#2196F3;--purple:#9C27B0;--teal:#00897B;--bg:#F5F5F5;--card:#FFF;--text:#333;--tl:#888;--border:#E0E0E0;--shadow:0 2px 12px rgba(0,0,0,.06);--rad:12px;--sidebar:220px}
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Noto Sans Thai',-apple-system,sans-serif;background:var(--bg);color:var(--text)}
+body.auth-pending .login-overlay{display:none}
+body.auth-pending .nav,body.auth-pending .app{display:none!important}
 
 /* === LOGIN === */
 .login-overlay{position:fixed;inset:0;background:linear-gradient(135deg,#1B5E20,#2E7D32,#388E3C);display:flex;align-items:center;justify-content:center;z-index:9999}
