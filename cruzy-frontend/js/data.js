@@ -1,4 +1,4 @@
-const API_URL = '/api';
+const API_URL = 'https://cruzy-web-production.up.railway.app/api';
 
 // ================================
 // DATA FROM DB ONLY
