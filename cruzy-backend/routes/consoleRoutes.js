@@ -10,6 +10,7 @@ router.get('/admin-console/data', controller.getConsoleData);
 router.get('/employees', controller.listEmployees);
 router.post('/employees', controller.createEmployee);
 router.patch('/employees/:id', controller.updateEmployee);
+router.put('/employees/:id/work-rules', controller.saveEmployeeWorkRules);
 router.delete('/employees/:id', controller.deleteEmployee);
 
 router.get('/branches', controller.listBranches);

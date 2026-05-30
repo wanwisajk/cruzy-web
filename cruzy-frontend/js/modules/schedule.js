@@ -1,4 +1,4 @@
-// SCHEDULE (จัดคน + สลับ + Alert + AI)
+// SCHEDULE (จัดคน + สลับ + Alert + Rule-based)
 // ================================
 let schView='planner'; // planner | overview
 
@@ -22,9 +22,7 @@ for(let ahead=0;ahead<=30;ahead++){
   const ds=fmtD(fd);
   branches.forEach(b=>{
     const eids=SCH[`${b.id}_${ds}`]||[];
-    const q=BRANCH_QUOTA[b.id]||{weekday:1,weekend:1};
-    const isWE=fd.getDay()===0||fd.getDay()===6;
-    const need=isWE?q.weekend:q.weekday;
+    const need=requiredStaffFor(b.id,ds);
     if(eids.length<need){
       const daysAway=ahead;
       if(daysAway<=7)alerts.push({type:'danger',branch:b,date:ds,have:eids.length,need,daysAway,msg:`🚨 ${b.code} วันที่ ${thD(ds)} — ต้องการ ${need} คน มี ${eids.length} คน (อีก ${daysAway} วัน)`});
@@ -60,10 +58,10 @@ approvedLeaves.forEach(l=>{
 let totalWorking=0,emptyCount=0,shortCount=0;
 branches.forEach(b=>{
   const eids=SCH[`${b.id}_${today}`]||[];
-  const q=BRANCH_QUOTA[b.id]||{weekday:1};
+  const need=requiredStaffFor(b.id,today);
   totalWorking+=eids.length;
   if(!eids.length)emptyCount++;
-  if(eids.length<q.weekday)shortCount++;
+  if(eids.length<need)shortCount++;
 });
 
 h+=`<div class="stats-row">
@@ -73,16 +71,16 @@ h+=`<div class="stats-row">
 <div class="stat-card blue"><div class="stat-num" style="color:var(--info)">${dangerAlerts.length+warnAlerts.length}</div><div class="stat-label">⚠️ แจ้งเตือน</div></div>
 </div>`;
 
-// AI Recommendation
-h+=`<div class="ai-box"><h4>🤖 AI แนะนำจัดตาราง (สัปดาห์นี้)</h4><div style="font-size:11px;color:var(--tl);margin-bottom:8px">ตาม quota + ความถนัดสาขา + วันหยุดที่อนุมัติ</div><div>`;
+// Rule-based Recommendation
+h+=`<div class="ai-box"><h4>แนะนำจัดตารางตามกติกา</h4><div style="font-size:11px;color:var(--tl);margin-bottom:8px">กรองจากสาขาที่ลงได้ + วันว่าง/วันหยุด + ไม่ชนตารางเดิม + กระจายจำนวนวันทำงาน</div><div>`;
 branches.forEach(b=>{
-  const q=BRANCH_QUOTA[b.id]||{weekday:1};
-  const canWork=Object.entries(EMP_BRANCHES).filter(([eid,brs])=>brs.includes(b.id)).map(([eid])=>EMPS.find(x=>x.id===eid)).filter(Boolean);
-  h+=`<div style="margin-bottom:6px"><span style="font-weight:600;font-size:11px">${b.code}</span> <span style="font-size:10px;color:var(--tl)">ต้องการ ${q.weekday} คน/วัน</span> → `;
-  canWork.slice(0,q.weekday).forEach(e=>{h+=`<span class="ai-chip" onclick="toast('✅ จัดให้ ${e.name} → ${b.code}')"><span class="emp-dot" style="background:${e.c};width:14px;height:14px;font-size:7px">${e.name[0]}</span>${e.name}</span>`;});
+  h+=`<div style="margin-bottom:6px"><span style="font-weight:600;font-size:11px">${b.code}</span> <span style="font-size:10px;color:var(--tl)">ช่วงวันที่เลือก</span> → `;
+  const recs=days.flatMap(d=>recommendedEmployees(b.id,fmtD(d),{from:selDate,to:selDateTo}).map(c=>({date:fmtD(d),...c}))).slice(0,5);
+  if(!recs.length)h+=`<span style="font-size:11px;color:var(--tl)">ยังไม่มีช่องว่างหรือไม่มีคนที่ตรงกติกา</span>`;
+  recs.forEach(c=>{h+=`<span class="ai-chip" onclick="addToSch('${b.id}','${c.date}','${c.emp.id}')"><span class="emp-dot" style="background:${c.emp.c};width:14px;height:14px;font-size:7px">${c.emp.name[0]}</span>${c.emp.name} · ${thD(c.date)}</span>`;});
   h+=`</div>`;
 });
-h+=`</div><div style="margin-top:8px"><button class="btn btn-primary" onclick="toast('🤖 AI จัดตารางอัตโนมัติ สัปดาห์ 19-25 พ.ค.')">✨ ใช้ AI จัดตารางทั้งสัปดาห์</button></div></div>`;
+h+=`</div><div style="margin-top:8px"><button class="btn btn-primary" onclick="autoFillScheduleRange()">จัดอัตโนมัติตามกติกา</button></div></div>`;
 
 // Weekly planner grid
 h+=`<div class="sch-week" style="grid-template-columns:100px repeat(${days.length},1fr)"><div class="sch-header" style="font-weight:700">สาขา</div>`;
@@ -96,9 +94,7 @@ branches.forEach(b=>{
   days.forEach(d=>{
     const ds=fmtD(d);
     const eids=SCH[`${b.id}_${ds}`]||[];
-    const q=BRANCH_QUOTA[b.id]||{weekday:1,weekend:1};
-    const isWE=d.getDay()===0||d.getDay()===6;
-    const need=isWE?q.weekend:q.weekday;
+    const need=requiredStaffFor(b.id,ds);
     const short=eids.length<need;
     const empty=!eids.length;
     h+=`<div class="sch-cell ${empty&&need>0?'empty-danger':short?'empty-alert':''}">`;
@@ -132,7 +128,7 @@ let h=`<div class="stats-row">
 h+='<div class="branch-grid">';
 branches.forEach(b=>{
 const eids=SCH[`${b.id}_${ds}`]||[];
-const q=BRANCH_QUOTA[b.id]||{weekday:1};
+const q={weekday:requiredStaffFor(b.id,ds)};
 const isEmpty=!eids.length;
 const short=eids.length<q.weekday;
 h+=`<div class="b-card"><div class="b-card-head ${isEmpty?'empty':short?'':''}"><span>🏢 ${b.code}</span><span>${eids.length}/${q.weekday} คน</span></div><div class="b-card-body">`;
@@ -151,25 +147,23 @@ el.innerHTML=h;
 function openAssignModal(branchId,date){
 const b=BRANCHES.find(x=>x.id===branchId);
 const existing=SCH[`${branchId}_${date}`]||[];
-const allEmps=visBranches().flatMap(br=>branchEmps(br.id));
-const unique=[...new Map(allEmps.map(e=>[e.id,e])).values()];
+const unique=scheduleCandidates(branchId,date,{from:selDate,to:selDateTo});
 
 let body=`<div style="margin-bottom:10px;font-size:12px;color:var(--tl)">เลือกพนักงานที่จะเข้าทำงาน <b>${b?.code}</b> วันที่ <b>${thD(date)}</b></div>`;
 body+='<div class="assign-list">';
-unique.forEach(e=>{
-  const alreadyIn=existing.includes(e.id);
-  const canBranches=EMP_BRANCHES[e.id]||[];
-  const canGo=canBranches.includes(branchId);
-  const busyAt=visBranches().find(br=>(SCH[`${br.id}_${date}`]||[]).includes(e.id));
-  const disabled=alreadyIn;
+unique.forEach(c=>{
+  const e=c.emp;
+  const disabled=c.disabled;
   body+=`<div class="assign-emp ${disabled?'disabled':''}" onclick="${disabled?'':`addToSch('${branchId}','${date}','${e.id}');closeModal()`}">`;
   body+=`<span class="emp-dot" style="background:${e.c}">${e.name[0]}</span>`;
-  body+=`<div><div style="font-weight:600;font-size:12px">${e.name} (${e.code})</div><div style="font-size:10px;color:var(--tl)">${e.pos} · ${BRANCHES.find(x=>x.id===e.branch)?.code}</div></div>`;
+  body+=`<div><div style="font-weight:600;font-size:12px">${e.name} (${e.code})</div><div style="font-size:10px;color:var(--tl)">${e.pos} · คะแนน ${c.score}</div></div>`;
   body+=`<div class="tags">`;
-  if(canGo)body+=`<span class="tag can">✓ quota</span>`;
-  else body+=`<span class="tag">✗ ไม่อยู่ quota</span>`;
-  if(alreadyIn)body+=`<span class="tag" style="background:#E8F5E9;color:var(--primary)">อยู่แล้ว</span>`;
-  else if(busyAt)body+=`<span class="tag" style="background:#FFF3E0;color:#E65100">อยู่ ${busyAt.code}</span>`;
+  if(c.canBranch)body+=`<span class="tag can">ลงสาขานี้ได้</span>`;
+  else body+=`<span class="tag">ไม่ได้ตั้งค่าสาขา</span>`;
+  if(c.available)body+=`<span class="tag can">ว่าง</span>`;
+  else body+=`<span class="tag" style="background:#FFEBEE;color:#C62828">ไม่ว่าง</span>`;
+  if(c.alreadyIn)body+=`<span class="tag" style="background:#E8F5E9;color:var(--primary)">อยู่แล้ว</span>`;
+  else if(c.busyAt)body+=`<span class="tag" style="background:#FFF3E0;color:#E65100">อยู่ ${c.busyAt.code}</span>`;
   body+=`</div></div>`;
 });
 body+='</div>';
@@ -179,13 +173,36 @@ openModal(`➕ จัดคนเข้า ${b?.code} — ${thD(date)}`,body,`<b
 async function addToSch(branchId,date,empId){
 const key=`${branchId}_${date}`;
 try{
-const res=await fetch(`${API_URL}/schedule/assign`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({bid:branchId,date,eid:empId})});
+const shift=shiftFor(branchId,date);
+const res=await fetch(`${API_URL}/schedule/assign`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({bid:branchId,date,eid:empId,shiftStart:shift.start,shiftEnd:shift.end})});
 const result=await res.json().catch(()=>({}));
 if(!res.ok)throw new Error(result.message||'เพิ่มตารางงานไม่สำเร็จ');
 if(!SCH[key])SCH[key]=[];
 if(!SCH[key].includes(empId)){SCH[key].push(empId);toast(`✅ เพิ่ม ${EMPS.find(e=>e.id===empId)?.name} → ${BRANCHES.find(b=>b.id===branchId)?.code} ${thD(date)}`);}
 render();
 }catch(err){toast(err.message||'เพิ่มตารางงานไม่สำเร็จ');}
+}
+
+async function autoFillScheduleRange(){
+const bids=curBranch==='all'?visBranches().map(b=>b.id):[curBranch];
+const dates=dRange(selDate,selDateTo);
+let added=0,failed=0;
+for(const date of dates){
+  for(const branchId of bids){
+    let existing=SCH[`${branchId}_${date}`]||[];
+    let need=requiredStaffFor(branchId,date);
+    while(existing.length<need){
+      const rec=recommendedEmployees(branchId,date,{from:selDate,to:selDateTo})[0];
+      if(!rec)break;
+      const before=existing.length;
+      await addToSch(branchId,date,rec.emp.id);
+      existing=SCH[`${branchId}_${date}`]||[];
+      if(existing.length>before)added++;else{failed++;break;}
+    }
+  }
+}
+toast(added?`จัดอัตโนมัติแล้ว ${added} รายการ`:`ยังไม่มีรายการที่จัดเพิ่มได้${failed?' บางรายการติดเงื่อนไข':''}`);
+render();
 }
 async function removeFromSch(branchId,date,empId){
 const key=`${branchId}_${date}`;

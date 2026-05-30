@@ -12,6 +12,11 @@ let LBAL = {};
 let CONTRACTS = [];
 let BRANCH_QUOTA = {};
 let EMP_BRANCHES = {};
+let EMP_BRANCH_RULES = [];
+let EMP_AVAILABILITY_RULES = [];
+let EMP_AVAILABILITY_OVERRIDES = [];
+let EMP_PAY_PROFILES = [];
+let BRANCH_STAFFING_RULES = [];
 let SALES = [];
 let BANK_ACCOUNTS = [];
 let DEPOSITS = [];
@@ -60,6 +65,11 @@ const regionRows=data.regions||[];
 const branchRows=data.branches||[];
 const empRows=data.employees||[];
 const scheduleRows=data.schedules||[];
+const branchEligibilityRows=data.employeeBranchEligibility||data.employee_branch_eligibility||[];
+const availabilityRuleRows=data.employeeAvailabilityRules||data.employee_availability_rules||[];
+const availabilityOverrideRows=data.employeeAvailabilityOverrides||data.employee_availability_overrides||[];
+const payProfileRows=data.employeePayProfiles||data.employee_pay_profiles||[];
+const staffingRuleRows=data.branchStaffingRules||data.branch_staffing_rules||[];
 const leaveRows=data.leaves||[];
 const balanceRows=data.leaveBalances||[];
 const contractRows=data.contracts||[];
@@ -78,10 +88,18 @@ regionRows.forEach(r=>{REGIONS[r.id]={name:r.name,branches:[]};});
 BRANCHES=branchRows.map(b=>({id:b.id,name:b.name,code:b.code,region:b.region_id||b.region||'default'}));
 BRANCHES.forEach(b=>{if(!REGIONS[b.region])REGIONS[b.region]={name:b.region,branches:[]};REGIONS[b.region].branches.push(b.id);});
 
-const empBranchMap=deriveEmployeeBranches(scheduleRows);
+EMP_BRANCH_RULES=branchEligibilityRows.map(mapEmployeeBranchRule);
+EMP_AVAILABILITY_RULES=availabilityRuleRows.map(mapAvailabilityRule);
+EMP_AVAILABILITY_OVERRIDES=availabilityOverrideRows.map(mapAvailabilityOverride);
+EMP_PAY_PROFILES=payProfileRows.map(mapPayProfile);
+BRANCH_STAFFING_RULES=staffingRuleRows.map(mapStaffingRule);
+
+const empBranchMap=derivePrimaryEmployeeBranches(scheduleRows);
 EMPS=empRows.map(e=>{
 const fallbackBranch=branchRows.find(b=>b.region_id===(e.region_id||BRANCHES[0]?.region))?.id||BRANCHES[0]?.id||'';
-return {id:e.id,name:e.name,code:e.code,c:e.color||'#4CAF50',branch:empBranchMap[e.id]||e.branch_id||fallbackBranch,pos:e.position||'พนักงานขาย',phone:e.phone||'-',line:Boolean(e.line_connected),start:e.start_date||'',status:e.status||'active',salary:Number(e.salary||0),region:e.region_id||''};
+const primaryBranch=empBranchMap[e.id]||e.branch_id||fallbackBranch;
+const pay=getEmployeePayProfileFromRows(e.id,payProfileRows,e.salary);
+return {id:e.id,name:e.name,code:e.code,c:e.color||'#4CAF50',branch:primaryBranch,pos:e.position||'พนักงานขาย',status:e.status||'active',salary:Number(e.salary||pay.monthlySalary||0),region:e.region_id||'',payType:pay.payType,dailyRate:pay.dailyRate,monthlySalary:pay.monthlySalary,commissionEnabled:pay.commissionEnabled};
 });
 
 SCH={};
@@ -109,8 +127,9 @@ setDateRangeFromDbRows({scheduleRows,salesRows,depositRows,attendanceRows,inspec
 
 const applyConsoleData = hydrateConsoleData;
 
-function deriveEmployeeBranches(scheduleRows){
+function derivePrimaryEmployeeBranches(scheduleRows){
 const byEmployee={};
+EMP_BRANCH_RULES.filter(r=>r.canWork).sort((a,b)=>b.isPreferred-a.isPreferred||b.priority-a.priority).forEach(r=>{if(!byEmployee[r.empId])byEmployee[r.empId]=r.branchId;});
 scheduleRows.slice().sort((a,b)=>String(b.work_date).localeCompare(String(a.work_date))).forEach(s=>{if(!byEmployee[s.employee_id])byEmployee[s.employee_id]=s.branch_id;});
 return byEmployee;
 }
@@ -118,6 +137,13 @@ return byEmployee;
 function deriveBranchQuotaFromDb(){
 const quota={};
 BRANCHES.forEach(b=>{
+const rules=BRANCH_STAFFING_RULES.filter(r=>r.branchId===b.id&&r.active);
+if(rules.length){
+const weekday=Math.max(1,...rules.filter(r=>r.dayOfWeek>=1&&r.dayOfWeek<=5).map(r=>r.requiredStaff));
+const weekend=Math.max(1,...rules.filter(r=>r.dayOfWeek===0||r.dayOfWeek===6).map(r=>r.requiredStaff));
+quota[b.id]={weekday,weekend};
+return;
+}
 const counts=Object.entries(SCH)
 .filter(([key])=>key.startsWith(b.id+'_'))
 .map(([,eids])=>eids.length);
@@ -129,7 +155,11 @@ return quota;
 
 function deriveEmployeeBranchesFromDb(){
 const byEmployee={};
-EMPS.forEach(e=>{byEmployee[e.id]=[e.branch].filter(Boolean);});
+EMP_BRANCH_RULES.filter(r=>r.canWork).forEach(r=>{
+if(!byEmployee[r.empId])byEmployee[r.empId]=[];
+if(r.branchId&&!byEmployee[r.empId].includes(r.branchId))byEmployee[r.empId].push(r.branchId);
+});
+EMPS.forEach(e=>{if(!byEmployee[e.id])byEmployee[e.id]=[e.branch].filter(Boolean);});
 Object.entries(SCH).forEach(([key,eids])=>{
 const branchId=key.split('_')[0];
 eids.forEach(eid=>{
@@ -138,6 +168,32 @@ if(branchId&&!byEmployee[eid].includes(branchId))byEmployee[eid].push(branchId);
 });
 });
 return byEmployee;
+}
+
+function mapEmployeeBranchRule(r){
+return {id:String(r.id||''),empId:r.employee_id,branchId:r.branch_id,canWork:r.can_work!==false,isPreferred:Boolean(r.is_preferred),priority:Number(r.priority||0),commissionEligible:r.commission_eligible!==false,note:r.note||''};
+}
+
+function mapAvailabilityRule(r){
+return {id:String(r.id||''),empId:r.employee_id,dayOfWeek:Number(r.day_of_week),type:r.availability_type||'available',start:formatDbTime(r.start_time),end:formatDbTime(r.end_time),note:r.note||''};
+}
+
+function mapAvailabilityOverride(r){
+return {id:String(r.id||''),empId:r.employee_id,date:r.work_date,type:r.availability_type||'available',start:formatDbTime(r.start_time),end:formatDbTime(r.end_time),reason:r.reason||''};
+}
+
+function mapPayProfile(r){
+return {id:String(r.id||''),empId:r.employee_id,payType:r.pay_type||'monthly',monthlySalary:Number(r.monthly_salary||0),dailyRate:Number(r.daily_rate||0),commissionEnabled:r.commission_enabled!==false,effectiveFrom:r.effective_from,effectiveTo:r.effective_to,active:r.is_active!==false};
+}
+
+function mapStaffingRule(r){
+return {id:String(r.id||''),branchId:r.branch_id,dayOfWeek:Number(r.day_of_week),requiredStaff:Number(r.required_staff||1),shiftStart:formatDbTime(r.shift_start),shiftEnd:formatDbTime(r.shift_end),active:r.is_active!==false};
+}
+
+function getEmployeePayProfileFromRows(empId,rows,legacySalary){
+const active=(rows||[]).filter(r=>r.employee_id===empId&&(r.is_active!==false)).sort((a,b)=>String(b.effective_from||'').localeCompare(String(a.effective_from||'')))[0];
+if(active)return {payType:active.pay_type||'monthly',monthlySalary:Number(active.monthly_salary||0),dailyRate:Number(active.daily_rate||0),commissionEnabled:active.commission_enabled!==false};
+return {payType:'monthly',monthlySalary:Number(legacySalary||0),dailyRate:0,commissionEnabled:true};
 }
 
 function formatDbTime(value){

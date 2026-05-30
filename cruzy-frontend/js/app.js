@@ -53,8 +53,8 @@ document.body.classList.remove('auth-pending');
 document.addEventListener('DOMContentLoaded',bootFromStoredSession);
 
 function visBranches(){if(!user)return[];if(user.scope==='all')return BRANCHES;if(REGIONS[user.scope])return BRANCHES.filter(b=>b.region===user.scope);return BRANCHES.filter(b=>b.id===user.scope);}
-function visEmps(){const bids=curBranch==='all'?visBranches().map(b=>b.id):[curBranch];return EMPS.filter(e=>bids.includes(e.branch));}
-function branchEmps(bid){return EMPS.filter(e=>e.branch===bid);}
+function visEmps(){const bids=curBranch==='all'?visBranches().map(b=>b.id):[curBranch];return EMPS.filter(e=>bids.includes(e.branch)||(EMP_BRANCHES[e.id]||[]).some(bid=>bids.includes(bid)));}
+function branchEmps(bid){return EMPS.filter(e=>e.branch===bid||(EMP_BRANCHES[e.id]||[]).includes(bid));}
 
 // ================================
 // SIDEBAR

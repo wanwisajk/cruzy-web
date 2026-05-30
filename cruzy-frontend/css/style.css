@@ -119,6 +119,10 @@ tr:hover{background:#FAFAFA}
 .action-btn.view{background:#E3F2FD;color:var(--info)}.action-btn.view:hover{background:var(--info);color:#fff}
 .btn{padding:6px 14px;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit}
 .btn-primary{background:var(--primary);color:#fff}.btn-ghost{background:transparent;border:1.5px solid var(--border);color:var(--text)}
+.check-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px}
+.check-grid.days{grid-template-columns:repeat(7,minmax(42px,1fr))}
+.check-row{display:flex;align-items:center;gap:6px;background:#FAFAFA;border:1px solid var(--border);border-radius:6px;padding:7px 8px;font-size:12px;cursor:pointer}
+.check-row input{accent-color:var(--primary)}
 
 /* BRANCH GRID */
 .branch-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;align-items:start}

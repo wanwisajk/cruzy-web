@@ -31,6 +31,15 @@ el.innerHTML=h;
 // ================================
 let empSub='info';
 let contractFilter='all';
+let editingEmployeeId = null;
+
+function getEmployeeSelectedBranchIds(emp){
+  return EMP_BRANCHES[emp.id] && EMP_BRANCHES[emp.id].length ? EMP_BRANCHES[emp.id] : [emp.branch].filter(Boolean);
+}
+function getEmployeeSelectedAvailDays(emp){
+  const days = EMP_AVAILABILITY_RULES.filter(r=>r.empId===emp.id&&r.type==='available').map(r=>Number(r.dayOfWeek));
+  return days.length?days:[0,1,2,3,4,5,6];
+}
 
 function renderEmployee(el){
 const st=document.getElementById('subTabs');
@@ -50,64 +59,137 @@ else{empSub='info';renderEmpInfo(el);}
 
 function renderEmpInfo(el){
 const emps=visEmps();
+const monthlyCount=emps.filter(e=>activePayProfile(e.id).payType==='monthly').length;
+const dailyCount=emps.filter(e=>activePayProfile(e.id).payType==='daily').length;
 let h=`<div class="stats-row">
 <div class="stat-card"><div class="stat-num" style="color:var(--primary)">${emps.length}</div><div class="stat-label">ทั้งหมด</div></div>
 <div class="stat-card"><div class="stat-num" style="color:var(--primary)">${emps.filter(e=>e.status==='active').length}</div><div class="stat-label">ประจำ</div></div>
-<div class="stat-card orange"><div class="stat-num" style="color:var(--accent)">${emps.filter(e=>e.status==='trial').length}</div><div class="stat-label">ทดลอง</div></div>
-<div class="stat-card blue"><div class="stat-num" style="color:var(--info)">${emps.filter(e=>e.status==='freelance').length}</div><div class="stat-label">Freelance</div></div>
+<div class="stat-card orange"><div class="stat-num" style="color:var(--accent)">${monthlyCount}</div><div class="stat-label">รายเดือน</div></div>
+<div class="stat-card blue"><div class="stat-num" style="color:var(--info)">${dailyCount}</div><div class="stat-label">รายวัน</div></div>
 </div>`;
-h+=`<div class="tw"><div class="tw-head"><h3>👤 พนักงาน</h3><button class="btn btn-primary" onclick="openAddEmployeeModal()">+ เพิ่ม</button></div><table><tr><th>รหัส</th><th>ชื่อ</th><th>ตำแหน่ง</th><th>สาขา</th><th>สถานะ</th><th>LINE</th><th>เบอร์โทร</th></tr>`;
+h+=`<div class="tw"><div class="tw-head"><h3>👤 พนักงาน</h3><button class="btn btn-primary" onclick="openAddEmployeeModal()">+ เพิ่ม</button></div><table><tr><th>รหัส</th><th>ชื่อ</th><th>ตำแหน่ง</th><th>สาขาที่ลงได้</th><th>การจ่าย</th><th>วันว่าง</th><th>สถานะ</th><th>จัดการ</th></tr>`;
 emps.forEach(e=>{const b=BRANCHES.find(x=>x.id===e.branch);
 const statusMap={trial:{cls:'trial',label:'ทดลอง'},active:{cls:'active',label:'ประจำ'},freelance:{cls:'waiting',label:'Freelance'}};
 const sm=statusMap[e.status]||statusMap.active;
-h+=`<tr><td style="font-weight:600">${e.code}</td><td><span class="emp-dot" style="background:${e.c}">${e.name[0]}</span>${e.name}</td><td>${e.pos}</td><td>${b?.code}</td><td><span class="badge ${sm.cls}">${sm.label}</span></td><td>${e.line?'✅':'❌'}</td><td>${e.phone}</td></tr>`;});
+const brs=(EMP_BRANCHES[e.id]||[e.branch]).map(bid=>BRANCHES.find(x=>x.id===bid)?.code).filter(Boolean).join(', ')||b?.code||'-';
+const pay=activePayProfile(e.id);
+const payLabel=pay.payType==='daily'?`รายวัน ฿${nf(Number(pay.dailyRate||0))}`:`รายเดือน ฿${nf(Number(pay.monthlySalary||e.salary||0))}`;
+const avail=EMP_AVAILABILITY_RULES.filter(r=>r.empId===e.id&&r.type==='available').map(r=>WEEKDAY_LABELS[r.dayOfWeek]).join(' ');
+h+=`<tr><td style="font-weight:600">${e.code}</td><td><span class="emp-dot" style="background:${e.c}">${e.name[0]}</span>${e.name}</td><td>${e.pos}</td><td>${brs}</td><td>${payLabel}${pay.commissionEnabled?' <span class="badge approved">คอม</span>':''}</td><td>${avail||'<span style="color:var(--tl)">ทุกวัน</span>'}</td><td><span class="badge ${sm.cls}">${sm.label}</span></td><td><button class="action-btn" onclick="openAddEmployeeModal('${e.id}')">แก้ไข</button></td></tr>`;});
 h+='</table></div>';
 el.innerHTML=h;
 }
 
-function openAddEmployeeModal(){
+function openAddEmployeeModal(empId){
+const emp = empId ? EMPS.find(e=>e.id===empId) : null;
+editingEmployeeId = emp?.id || null;
 const branches=visBranches();
 const defaultBranch=curBranch!=='all'?curBranch:(branches[0]?.id||'');
-const branchOptions=branches.map(b=>`<option value="${b.id}" ${b.id===defaultBranch?'selected':''}>${b.code} - ${b.name}</option>`).join('');
+const selectedBranchIds = emp ? getEmployeeSelectedBranchIds(emp) : [defaultBranch];
+const branchChecks=branches.map(b=>`<label class="check-row"><input type="checkbox" class="empBranchCheck" value="${b.id}" ${selectedBranchIds.includes(b.id)?'checked':''}> <span>${b.code} - ${b.name}</span></label>`).join('');
+const selectedAvailDays = emp ? getEmployeeSelectedAvailDays(emp) : [0,1,2,3,4,5,6];
+const dayChecks=WEEKDAY_LABELS.map((d,idx)=>`<label class="check-row"><input type="checkbox" class="empAvailCheck" value="${idx}" ${selectedAvailDays.includes(idx)?'checked':''}> <span>${d}</span></label>`).join('');
+const pay = emp ? activePayProfile(emp.id) : {payType:'monthly',monthlySalary:15000,dailyRate:500,commissionEnabled:true};
 const body=`
 <div style="font-size:12px">
-<div style="margin-bottom:10px"><label style="font-size:11px;color:var(--tl);display:block;margin-bottom:3px">รหัสพนักงาน</label><input id="empCodeInput" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:13px" placeholder="EMP009"></div>
-<div style="margin-bottom:10px"><label style="font-size:11px;color:var(--tl);display:block;margin-bottom:3px">ชื่อพนักงาน</label><input id="empNameInput" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:13px" placeholder="ชื่อ-นามสกุล"></div>
-<div style="margin-bottom:10px"><label style="font-size:11px;color:var(--tl);display:block;margin-bottom:3px">ตำแหน่ง</label><input id="empPosInput" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:13px" value="พนักงานขาย"></div>
-<div style="margin-bottom:10px"><label style="font-size:11px;color:var(--tl);display:block;margin-bottom:3px">สาขาหลัก</label><select id="empBranchInput" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px">${branchOptions}</select></div>
+<div style="margin-bottom:10px"><label style="font-size:11px;color:var(--tl);display:block;margin-bottom:3px">รหัสพนักงาน</label><input id="empCodeInput" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:13px" placeholder="EMP009" value="${emp?.code||''}"></div>
+<div style="margin-bottom:10px"><label style="font-size:11px;color:var(--tl);display:block;margin-bottom:3px">ชื่อพนักงาน</label><input id="empNameInput" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:13px" placeholder="ชื่อ-นามสกุล" value="${emp?.name||''}"></div>
+<div style="margin-bottom:10px"><label style="font-size:11px;color:var(--tl);display:block;margin-bottom:3px">ตำแหน่ง</label><input id="empPosInput" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:13px" value="${emp?.pos||'พนักงานขาย'}"></div>
+<div style="margin-bottom:10px"><label style="font-size:11px;color:var(--tl);display:block;margin-bottom:3px">ลงสาขาไหนได้บ้าง</label><div class="check-grid">${branchChecks}</div></div>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
-<div><label style="font-size:11px;color:var(--tl);display:block;margin-bottom:3px">สถานะ</label><select id="empStatusInput" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px"><option value="active">ประจำ</option><option value="trial">ทดลอง</option><option value="freelance">Freelance</option></select></div>
-<div><label style="font-size:11px;color:var(--tl);display:block;margin-bottom:3px">เงินเดือน</label><input id="empSalaryInput" type="number" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:13px" value="15000"></div>
+<div><label style="font-size:11px;color:var(--tl);display:block;margin-bottom:3px">สถานะ</label><select id="empStatusInput" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px"><option value="active" ${emp?.status==='active'?'selected':''}>ประจำ</option><option value="trial" ${emp?.status==='trial'?'selected':''}>ทดลอง</option><option value="freelance" ${emp?.status==='freelance'?'selected':''}>Freelance</option></select></div>
+<div><label style="font-size:11px;color:var(--tl);display:block;margin-bottom:3px">รูปแบบจ่าย</label><select id="empPayTypeInput" onchange="togglePayTypeFields()" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px"><option value="monthly" ${pay.payType==='monthly'?'selected':''}>รายเดือน</option><option value="daily" ${pay.payType==='daily'?'selected':''}>รายวัน</option></select></div>
 </div>
-<div style="margin-bottom:10px"><label style="font-size:11px;color:var(--tl);display:block;margin-bottom:3px">สีประจำตัว</label><input id="empColorInput" type="color" style="width:100%;height:38px;padding:3px;border:1.5px solid var(--border);border-radius:8px" value="#4CAF50"></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+<div id="empSalaryFieldDiv" style="display:grid"><label style="font-size:11px;color:var(--tl);display:block;margin-bottom:3px">เงินเดือน</label><input id="empSalaryInput" type="number" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:13px" value="${pay.monthlySalary||15000}"></div>
+<div id="empDailyRateFieldDiv" style="display:none"><label style="font-size:11px;color:var(--tl);display:block;margin-bottom:3px">ค่าแรง/วัน</label><input id="empDailyRateInput" type="number" style="width:100%;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:13px" value="${pay.dailyRate||500}"></div>
+</div>
+<div style="margin-bottom:10px"><label class="check-row"><input id="empCommissionInput" type="checkbox" ${pay.commissionEnabled?'checked':''}> <span>มีสิทธิ์รับค่าคอม</span></label></div>
+<div style="margin-bottom:10px"><label style="font-size:11px;color:var(--tl);display:block;margin-bottom:3px">วันว่างประจำ</label><div class="check-grid days">${dayChecks}</div></div>
+<div style="margin-bottom:10px"><label style="font-size:11px;color:var(--tl);display:block;margin-bottom:3px">สีประจำตัว</label><input id="empColorInput" type="color" style="width:100%;height:38px;padding:3px;border:1.5px solid var(--border);border-radius:8px" value="${emp?.c||'#4CAF50'}"></div>
 </div>`;
-openModal('➕ เพิ่มพนักงาน',body,`<button class="btn btn-ghost" onclick="closeModal()">ยกเลิก</button><button class="btn btn-primary" onclick="saveEmployee()">บันทึก</button>`);
+const title = emp ? '✏️ แก้ไขพนักงาน' : '➕ เพิ่มพนักงาน';
+const actionLabel = emp ? 'อัปเดต' : 'บันทึก';
+openModal(title,body,`<button class="btn btn-ghost" onclick="closeModal()">ยกเลิก</button><button class="btn btn-primary" onclick="saveEmployee()">${actionLabel}</button>`);
+setTimeout(()=>togglePayTypeFields(),0);
+}
+
+function togglePayTypeFields(){
+const payType=document.getElementById('empPayTypeInput')?.value||'monthly';
+const salaryDiv=document.getElementById('empSalaryFieldDiv');
+const dailyDiv=document.getElementById('empDailyRateFieldDiv');
+if(payType==='monthly'){
+if(salaryDiv)salaryDiv.style.display='grid';
+if(dailyDiv)dailyDiv.style.display='none';
+}else{
+if(salaryDiv)salaryDiv.style.display='none';
+if(dailyDiv)dailyDiv.style.display='grid';
+}
 }
 
 async function saveEmployee(){
 const code=document.getElementById('empCodeInput').value.trim();
 const name=document.getElementById('empNameInput').value.trim();
 const pos=document.getElementById('empPosInput').value.trim()||'พนักงานขาย';
-const branchId=document.getElementById('empBranchInput').value;
+const branchIds=[...document.querySelectorAll('.empBranchCheck:checked')].map(x=>x.value);
+const branchId=branchIds[0];
 const branch=BRANCHES.find(b=>b.id===branchId);
 const status=document.getElementById('empStatusInput').value;
+const payType=document.getElementById('empPayTypeInput').value;
 const salary=Number(document.getElementById('empSalaryInput').value||0);
+const dailyRate=Number(document.getElementById('empDailyRateInput').value||0);
+const commissionEnabled=document.getElementById('empCommissionInput').checked;
+const availableDays=[...document.querySelectorAll('.empAvailCheck:checked')].map(x=>Number(x.value));
 const color=document.getElementById('empColorInput').value;
-if(!code||!name||!branch){toast('กรุณากรอกรหัส ชื่อ และสาขา');return;}
-const id=code.toLowerCase().replace(/[^a-z0-9_-]/g,'')||`emp_${Date.now()}`;
+if(!code||!name||!branch){toast('กรุณากรอกรหัส ชื่อ และสาขาที่ลงได้');return;}
+if(payType==='monthly' && salary<=0){toast('กรุณาใส่เงินเดือนให้ถูกต้อง');return;}
+if(payType==='daily' && dailyRate<=0){toast('กรุณาใส่ค่าแรง/วันให้ถูกต้อง');return;}
+const id = editingEmployeeId || code.toLowerCase().replace(/[^a-z0-9_-]/g,'') || `emp_${Date.now()}`;
+const branchEligibility=branchIds.map((bid,idx)=>({branchId:bid,canWork:true,isPreferred:idx===0,priority:idx===0?10:0,commissionEligible:commissionEnabled}));
+const availabilityRules=WEEKDAY_LABELS.map((_,idx)=>({dayOfWeek:idx,availabilityType:availableDays.includes(idx)?'available':'unavailable'}));
+const payProfile={payType,monthlySalary:salary,dailyRate,commissionEnabled,effectiveFrom:new Date().toISOString().slice(0,10)};
+const payload={
+  id,
+  name,
+  code,
+  color,
+  position:pos,
+  salary:payType==='monthly'?salary:dailyRate,
+  status,
+  regionId:branch.region,
+  branchEligibility,
+  availabilityRules,
+  payProfile
+};
 try{
-const res=await fetch(`${API_URL}/employees`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,name,code,color,position:pos,salary,status,regionId:branch.region})});
-const result=await res.json().catch(()=>({}));
-if(!res.ok)throw new Error(result.message||'เพิ่มพนักงานไม่สำเร็จ');
-const e=result.data;
-EMPS.push({id:e.id,name:e.name,code:e.code,c:e.color||color,branch:branchId,pos:e.position||pos,phone:'-',line:false,start:'',status:e.status||status,salary:Number(e.salary||salary),region:e.region_id||branch.region});
-LBAL[e.id]={a:6,v:6,s:0,p:0};
-EMP_BRANCHES[e.id]=[branchId];
-toast('✅ เพิ่มพนักงานสำเร็จ');
-closeModal();
-buildSidebar();
-render();
-}catch(err){toast(err.message||'เพิ่มพนักงานไม่สำเร็จ');}
+  if(editingEmployeeId){
+    const basePayload={
+      name,
+      code,
+      position:pos,
+      salary:payType==='monthly'?salary:dailyRate,
+      status,
+      regionId:branch.region
+    };
+    const res=await fetch(`${API_URL}/employees/${editingEmployeeId}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(basePayload)});
+    const result=await res.json().catch(()=>({}));
+    if(!res.ok)throw new Error(result.message||'อัปเดตพนักงานไม่สำเร็จ');
+    const ruleRes=await fetch(`${API_URL}/employees/${editingEmployeeId}/work-rules`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({branchEligibility,availabilityRules,payProfile})});
+    const ruleResult=await ruleRes.json().catch(()=>({}));
+    if(!ruleRes.ok)throw new Error(ruleResult.message||'อัปเดตกติกาพนักงานไม่สำเร็จ');
+    toast('✅ แก้ไขพนักงานสำเร็จ');
+  } else {
+    const res=await fetch(`${API_URL}/employees`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const result=await res.json().catch(()=>({}));
+    if(!res.ok)throw new Error(result.message||'เพิ่มพนักงานไม่สำเร็จ');
+    toast(result.message||'✅ เพิ่มพนักงานสำเร็จ');
+  }
+  editingEmployeeId=null;
+  closeModal();
+  if(typeof loadConsoleData==='function') await loadConsoleData();
+  buildSidebar();
+  render();
+}catch(err){toast(err.message||'ไม่สามารถบันทึกข้อมูลพนักงานได้');}
 }
 
 function renderEmpContracts(el){
@@ -300,3 +382,27 @@ el.innerHTML=h;
 
 // ================================
 // SALES
+
+function renderPayroll(el){
+const emps=visEmps();
+const rows=emps.map(e=>({e,summary:employeePayrollSummary(e.id,selDate,selDateTo)}));
+const totalBase=rows.reduce((sum,row)=>sum+row.summary.basePay,0);
+const dailyRows=rows.filter(row=>row.summary.profile.payType==='daily');
+const monthlyRows=rows.filter(row=>row.summary.profile.payType==='monthly');
+let h=`<div class="stats-row">
+<div class="stat-card"><div class="stat-num" style="color:var(--primary)">฿${nf(totalBase)}</div><div class="stat-label">ฐานเงินเดือน/ค่าแรง</div></div>
+<div class="stat-card orange"><div class="stat-num" style="color:var(--accent)">${monthlyRows.length}</div><div class="stat-label">รายเดือน</div></div>
+<div class="stat-card blue"><div class="stat-num" style="color:var(--info)">${dailyRows.length}</div><div class="stat-label">รายวัน</div></div>
+<div class="stat-card red"><div class="stat-num" style="color:var(--danger)">${rows.reduce((s,r)=>s+r.summary.lateMinutes,0)}</div><div class="stat-label">นาทีสาย</div></div>
+</div>`;
+h+=`<div class="tw"><div class="tw-head"><h3>💵 สรุปค่าจ้าง (${thD(selDate)}${selDate!==selDateTo?' — '+thD(selDateTo):''})</h3></div><table><tr><th>พนักงาน</th><th>รูปแบบ</th><th>วันทำงาน</th><th>ฐานจ่าย</th><th>สาย</th><th>ค่าคอม</th><th>หมายเหตุ</th></tr>`;
+rows.forEach(({e,summary})=>{
+const p=summary.profile;
+const payType=p.payType==='daily'?'รายวัน':'รายเดือน';
+const rate=p.payType==='daily'?`฿${nf(p.dailyRate)}/วัน`:`฿${nf(p.monthlySalary||e.salary)}/เดือน`;
+const note=p.payType==='daily'?'คิดจากวันทำงานจริง':'ฐานรายเดือน ยังไม่รวมขาด/หัก';
+h+=`<tr><td><span class="emp-dot" style="background:${e.c}">${e.name[0]}</span>${e.name}</td><td>${payType}<div style="font-size:10px;color:var(--tl)">${rate}</div></td><td>${summary.workedDays}</td><td style="font-weight:700">฿${nf(summary.basePay)}</td><td style="color:${summary.lateMinutes?'var(--danger)':'var(--text)'}">${summary.lateMinutes} นาที</td><td>${summary.commissionEnabled?'<span class="badge approved">เปิด</span>':'<span class="badge expired">ปิด</span>'}</td><td style="color:var(--tl);font-size:11px">${note}</td></tr>`;
+});
+h+='</table></div>';
+el.innerHTML=h;
+}
