@@ -1,32 +1,11 @@
-import { AlertTriangle, Banknote, ClipboardList, FileWarning, Search, Shield, UserRound, UsersRound } from 'lucide-react';
+import { AlertTriangle, Banknote, ClipboardList, FileWarning, Search, Shield, UsersRound } from 'lucide-react';
 import { Avatar } from '../components/Avatar';
+import { Badge } from '../components/ui/Badge';
+import { Card } from '../components/ui/Card';
 import { numberTH, thaiShortDate } from '../lib/date';
 import { getVisibleBranches } from '../lib/schedule';
+import { Content, Table } from './ViewLayout';
 
-export function EmployeeView({ data, user, currentBranch }) {
-  const branchIds = getVisibleBranches(data, user, currentBranch).map((branch) => branch.id);
-  const employees = data.employees.filter((employee) => branchIds.includes(employee.branch) || (data.employeeBranches[employee.id] || []).some((id) => branchIds.includes(id)));
-  return (
-    <Content title="พนักงาน" icon={UserRound} stats={[['ทั้งหมด', employees.length], ['Active', employees.filter((e) => e.status === 'active').length], ['สาขาที่เลือก', branchIds.length]]}>
-      <div className="card overflow-hidden">
-        <Table headers={['พนักงาน', 'ตำแหน่ง', 'สาขาหลัก', 'สถานะ', 'เงินเดือน']}>
-          {employees.map((employee) => {
-            const branch = data.branches.find((item) => item.id === employee.branch);
-            return (
-              <tr key={employee.id} className="hover:bg-slate-50">
-                <td className="px-3 py-2"><div className="flex items-center gap-2"><Avatar employee={employee} /> <span className="font-semibold">{employee.name}</span><span className="text-slate-400">{employee.code}</span></div></td>
-                <td className="px-3 py-2">{employee.position}</td>
-                <td className="px-3 py-2">{branch?.code || '-'}</td>
-                <td className="px-3 py-2"><Badge tone={employee.status === 'active' ? 'green' : 'gray'}>{employee.status}</Badge></td>
-                <td className="px-3 py-2">{numberTH(employee.salary)}</td>
-              </tr>
-            );
-          })}
-        </Table>
-      </div>
-    </Content>
-  );
-}
 
 export function LeaveView({ data, user, currentBranch }) {
   const branchIds = getVisibleBranches(data, user, currentBranch).map((branch) => branch.id);
@@ -172,27 +151,4 @@ export function AccessView({ data, user }) {
   );
 }
 
-function Content({ title, icon: Icon, stats, children }) {
-  return (
-    <div className="p-5">
-      <div className="mb-4 flex items-center gap-2 text-cruzy"><Icon size={20} /><h2 className="text-lg font-bold">{title}</h2></div>
-      {stats.length ? <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-3">{stats.map(([label, value]) => <div key={label} className="stat border-cruzy"><div className="text-2xl font-bold text-cruzy">{value}</div><div className="mt-1 text-[11px] text-slate-500">{label}</div></div>)}</div> : null}
-      {children}
-    </div>
-  );
-}
 
-function Table({ headers, children }) {
-  return <div className="overflow-x-auto"><table className="w-full border-collapse text-xs"><thead><tr>{headers.map((head) => <th key={head} className="border-b-2 border-slate-200 bg-[#fafafa] px-3 py-2 text-left text-[11px] font-bold text-slate-500">{head}</th>)}</tr></thead><tbody>{children}</tbody></table></div>;
-}
-
-function Badge({ tone = 'gray', children }) {
-  const classes = {
-    green: 'bg-cruzy-50 text-cruzy',
-    red: 'bg-red-50 text-red-700',
-    orange: 'bg-orange-50 text-orange-700',
-    blue: 'bg-blue-50 text-blue-700',
-    gray: 'bg-slate-100 text-slate-500'
-  };
-  return <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ${classes[tone]}`}>{children}</span>;
-}

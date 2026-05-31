@@ -276,7 +276,7 @@ function AssignModal({ target, data, user, from, to, onClose, onAdd }) {
           <button key={candidate.employee.id} disabled={candidate.disabled} onClick={() => onAdd(target.branchId, target.date, candidate.employee.id)} className="flex w-full items-center gap-3 rounded-lg border-b border-slate-100 px-2 py-2 text-left hover:bg-cruzy-50 disabled:opacity-40">
             <Avatar employee={candidate.employee} />
             <div className="min-w-0 flex-1">
-              <div className="truncate text-xs font-bold">{candidate.employee.name} ({candidate.employee.code})</div>
+              <div className="truncate text-xs font-bold">{candidate.employee.name} ({candidate.employee.id})</div>
               <div className="text-[10px] text-slate-500">{candidate.employee.position} · คะแนน {candidate.score}</div>
             </div>
             <div className="flex flex-wrap justify-end gap-1">

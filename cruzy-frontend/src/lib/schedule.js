@@ -92,7 +92,7 @@ export function scheduleCandidates(data, user, branchId, date, opts = {}) {
     const available = isEmployeeAvailable(data, employee.id, date);
     const alreadyIn = existing.includes(employee.id);
     const score = scheduleCandidateScore(data, scopeBranches, employee, branchId, date, opts.from, opts.to);
-    const disabled = alreadyIn || Boolean(busyAt) || !canBranch || !available || employee.status === 'inactive';
+    const disabled = alreadyIn || Boolean(busyAt) || !canBranch || !available;
     return { employee, busyAt, canBranch, available, alreadyIn, score, disabled };
   }).sort((a, b) => Number(a.disabled) - Number(b.disabled) || b.score - a.score || a.employee.name.localeCompare(b.employee.name));
 }

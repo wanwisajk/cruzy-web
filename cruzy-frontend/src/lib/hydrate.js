@@ -68,11 +68,10 @@ export function hydrateConsoleData(data = {}) {
     return {
       id: employee.id,
       name: employee.name,
-      code: employee.code,
+      code: employee.id,
       color: employee.color || '#4CAF50',
       branch: primaryBranches[employee.id] || employee.branch_id || fallbackBranch,
       position: employee.position || 'พนักงานขาย',
-      status: employee.status || 'active',
       salary: Number(employee.salary || pay.monthlySalary || 0),
       region: employee.region_id || '',
       payType: pay.payType,

@@ -9,7 +9,8 @@ import { api } from './lib/api';
 import { fmtDate } from './lib/date';
 import { hydrateConsoleData } from './lib/hydrate';
 import { ScheduleView } from './views/ScheduleView';
-import { AccessView, AlertsView, AuditLogView, CommissionView, EmployeeView, InspectionView, LeaveView, SalesView, WarningView } from './views/SimpleViews';
+import { AccessView, AlertsView, AuditLogView, CommissionView, InspectionView, LeaveView, SalesView, WarningView } from './views/SimpleViews';
+import { EmployeeView } from './views/EmployeeView';
 
 const sessionKey = 'cruzyAdminSession';
 
@@ -119,7 +120,7 @@ export default function App() {
         <DateBar from={from} to={to} setFrom={setFrom} setTo={setTo} />
         {currentTab === 'schedule' ? <ScheduleView data={data} setData={setData} user={user} currentBranch={currentBranch} from={from} to={to} toast={push} /> : null}
         {currentTab === 'leave' ? <LeaveView data={data} user={user} currentBranch={currentBranch} /> : null}
-        {currentTab === 'employee' ? <EmployeeView data={data} user={user} currentBranch={currentBranch} /> : null}
+        {currentTab === 'employee' ? <EmployeeView data={data} user={user} currentBranch={currentBranch} setData={setData} toast={push} /> : null}
         {currentTab === 'sales' ? <SalesView data={data} user={user} currentBranch={currentBranch} from={from} to={to} /> : null}
         {currentTab === 'commission' ? <CommissionView data={data} user={user} currentBranch={currentBranch} /> : null}
         {currentTab === 'inspection' ? <InspectionView data={data} user={user} currentBranch={currentBranch} /> : null}

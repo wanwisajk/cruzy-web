@@ -24,6 +24,10 @@ export const api = {
     body: JSON.stringify({ username, password })
   }),
   consoleData: () => request('/console/data'),
+  createEmployee: (body) => request('/employees', {
+    method: 'POST',
+    body: JSON.stringify(body)
+  }),
   assignSchedule: (body) => request('/schedule/assign', {
     method: 'POST',
     body: JSON.stringify(body)
