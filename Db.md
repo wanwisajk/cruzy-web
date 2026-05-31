@@ -49,6 +49,21 @@
 | `is_active` | `bool` |  Nullable |
 | `created_at` | `timestamptz` |  Nullable |
 
+## Table `branch_staffing_rules`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `int8` | Primary Identity |
+| `branch_id` | `varchar` |  Nullable |
+| `day_of_week` | `int4` |  |
+| `required_staff` | `int4` |  Nullable |
+| `shift_start` | `time` |  Nullable |
+| `shift_end` | `time` |  Nullable |
+| `is_active` | `bool` |  Nullable |
+| `created_at` | `timestamptz` |  Nullable |
+
 ## Table `branches`
 
 ### Columns
@@ -90,6 +105,69 @@
 | `contract_type` | `varchar` |  |
 | `start_date` | `date` |  |
 | `end_date` | `date` |  |
+| `created_at` | `timestamptz` |  Nullable |
+
+## Table `employee_availability_overrides`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `int8` | Primary Identity |
+| `employee_id` | `varchar` |  Nullable |
+| `work_date` | `date` |  |
+| `availability_type` | `varchar` |  |
+| `start_time` | `time` |  Nullable |
+| `end_time` | `time` |  Nullable |
+| `reason` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  Nullable |
+
+## Table `employee_availability_rules`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `int8` | Primary Identity |
+| `employee_id` | `varchar` |  Nullable |
+| `day_of_week` | `int4` |  |
+| `availability_type` | `varchar` |  |
+| `start_time` | `time` |  Nullable |
+| `end_time` | `time` |  Nullable |
+| `note` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  Nullable |
+
+## Table `employee_branch_eligibility`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `int8` | Primary Identity |
+| `employee_id` | `varchar` |  |
+| `branch_id` | `varchar` |  |
+| `can_work` | `bool` |  Nullable |
+| `is_preferred` | `bool` |  Nullable |
+| `priority` | `int4` |  Nullable |
+| `commission_eligible` | `bool` |  Nullable |
+| `note` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  Nullable |
+
+## Table `employee_pay_profiles`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `int8` | Primary Identity |
+| `employee_id` | `varchar` |  Nullable |
+| `pay_type` | `varchar` |  |
+| `monthly_salary` | `int4` |  Nullable |
+| `daily_rate` | `int4` |  Nullable |
+| `commission_enabled` | `bool` |  Nullable |
+| `effective_from` | `date` |  |
+| `effective_to` | `date` |  Nullable |
+| `is_active` | `bool` |  Nullable |
 | `created_at` | `timestamptz` |  Nullable |
 
 ## Table `employees`
@@ -174,6 +252,10 @@
 | `employee_id` | `varchar` |  |
 | `work_date` | `date` |  |
 | `created_at` | `timestamptz` |  Nullable |
+| `shift_start` | `time` |  Nullable |
+| `shift_end` | `time` |  Nullable |
+| `status` | `varchar` |  Nullable |
+| `note` | `text` |  Nullable |
 
 ## Table `store_inspections`
 

@@ -1,61 +1,16 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="th">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cruzy Admin — Dashboard v2</title>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="./css/style.css">
-</head>
-<body class="auth-pending">
-
-<!-- LOGIN -->
-<div class="login-overlay" id="loginOverlay">
-<div class="login-box">
-<div class="logo">🏢</div>
-<h1>Cruzy Admin</h1>
-<div class="sub">Dashboard v2 — Branch Sidebar + Date Picker</div>
-<div class="fg"><label>Username</label><input type="text" id="loginUser" placeholder="username"/></div>
-<div class="fg"><label>Password</label><input type="password" id="loginPass" placeholder="password" onkeypress="if(event.key==='Enter')doLogin()"/></div>
-<button class="login-btn" onclick="doLogin()">เข้าสู่ระบบ</button>
-<div class="login-error" id="loginError">Username หรือ Password ไม่ถูกต้อง</div>
-</div>
-</div>
-
-<!-- NAV -->
-<nav class="nav" id="mainNav" style="display:none">
-<div style="display:flex;align-items:center;gap:8px"><h1>📋 Cruzy Admin</h1><span class="nav-badge"><span class="dot"></span><span id="navRole">Owner</span></span></div>
-<div class="nav-right"><span class="nav-user" id="navUser">👑 owner</span><button class="nav-btn" onclick="logout()">🚪 ออก</button></div>
-</nav>
-
-<!-- APP -->
-<div class="app" id="app" style="display:none">
-
-<!-- SIDEBAR -->
-<div class="sidebar" id="sidebar"></div>
-
-<!-- MAIN -->
-<div class="main" id="mainArea">
-<div class="date-bar" id="dateBar"></div>
-<div class="sub-tabs" id="subTabs"></div>
-<div class="content" id="content"></div>
-</div>
-</div>
-
-<div class="toasts" id="toasts"></div>
-<div class="overlay" id="overlay" onclick="if(event.target===this)closeModal()">
-<div class="modal"><div class="m-head"><h2 id="mTitle"></h2><button class="m-close" onclick="closeModal()">&times;</button></div><div class="m-body" id="mBody"></div><div class="m-foot" id="mFoot"></div></div>
-</div>
-
-<script src="./app-config.js"></script>
-<script src="./js/data.js"></script>
-<script src="./js/app.js"></script>
-<script src="./js/modules/employee-logic.js"></script>
-<script src="./js/modules/schedule.js"></script>
-<script src="./js/modules/employee.js"></script>
-<script src="./js/modules/sales.js"></script>
-<script src="./js/modules/inspection.js"></script>
-<script src="./js/modules/alerts.js"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cruzy Admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script src="/app-config.js"></script>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
 </html>
-
