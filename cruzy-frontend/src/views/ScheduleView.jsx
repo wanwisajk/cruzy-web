@@ -5,6 +5,7 @@ import { Modal } from '../components/Modal';
 import { dateRange, fmtDate, thaiShortDate } from '../lib/date';
 import { getVisibleBranches, recommendedEmployees, requiredStaffFor, scheduleCandidates, shiftFor } from '../lib/schedule';
 import { api } from '../lib/api';
+import { BranchSettings } from './BranchSettings';
 
 export function ScheduleView({ data, setData, user, currentBranch, from, to, toast }) {
   const [view, setView] = useState('planner');
@@ -74,6 +75,8 @@ export function ScheduleView({ data, setData, user, currentBranch, from, to, toa
       <div className="flex shrink-0 overflow-x-auto border-b border-slate-200 bg-[#fafafa] scrollbar-none">
         <button className={`px-4 py-2.5 text-xs font-bold ${view === 'planner' ? 'border-b-2 border-cruzy text-cruzy' : 'text-slate-500 hover:text-cruzy'}`} onClick={() => setView('planner')}>จัดตาราง</button>
         <button className={`px-4 py-2.5 text-xs font-bold ${view === 'overview' ? 'border-b-2 border-cruzy text-cruzy' : 'text-slate-500 hover:text-cruzy'}`} onClick={() => setView('overview')}>ภาพรวม</button>
+       <button className={`px-4 py-2.5 text-xs font-bold ${view === 'branches' ? 'border-b-2 border-cruzy text-cruzy' : 'text-slate-500 hover:text-cruzy'}`} onClick={() => setView('branches')}>ตั้งค่าสาขา</button>
+
       </div>
       <div className="p-5">
         {view === 'planner' ? (
@@ -91,8 +94,10 @@ export function ScheduleView({ data, setData, user, currentBranch, from, to, toa
             onQuickAdd={addToSchedule}
             onRemove={removeFromSchedule}
           />
-        ) : (
+        ) : view === 'overview' ? (
           <Overview data={data} branches={branches} date={from} onAssign={setAssignTarget} />
+        ) : (
+          <BranchSettings />
         )}
       </div>
       <AssignModal

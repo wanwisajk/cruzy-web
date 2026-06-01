@@ -24,6 +24,8 @@ export const api = {
     body: JSON.stringify({ username, password })
   }),
   consoleData: () => request('/console/data'),
+  
+  // Employees
   createEmployee: (body) => request('/employees', {
     method: 'POST',
     body: JSON.stringify(body)
@@ -32,6 +34,23 @@ export const api = {
     method: 'PATCH',
     body: JSON.stringify(body)
   }),
+  
+  // Branches
+  getBranches: () => request('/branches'),
+  getRegions: () => request('/regions'),
+  createBranch: (body) => request('/branches', {
+    method: 'POST',
+    body: JSON.stringify(body)
+  }),
+  updateBranch: (id, body) => request(`/branches/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body)
+  }),
+  deleteBranch: (id) => request(`/branches/${id}`, {
+    method: 'DELETE'
+  }),
+  
+  // Schedule
   assignSchedule: (body) => request('/schedule/assign', {
     method: 'POST',
     body: JSON.stringify(body)

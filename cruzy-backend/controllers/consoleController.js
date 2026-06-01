@@ -79,6 +79,34 @@ function toNumber(value, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+function parseInteger(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const n = Number(value);
+  return Number.isInteger(n) ? n : null;
+}
+
+function requiredNumbers(res, body, fields) {
+  const missing = [];
+  const invalid = [];
+  for (const field of fields) {
+    const value = body[field];
+    if (value === undefined || value === null || value === '') {
+      missing.push(field);
+      continue;
+    }
+    if (parseInteger(value) === null) invalid.push(field);
+  }
+  if (missing.length) {
+    res.status(400).json({ message: `ข้อมูลไม่ครบถ้วน: ${missing.join(', ')}` });
+    return false;
+  }
+  if (invalid.length) {
+    res.status(400).json({ message: `ข้อมูลต้องเป็นตัวเลข: ${invalid.join(', ')}` });
+    return false;
+  }
+  return true;
+}
+
 function cleanEmployeePayload(body) {
   return {
     id: body.id,
@@ -86,7 +114,7 @@ function cleanEmployeePayload(body) {
     color: body.color || body.c || '#4CAF50',
     position: body.position || body.pos || null,
     salary: body.salary === undefined ? null : toNumber(body.salary),
-    region_id: body.regionId || body.region_id || null,
+    region_id: parseInteger(body.regionId ?? body.region_id),
     nickname: body.nickname || null,
     phone: body.phone || null,
     line_user_id: body.line_user_id || null
@@ -114,7 +142,7 @@ async function deleteEmployeeCascade(employeeId) {
 function cleanBranchEligibilityPayload(employeeId, row) {
   return {
     employee_id: employeeId,
-    branch_id: row.branchId || row.branch_id,
+    branch_id: parseInteger(row.branchId ?? row.branch_id),
     can_work: row.canWork === undefined ? row.can_work !== false : Boolean(row.canWork),
     is_preferred: row.isPreferred === undefined ? Boolean(row.is_preferred) : Boolean(row.isPreferred),
     priority: toNumber(row.priority, 0),
@@ -287,7 +315,6 @@ async function trySaveEmployeeWorkRules(employeeId, body) {
 
 function cleanBankAccountPayload(body) {
   return {
-    id: body.id || `bank_${Date.now()}`,
     bank_name: body.bankName || body.bank_name,
     bank_short: body.bankShort || body.bank_short,
     account_no: body.accountNo || body.account_no,
@@ -358,17 +385,169 @@ exports.listEmployees = async (_req, res) => {
 
 exports.listBranches = async (_req, res) => {
   try {
-    res.json(await fetchTable(TABLES.branches));
+    const branches = await fetchTable(TABLES.branches);
+    const staffingRules = await fetchOptionalTable(TABLES.branchStaffingRules);
+    res.json(mergeBranchStaffing(branches, staffingRules));
   } catch (error) {
     console.error('listBranches failed:', error);
     res.status(500).json({ message: 'ไม่สามารถดึงข้อมูลสาขาได้', error: error.message });
   }
 };
 
+exports.getRegions = async (_req, res) => {
+  try {
+    const regions = await fetchTable(TABLES.regions);
+    res.json(regions);
+  } catch (error) {
+    console.error('getRegions failed:', error);
+    res.status(500).json({ message: 'ไม่สามารถดึงข้อมูลภูมิภาคได้', error: error.message });
+  }
+};
+
+
+// Helper: Convert Thai day abbreviations to SQL day_of_week
+const DAY_MAP = {
+  '?': 1,  // Monday
+  '?': 2,  // Tuesday
+  '?': 3,  // Wednesday
+  '??': 4, // Thursday
+  '?': 5,  // Friday
+  '?': 6,  // Saturday
+  '??': 0  // Sunday
+};
+
+const DEFAULT_BRANCH_HOURS = { จ:'10:00', อ:'10:00', พ:'10:00', พฤ:'10:00', ศ:'10:00', ส:'10:00', อา:'10:00' };
+const DEFAULT_BRANCH_CLOSE = { จ:'21:00', อ:'21:00', พ:'21:00', พฤ:'21:00', ศ:'21:00', ส:'21:00', อา:'21:00' };
+const DAY_NUMBER_TO_KEY = { 1:'จ', 2:'อ', 3:'พ', 4:'พฤ', 5:'ศ', 6:'ส', 0:'อา' };
+
+function extractStaffingRules(branchId, form) {
+  const rules = [];
+  Object.entries(DAY_MAP).forEach(([dayAbbr, dayOfWeek]) => {
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    const requiredStaff = isWeekend ? (form.minWeekend || 1) : (form.minWeekday || 1);
+    const shiftStart = form.hours?.[dayAbbr] || '10:00';
+    const shiftEnd = form.hoursEnd?.[dayAbbr] || '21:00';
+    rules.push({
+      branch_id: branchId,
+      day_of_week: dayOfWeek,
+      required_staff: requiredStaff,
+      shift_start: `${shiftStart}:00`,
+      shift_end: `${shiftEnd}:00`,
+      is_active: true
+    });
+  });
+  return rules;
+}
+
+function mergeBranchStaffing(branches, rules) {
+  return branches.map((branch) => {
+    const branchRules = rules.filter((r) => r.branch_id === branch.id);
+    const hours = { ...DEFAULT_BRANCH_HOURS };
+    const hoursEnd = { ...DEFAULT_BRANCH_CLOSE };
+    let minWeekday = 1;
+    let minWeekend = 1;
+
+    branchRules.forEach((rule) => {
+      const dayKey = DAY_NUMBER_TO_KEY[rule.day_of_week];
+      if (dayKey) {
+        hours[dayKey] = (rule.shift_start || '10:00:00').slice(0, 5);
+        hoursEnd[dayKey] = (rule.shift_end || '21:00:00').slice(0, 5);
+      }
+      if ([1, 2, 3, 4, 5].includes(rule.day_of_week)) {
+        minWeekday = Math.max(minWeekday, Number(rule.required_staff) || 1);
+      } else if ([6, 0].includes(rule.day_of_week)) {
+        minWeekend = Math.max(minWeekend, Number(rule.required_staff) || 1);
+      }
+    });
+
+    return {
+      ...branch,
+      minWeekday,
+      minWeekend,
+      hours,
+      hoursEnd
+    };
+  });
+}
+
+exports.createBranch = async (req, res) => {
+  try {
+    const payload = req.body;
+    if (!required(res, payload, ['name', 'code', 'region_id'])) return;
+    const regionId = parseInteger(payload.region_id ?? payload.regionId);
+    if (regionId === null) return res.status(400).json({ message: 'region_id ต้องเป็นตัวเลข' });
+
+    const branchData = { name: payload.name, code: payload.code, region_id: regionId };
+    const { data, error } = await supabase.from(TABLES.branches).insert([branchData]).select().single();
+    if (error) throw error;
+    const branchId = data.id;
+    let branchResponse = data;
+    if (payload.minWeekday || payload.hours || payload.hoursEnd) {
+      const staffingRules = extractStaffingRules(branchId, payload);
+      const { error: staffError } = await supabase.from(TABLES.branchStaffingRules).insert(staffingRules);
+      if (staffError) throw staffError;
+      branchResponse = mergeBranchStaffing([data], staffingRules)[0];
+    } else {
+      branchResponse = mergeBranchStaffing([data], [] )[0];
+    }
+    res.status(201).json({ message: 'เพิ่มสาขาสำเร็จ', data: branchResponse });
+  } catch (error) {
+    console.error('createBranch failed:', error);
+    res.status(500).json({ message: 'ไม่สามารถเพิ่มสาขาได้', error: error.message });
+  }
+};
+
+exports.updateBranch = async (req, res) => {
+  try {
+    const id = parseInteger(req.params.id);
+    if (id === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
+
+    const payload = req.body;
+    const branchData = {
+      name: payload.name,
+      code: payload.code,
+      region_id: payload.regionId !== undefined || payload.region_id !== undefined ? parseInteger(payload.regionId ?? payload.region_id) : undefined
+    };
+    if (branchData.region_id === null) return res.status(400).json({ message: 'region_id ต้องเป็นตัวเลข' });
+
+    const { data, error } = await supabase.from(TABLES.branches).update(branchData).eq('id', id).select().single();
+    if (error) throw error;
+    let branchResponse = mergeBranchStaffing([data], [] )[0];
+    if (payload.minWeekday !== undefined || payload.minWeekend !== undefined || payload.hours || payload.hoursEnd) {
+      await supabase.from(TABLES.branchStaffingRules).delete().eq('branch_id', id);
+      const staffingRules = extractStaffingRules(id, payload);
+      const { error: staffError } = await supabase.from(TABLES.branchStaffingRules).insert(staffingRules);
+      if (staffError) throw staffError;
+      branchResponse = mergeBranchStaffing([data], staffingRules)[0];
+    }
+    res.json({ message: 'อัปเดตสาขาสำเร็จ', data: branchResponse });
+  } catch (error) {
+    console.error('updateBranch failed:', error);
+    res.status(500).json({ message: 'ไม่สามารถอัปเดตสาขาได้', error: error.message });
+  }
+};
+
+exports.deleteBranch = async (req, res) => {
+  try {
+    const id = parseInteger(req.params.id);
+    if (id === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
+
+    const { error } = await supabase
+      .from(TABLES.branches)
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+    res.json({ message: 'ลบสาขาสำเร็จ' });
+  } catch (error) {
+    console.error('deleteBranch failed:', error);
+    res.status(500).json({ message: 'ไม่สามารถลบสาขาได้', error: error.message });
+  }
+};
+
 exports.createBankAccount = async (req, res) => {
   try {
     const payload = cleanBankAccountPayload(req.body);
-    if (!required(res, payload, ['id', 'bank_name', 'bank_short', 'account_no', 'account_name'])) return;
+    if (!required(res, payload, ['bank_name', 'bank_short', 'account_no', 'account_name'])) return;
 
     const { data, error } = await supabase
       .from(TABLES.bankAccounts)
@@ -384,6 +563,8 @@ exports.createBankAccount = async (req, res) => {
 
 exports.updateBankAccount = async (req, res) => {
   try {
+    const accountId = req.params.id;
+
     const update = {};
     if (req.body.bankName !== undefined || req.body.bank_name !== undefined) update.bank_name = req.body.bankName || req.body.bank_name;
     if (req.body.bankShort !== undefined || req.body.bank_short !== undefined) update.bank_short = req.body.bankShort || req.body.bank_short;
@@ -396,7 +577,7 @@ exports.updateBankAccount = async (req, res) => {
     const { data, error } = await supabase
       .from(TABLES.bankAccounts)
       .update(update)
-      .eq('id', req.params.id)
+      .eq('id', accountId)
       .select()
       .single();
     if (error) throw error;
@@ -467,7 +648,11 @@ exports.updateEmployee = async (req, res) => {
     if (req.body.position !== undefined || req.body.pos !== undefined) employee.position = req.body.position || req.body.pos;
     if (req.body.salary !== undefined) employee.salary = toNumber(req.body.salary);
     // `status` removed from employees table - ignore any incoming status field
-    if (req.body.regionId !== undefined || req.body.region_id !== undefined) employee.region_id = req.body.regionId || req.body.region_id;
+    if (req.body.regionId !== undefined || req.body.region_id !== undefined) {
+      const regionId = parseInteger(req.body.regionId ?? req.body.region_id);
+      if (regionId === null) return res.status(400).json({ message: 'region_id ต้องเป็นตัวเลข' });
+      employee.region_id = regionId;
+    }
 
     const { data, error } = await supabase
       .from(TABLES.employees)
@@ -509,8 +694,10 @@ exports.getScheduleMap = async (_req, res) => {
 
 exports.assignSchedule = async (req, res) => {
   try {
-    const { bid, date, eid, shiftStart, shiftEnd, force } = req.body;
+    const { bid: bidRaw, date, eid, shiftStart, shiftEnd, force } = req.body;
     if (!required(res, req.body, ['bid', 'date', 'eid'])) return;
+    const bid = parseInteger(bidRaw);
+    if (bid === null) return res.status(400).json({ message: 'bid ต้องเป็นตัวเลข' });
 
     if (!force) {
       const { data: allowed, error: allowedError } = await supabase
@@ -596,8 +783,10 @@ exports.assignSchedule = async (req, res) => {
 
 exports.removeSchedule = async (req, res) => {
   try {
-    const { bid, date, eid } = req.body;
+    const { bid: bidRaw, date, eid } = req.body;
     if (!required(res, req.body, ['bid', 'date', 'eid'])) return;
+    const bid = parseInteger(bidRaw);
+    if (bid === null) return res.status(400).json({ message: 'bid ต้องเป็นตัวเลข' });
 
     const { error } = await supabase
       .from(TABLES.schedules)
@@ -616,10 +805,12 @@ exports.updateLeaveStatus = async (req, res) => {
     if (!['pending', 'approved', 'rejected'].includes(status)) {
       return res.status(400).json({ message: 'สถานะไม่ถูกต้อง' });
     }
+    const leaveId = parseInteger(req.params.id);
+    if (leaveId === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
     const { data, error } = await supabase
       .from(TABLES.leaves)
       .update({ status })
-      .eq('id', req.params.id)
+      .eq('id', leaveId)
       .select()
       .single();
     if (error) throw error;
@@ -633,9 +824,11 @@ exports.createSale = async (req, res) => {
   try {
     const body = req.body;
     if (!required(res, body, ['sellDate', 'branchId'])) return;
+    const branchId = parseInteger(body.branchId);
+    if (branchId === null) return res.status(400).json({ message: 'branchId ต้องเป็นตัวเลข' });
     const payload = {
       sell_date: body.sellDate,
-      branch_id: body.branchId,
+      branch_id: branchId,
       cash_amount: toNumber(body.cashAmount),
       transfer_amount: toNumber(body.transferAmount),
       credit_amount: toNumber(body.creditAmount),
@@ -653,10 +846,12 @@ exports.createSale = async (req, res) => {
 
 exports.updateSale = async (req, res) => {
   try {
+    const saleId = parseInteger(req.params.id);
+    if (saleId === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
     const { data: existing, error: getError } = await supabase
       .from(TABLES.sales)
       .select('*')
-      .eq('id', req.params.id)
+      .eq('id', saleId)
       .single();
     if (getError) throw getError;
 
@@ -671,8 +866,11 @@ exports.updateSale = async (req, res) => {
     };
     const update = {};
     Object.entries(fieldMap).forEach(([input, column]) => {
-      if (req.body[input] !== undefined) update[column] = req.body[input];
+      if (req.body[input] !== undefined) {
+        update[column] = input === 'branchId' ? parseInteger(req.body[input]) : req.body[input];
+      }
     });
+    if (update.branch_id === null) return res.status(400).json({ message: 'branchId ต้องเป็นตัวเลข' });
 
     const logs = Array.isArray(existing.edit_logs) ? existing.edit_logs : [];
     Object.entries(update).forEach(([column, value]) => {
@@ -702,7 +900,7 @@ exports.updateSale = async (req, res) => {
     const { data, error } = await supabase
       .from(TABLES.sales)
       .update(update)
-      .eq('id', req.params.id)
+      .eq('id', saleId)
       .select()
       .single();
     if (error) throw error;
@@ -716,8 +914,10 @@ exports.saveInspection = async (req, res) => {
   try {
     const body = req.body;
     if (!required(res, body, ['branchId', 'workDate', 'submitTime', 'inspectionItems'])) return;
+    const branchId = parseInteger(body.branchId);
+    if (branchId === null) return res.status(400).json({ message: 'branchId ต้องเป็นตัวเลข' });
     const payload = {
-      branch_id: body.branchId,
+      branch_id: branchId,
       work_date: body.workDate,
       submitted_by: body.submittedBy || null,
       submit_time: body.submitTime,
@@ -737,10 +937,12 @@ exports.saveInspection = async (req, res) => {
 
 exports.acknowledgeAlert = async (req, res) => {
   try {
+    const alertId = parseInteger(req.params.id);
+    if (alertId === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
     const { data, error } = await supabase
       .from(TABLES.attendanceAlerts)
       .update({ is_acknowledged: true })
-      .eq('id', req.params.id)
+      .eq('id', alertId)
       .select()
       .single();
     if (error) throw error;
@@ -754,16 +956,19 @@ exports.createWarningLetter = async (req, res) => {
   try {
     const { employeeId, templateId, level, issueDate, reason, branchId, issuedBy, status } = req.body;
     if (!required(res, req.body, ['employeeId', 'level', 'issueDate', 'reason', 'issuedBy'])) return;
+    const template_id = templateId === undefined ? null : templateId;
+    const branch_id = branchId === undefined || branchId === null ? null : parseInteger(branchId);
+    if (branchId !== undefined && branchId !== null && branch_id === null) return res.status(400).json({ message: 'branchId ต้องเป็นตัวเลข' });
 
     const { data, error } = await supabase
       .from(TABLES.warningLetters)
       .insert([{
         employee_id: employeeId,
-        template_id: templateId || null,
+        template_id,
         level,
         issue_date: issueDate,
         reason,
-        branch_id: branchId || null,
+        branch_id,
         issued_by: issuedBy,
         status: status || 'draft',
         is_signed_by_emp: false
@@ -776,3 +981,4 @@ exports.createWarningLetter = async (req, res) => {
     res.status(500).json({ message: 'ไม่สามารถออกหนังสือเตือนได้', error: error.message });
   }
 };
+

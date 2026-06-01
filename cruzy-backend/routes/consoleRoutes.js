@@ -14,6 +14,11 @@ router.put('/employees/:id/work-rules', controller.saveEmployeeWorkRules);
 router.delete('/employees/:id', controller.deleteEmployee);
 
 router.get('/branches', controller.listBranches);
+router.post('/branches', controller.createBranch);
+router.patch('/branches/:id', controller.updateBranch);
+router.delete('/branches/:id', controller.deleteBranch);
+
+router.get('/regions', controller.getRegions);
 router.post('/bank-accounts', controller.createBankAccount);
 router.patch('/bank-accounts/:id', controller.updateBankAccount);
 router.get('/schedule', controller.getScheduleMap);
