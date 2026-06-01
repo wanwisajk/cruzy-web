@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "../lib/api";
 
 const COLORS = [
@@ -31,14 +31,88 @@ const INITIAL = {
   absFixed: "",
 };
 
-export default function AddEmployeeForm({ branches = [], onSubmit, onCancel }) {
-  const [form, setForm] = useState(() => ({
-    ...INITIAL,
-    selectedBranches: branches[0] ? [branches[0].id] : []
-  }));
+function getInitialFormState(employee = {}, branches = []) {
+  if (!employee || Object.keys(employee).length === 0) {
+    return {
+      ...INITIAL,
+      selectedBranches: branches[0] ? [branches[0].id] : []
+    };
+  }
+
+  const branchIds = (employee.branchEligibility || []).map((row) => row.branchId || row.branch_id).filter(Boolean);
+  const selectedBranches = branchIds.length ? branchIds : employee.branch ? [employee.branch] : (branches[0] ? [branches[0].id] : []);
+  const payProfile = employee.payProfile || {};
+  const rawAbsenceMode = payProfile.absence_deduct_mode || payProfile.absDeduct || payProfile.absenceDeductMode;
+  let absDeduct = "system_hourly_avg";
+  let absFixed = "";
+
+  if (rawAbsenceMode === "system") {
+    const calc = payProfile.absence_system_calc || payProfile.absenceSystemCalc;
+    if (calc === "hourly_fixed") absDeduct = "system_hourly_fixed";
+  } else if (rawAbsenceMode === "fixed") {
+    absDeduct = "fixed_per_day";
+  } else if (rawAbsenceMode === "system_hourly_fixed") {
+    absDeduct = "system_hourly_fixed";
+  } else if (rawAbsenceMode === "fixed_per_day") {
+    absDeduct = "fixed_per_day";
+  }
+
+  if (absDeduct !== "system_hourly_avg") {
+    absFixed = String(payProfile.absence_deduct_value ?? "");
+  }
+
+  // แกะรายชื่อวันหยุดประจำสัปดาห์จาก availabilityRules
+  let weeklyOffs = ["0"];
+  if (Array.isArray(employee.availabilityRules) && employee.availabilityRules.length) {
+    weeklyOffs = employee.availabilityRules
+      .filter(r => r.availabilityType === "off")
+      .map(r => String(r.dayOfWeek));
+  } else if (Array.isArray(employee.weeklyOffs)) {
+    weeklyOffs = employee.weeklyOffs;
+  }
+
+  return {
+    id: employee.id || "",
+    color: employee.color || "#4CAF50",
+    name: employee.name || "",
+    nickname: employee.nickname || "",
+    pos: employee.position || employee.pos || "พนักงานขาย",
+    selectedBranches,
+    phone: employee.phone || "",
+    lineUserId: employee.line_user_id || employee.lineUserId || "",
+    empType: employee.empType || "fulltime",
+    start: payProfile.effectiveFrom || payProfile.effective_from || employee.startDate || new Date().toISOString().slice(0, 10),
+    payType: payProfile.payType || payProfile.pay_type || "monthly",
+    payCycle: payProfile.payCycle || payProfile.pay_cycle || "monthly",
+    wage: String(payProfile.salary ?? payProfile.monthly_salary ?? payProfile.daily_rate ?? employee.salary ?? ""),
+    comType: employee.comType || (payProfile.commission_enabled ? (payProfile.commission_rate ? "flat" : "tier") : "none"),
+    comPct: String(payProfile.commission_rate ?? ""),
+    weeklyOffs,
+    holidays: employee.holidays || "วันหยุดนักขัตฤกษ์",
+    breakHours: String(payProfile.breakHours ?? payProfile.break_hours ?? "1"),
+    allowance: String(payProfile.special_allowance ?? ""),
+    absDeduct,
+    absFixed
+  };
+}
+
+export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, employee, mode = 'create' }) {
+  const isEdit = mode === 'edit' || !!employee?.id;
+  const [form, setForm] = useState(() => getInitialFormState(employee, branches));
   const [errors, setErrors] = useState({});
   const [toasts, setToasts] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  // ใช้ useRef บันทึกค่า ID ของพนักงานที่ถูกแก้ไข เพื่อป้องกันข้อมูลโหลดซ้ำซ้อนตอนกำลังพิมพ์
+  const currentEmployeeIdRef = useRef(employee?.id);
+
+  // 🔄 อัปเดตฟอร์มเมื่อเปลี่ยนตัวพนักงานที่จะแก้ไขจริงๆ เท่านั้น
+  useEffect(() => {
+    if (employee?.id !== currentEmployeeIdRef.current) {
+      setForm(getInitialFormState(employee, branches));
+      currentEmployeeIdRef.current = employee?.id;
+    }
+  }, [employee]); // เอา branches ออกจาก dependency เพื่อกันเคลียร์ฟอร์มระหว่างพิมพ์งาน
 
   const set = (key) => (e) => {
     setForm((f) => ({ ...f, [key]: e.target.value }));
@@ -110,7 +184,6 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel }) {
       const calculatedRegion = selectedBranchObj?.region_id || selectedBranchObj?.region || "default";
       const employeeId = form.id.trim();
 
-      // 💡 แปลง Logic การมาสายตาม Constraints 'chk_absence_deduct_mode'
       let absenceDeductMode = "system";
       let absenceSystemCalc = "hourly_avg";
       let absenceDeductValue = null;
@@ -134,6 +207,7 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel }) {
         name: form.name.trim(),
         color: form.color,
         position: form.pos,
+        empType: form.empType,
         salary: form.payType === "monthly" ? Number(form.wage) : null,
         regionId: calculatedRegion,
         region_id: calculatedRegion,
@@ -162,11 +236,8 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel }) {
           isActive: true,
           is_active: true,
 
-          // ✨ ผูกคีย์ให้ตรงตารางเป๊ะๆ เพื่อแก้บั๊ก Check Constraint
           absence_deduct_mode: absenceDeductMode,
           absence_deduct_value: absenceDeductValue,
-          
-          // Fallback (กันเหนียวสำหรับ API บางชุด)
           absDeduct: absenceDeductMode,
           absenceDeductMode,
           absenceDeductValue
@@ -193,16 +264,32 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel }) {
         vacationRemaining: 5
       };
 
-      const result = await api.createEmployee(payload);
-      const savedEmployee = {
-        ...payload,
-        ...result.data,
-        branchEligibility: payload.branchEligibility,
-        payProfile: payload.payProfile,
-        availabilityRules: payload.availabilityRules,
-        availabilityOverrides: payload.availabilityOverrides
-      };
-      showToast(`✅ เพิ่มพนักงาน ${form.name} สำเร็จแล้ว`);
+      let savedEmployee;
+
+      if (isEdit && employee?.id) {
+        const result = await api.updateEmployee(employee.id, payload);
+        savedEmployee = {
+          ...payload,
+          ...result.data,
+          branchEligibility: payload.branchEligibility,
+          payProfile: payload.payProfile,
+          availabilityRules: payload.availabilityRules,
+          availabilityOverrides: payload.availabilityOverrides
+        };
+        showToast(`✅ อัปเดตพนักงาน ${form.name} สำเร็จแล้ว`);
+      } else {
+        const result = await api.createEmployee(payload);
+        savedEmployee = {
+          ...payload,
+          ...result.data,
+          branchEligibility: payload.branchEligibility,
+          payProfile: payload.payProfile,
+          availabilityRules: payload.availabilityRules,
+          availabilityOverrides: payload.availabilityOverrides
+        };
+        showToast(`✅ เพิ่มพนักงาน ${form.name} สำเร็จแล้ว`);
+      }
+
       setTimeout(() => onSubmit?.(savedEmployee), 600);
     } catch (err) {
       showToast(`❌ เกิดข้อผิดพลาดในระบบ: ${err.message}`, true);
@@ -211,13 +298,20 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel }) {
     }
   }
 
+  // 📝 ปรับ Logic ปุ่ม Reset: ถ้ามีข้อมูลเก่าอยู่ ให้ดึงข้อมูลเก่ามาพ่นใหม่แทนการล้างเป็นค่าว่าง
   function handleReset() {
-    setForm({
-      ...INITIAL,
-      selectedBranches: branches[0] ? [branches[0].id] : []
-    });
-    setErrors({});
-    showToast("🔄 ล้างฟอร์มแล้ว");
+    if (isEdit) {
+      setForm(getInitialFormState(employee, branches));
+      setErrors({});
+      showToast("🔄 คืนค่าข้อมูลพนักงานเดิมเรียบร้อย");
+    } else {
+      setForm({
+        ...INITIAL,
+        selectedBranches: branches[0] ? [branches[0].id] : []
+      });
+      setErrors({});
+      showToast("🔄 ล้างฟอร์มแล้ว");
+    }
   }
 
   const comDisabled = form.comType !== "flat";
@@ -248,7 +342,7 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel }) {
       {/* SECTION 1: ข้อมูลพื้นฐานในระบบ */}
       <div className="bg-white border border-slate-100 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
         <div className="text-emerald-800 font-bold border-b border-slate-100 pb-2.5 text-sm flex items-center gap-2">
-          <span className="text-base">📋</span> ข้อมูลพื้นฐานในระบบ
+          <span className="text-base">📋</span> ข้อมูลพื้นฐานในระบบ {isEdit && <span className="text-[10px] bg-amber-50 border border-amber-200 text-amber-700 px-2 py-0.5 rounded-md font-medium">กำลังแก้ไขข้อมูล</span>}
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
@@ -258,10 +352,11 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel }) {
               type="text"
               value={form.id}
               onChange={set("id")}
+              disabled={isEdit}
               placeholder="เช่น emp_20240601_001"
-              className={`${inputBaseStyle} ${errors.id ? "border-red-400 bg-red-50/20" : "border-slate-200"}`}
+              className={`${inputBaseStyle} ${errors.id ? "border-red-400 bg-red-50/20" : "border-slate-200"} ${isEdit ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed" : ""}`}
             />
-            {errors.id && <p className="text-red-500 text-[10px] mt-1">⚠️ ต้องระบุ ID พนักงาน</p>}
+            {errors.id && !isEdit && <p className="text-red-500 text-[10px] mt-1">⚠️ ต้องระบุ ID พนักงาน</p>}
           </div>
 
           <div className="lg:col-span-4">
@@ -297,8 +392,8 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel }) {
           <div className="lg:col-span-2">
             <label className={labelBaseStyle}>ตำแหน่งงาน <span className="text-red-500">*</span></label>
             <select value={form.pos} onChange={set("pos")} className={`${inputBaseStyle} border-slate-200 cursor-pointer`}>
-              <option>พนักงานขาย</option>
-              <option>คนคุมสาขา</option>
+              <option value="พนักงานขาย">พนักงานขาย</option>
+              <option value="คนคุมสาขา">คนคุมสาขา</option>
             </select>
           </div>
 
@@ -407,7 +502,7 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel }) {
             <select value={form.payCycle} onChange={set("payCycle")} className={`${inputBaseStyle} border-slate-200 cursor-pointer`}>
               <option value="monthly">รายเดือน (จ่ายสิ้นเดือน)</option>
               <option value="bimonthly">จ่ายปักษ์ (ทุกวันที่ 1 และ 16)</option>
-              <option value="weekly">รายสัปณ์</option>
+              <option value="weekly">รายสัปดาห์</option>
             </select>
           </div>
 
@@ -468,7 +563,7 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel }) {
           disabled={loading} 
           className="w-full sm:w-auto order-3 sm:order-1 px-5 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 font-semibold text-slate-500 active:scale-95 transition-all text-xs"
         >
-          🔄 ล้างฟอร์ม
+          {isEdit ? "🔄 คืนค่าข้อมูลเดิม" : "🔄 ล้างฟอร์ม"}
         </button>
         
         {onCancel && (
@@ -488,7 +583,7 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel }) {
           disabled={loading} 
           className="w-full sm:w-auto order-1 sm:order-3 px-6 py-2.5 rounded-xl bg-emerald-700 text-white font-bold hover:bg-emerald-800 shadow-sm shadow-emerald-700/10 active:scale-95 disabled:bg-emerald-400 transition-all text-xs"
         >
-          {loading ? "⏳ กำลังบันทึกข้อมูล..." : "💾 บันทึกพนักงาน"}
+          {loading ? "⏳ กำลังบันทึกข้อมูล..." : isEdit ? "💾 อัปเดตข้อมูลพนักงาน" : "💾 บันทึกพนักงาน"}
         </button>
       </div>
     </div>

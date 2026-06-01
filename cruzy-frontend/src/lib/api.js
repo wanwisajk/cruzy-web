@@ -28,6 +28,10 @@ export const api = {
     method: 'POST',
     body: JSON.stringify(body)
   }),
+  updateEmployee: (id, body) => request(`/employees/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body)
+  }),
   assignSchedule: (body) => request('/schedule/assign', {
     method: 'POST',
     body: JSON.stringify(body)
