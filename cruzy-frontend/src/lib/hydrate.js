@@ -68,6 +68,7 @@ export function hydrateConsoleData(data = {}) {
     return {
       id: employee.id,
       name: employee.name,
+      nickname: employee.nickname,
       code: employee.id,
       color: employee.color || '#4CAF50',
       branch: primaryBranches[employee.id] || employee.branch_id || fallbackBranch,

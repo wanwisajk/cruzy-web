@@ -173,7 +173,7 @@ function ScheduleRow({ data, branch, days, onAssign, onRemove }) {
               return (
                 <span key={empId} className="m-0.5 inline-flex items-center gap-1 rounded-full border border-green-200 bg-cruzy-50 px-1.5 py-0.5 text-[10px]">
                   <Avatar employee={employee} size="sm" />
-                  {employee.name}
+                  {employee.nickname }
                   <button className="text-danger/60 hover:text-danger" onClick={() => onRemove(branch.id, date, empId)} aria-label="ลบ">
                     <Trash2 size={11} />
                   </button>
@@ -225,7 +225,7 @@ function RecommendationBox({ data, branches, days, from, to, user, onQuickAdd, o
               {recs.length ? recs.map((rec) => (
                 <button key={`${rec.employee.id}_${rec.date}`} className="chip m-1 hover:border-cruzy hover:bg-cruzy-50" onClick={() => onQuickAdd(branch.id, rec.date, rec.employee.id)}>
                   <Avatar employee={rec.employee} size="sm" />
-                  {rec.employee.name} · {thaiShortDate(rec.date)}
+                  {rec.employee.nickname || rec.employee.name} · {thaiShortDate(rec.date)}
                 </button>
               )) : <span className="text-slate-500">ยังไม่มีช่องว่างหรือไม่มีคนที่ตรงกติกา</span>}
             </div>
@@ -258,7 +258,7 @@ function Overview({ data, branches, date, onAssign }) {
               <div className="p-3">
                 {ids.length ? ids.map((id) => {
                   const employee = data.employees.find((item) => item.id === id);
-                  return <div key={id} className="flex items-center gap-2 border-b border-slate-100 py-1.5 text-xs last:border-0"><Avatar employee={employee} />{employee?.name}</div>;
+                  return <div key={id} className="flex items-center gap-2 border-b border-slate-100 py-1.5 text-xs last:border-0"><Avatar employee={employee} />{employee?.nickname || employee?.name}</div>;
                 }) : <div className="text-center text-xs font-bold text-danger">ว่าง <button className="btn ml-2 bg-cruzy-50 text-cruzy" onClick={() => onAssign({ branchId: branch.id, date })}>จัดคน</button></div>}
               </div>
             </div>
@@ -281,7 +281,7 @@ function AssignModal({ target, data, user, from, to, onClose, onAdd }) {
           <button key={candidate.employee.id} disabled={candidate.disabled} onClick={() => onAdd(target.branchId, target.date, candidate.employee.id)} className="flex w-full items-center gap-3 rounded-lg border-b border-slate-100 px-2 py-2 text-left hover:bg-cruzy-50 disabled:opacity-40">
             <Avatar employee={candidate.employee} />
             <div className="min-w-0 flex-1">
-              <div className="truncate text-xs font-bold">{candidate.employee.name} ({candidate.employee.id})</div>
+              <div className="truncate text-xs font-bold">{candidate.employee.nickname || candidate.employee.name} ({candidate.employee.id})</div>
               <div className="text-[10px] text-slate-500">{candidate.employee.position} · คะแนน {candidate.score}</div>
             </div>
             <div className="flex flex-wrap justify-end gap-1">

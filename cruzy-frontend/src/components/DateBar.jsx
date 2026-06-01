@@ -4,13 +4,19 @@ import { fmtDate, thaiLongDate } from '../lib/date';
 
 export function DateBar({ from, to, setFrom, setTo }) {
   function updateFrom(value) {
-    setFrom(value);
-    if (value > to) setTo(value);
+    const start = new Date(`${value}T00:00:00`);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    setFrom(fmtDate(start));
+    setTo(fmtDate(end));
   }
 
   function updateTo(value) {
-    setTo(value);
-    if (value < from) setFrom(value);
+    const end = new Date(`${value}T00:00:00`);
+    const start = new Date(end);
+    start.setDate(end.getDate() - 6);
+    setFrom(fmtDate(start));
+    setTo(fmtDate(end));
   }
 
   function preset(type) {
@@ -22,10 +28,13 @@ export function DateBar({ from, to, setFrom, setTo }) {
       return;
     }
     if (type === 'week') {
-      const start = new Date(today);
-      start.setDate(today.getDate() - 6);
-      setFrom(fmtDate(start));
-      setTo(fmtDate(today));
+      const dayOfWeek = today.getDay();
+      const firstDay = new Date(today);
+      firstDay.setDate(today.getDate() - ((dayOfWeek + 6) % 7));
+      const lastDay = new Date(firstDay);
+      lastDay.setDate(firstDay.getDate() + 6);
+      setFrom(fmtDate(firstDay));
+      setTo(fmtDate(lastDay));
       return;
     }
     const start = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -40,7 +49,7 @@ export function DateBar({ from, to, setFrom, setTo }) {
       <span className="text-xs text-slate-400">ถึง</span>
       <input type="date" value={to} onChange={(event) => updateTo(event.target.value)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs outline-none focus:border-cruzy" />
       <Button variant="ghost" className="date-btn" onClick={() => preset('today')}>วันนี้</Button>
-      <Button variant="ghost" className="date-btn" onClick={() => preset('week')}>7 วัน</Button>
+      <Button variant="ghost" className="date-btn" onClick={() => preset('week')}>สัปดาห์นี้</Button>
       <Button variant="ghost" className="date-btn" onClick={() => preset('month')}>เดือนนี้</Button>
       <span className="date-label">{from === to ? thaiLongDate(from) : `${thaiLongDate(from)} - ${thaiLongDate(to)}`}</span>
     </div>

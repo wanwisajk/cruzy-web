@@ -19,7 +19,12 @@ export function getScopeBranches(data, user) {
 }
 
 export function getBranchEmployees(data, branchId) {
-  return data.employees.filter((employee) => employee.branch === branchId || (data.employeeBranches[employee.id] || []).includes(branchId));
+  return data.employees.filter((employee) => {
+    const hasExplicitEligibility = data.employeeBranchRules.some((rule) => rule.empId === employee.id);
+    const branchMatch = employee.branch === branchId || (data.employeeBranches[employee.id] || []).includes(branchId);
+    if (branchMatch) return true;
+    return !hasExplicitEligibility;
+  });
 }
 
 export function getBranchRule(data, branchId, date) {
@@ -47,7 +52,8 @@ export function branchEligibilityFor(data, empId, branchId) {
 export function canEmployeeWorkBranch(data, empId, branchId) {
   const rule = branchEligibilityFor(data, empId, branchId);
   if (rule) return rule.canWork !== false;
-  return (data.employeeBranches[empId] || []).includes(branchId);
+  const hasAnyEligibility = data.employeeBranchRules.some((row) => row.empId === empId);
+  return !hasAnyEligibility;
 }
 
 export function availabilityFor(data, empId, date) {
@@ -94,7 +100,7 @@ export function scheduleCandidates(data, user, branchId, date, opts = {}) {
     const score = scheduleCandidateScore(data, scopeBranches, employee, branchId, date, opts.from, opts.to);
     const disabled = alreadyIn || Boolean(busyAt) || !canBranch || !available;
     return { employee, busyAt, canBranch, available, alreadyIn, score, disabled };
-  }).sort((a, b) => Number(a.disabled) - Number(b.disabled) || b.score - a.score || a.employee.name.localeCompare(b.employee.name));
+  }).sort((a, b) => Number(a.disabled) - Number(b.disabled) || b.score - a.score || (a.employee.nickname || a.employee.name).localeCompare(b.employee.nickname || b.employee.name));
 }
 
 export function recommendedEmployees(data, user, branchId, date, opts = {}) {
