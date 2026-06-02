@@ -1,0 +1,78 @@
+const { fetchTable, supabase } = require('../../shared/db');
+const { parseInteger, required, sendError } = require('../../shared/http');
+const TABLES = require('../../shared/tables');
+
+function cleanWarningLetterPayload(body) {
+  const branchId = body.branchId === undefined && body.branch_id === undefined ? undefined : parseInteger(body.branchId ?? body.branch_id);
+  return {
+    employee_id: body.employeeId || body.employee_id,
+    template_id: body.templateId === undefined ? body.template_id : body.templateId,
+    level: body.level,
+    issue_date: body.issueDate || body.issue_date,
+    reason: body.reason,
+    branch_id: branchId === undefined ? null : branchId,
+    issued_by: body.issuedBy || body.issued_by,
+    status: body.status || 'draft',
+    is_signed_by_emp: body.isSignedByEmp === undefined ? Boolean(body.is_signed_by_emp || false) : Boolean(body.isSignedByEmp),
+    signed_at: body.signedAt || body.signed_at || null
+  };
+}
+
+exports.listWarningLetters = async (_req, res) => {
+  try {
+    res.json(await fetchTable(TABLES.warningLetters));
+  } catch (error) {
+    sendError(res, error, 'ไม่สามารถดึงข้อมูลหนังสือเตือนได้');
+  }
+};
+
+exports.getWarningLetter = async (req, res) => {
+  try {
+    const id = parseInteger(req.params.id);
+    if (id === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
+    const { data, error } = await supabase.from(TABLES.warningLetters).select('*').eq('id', id).single();
+    if (error) throw error;
+    res.json(data);
+  } catch (error) {
+    sendError(res, error, 'ไม่สามารถดึงข้อมูลหนังสือเตือนได้');
+  }
+};
+
+exports.createWarningLetter = async (req, res) => {
+  try {
+    const payload = cleanWarningLetterPayload(req.body);
+    if (!required(res, payload, ['employee_id', 'level', 'issue_date', 'reason', 'issued_by'])) return;
+    if (payload.branch_id === null && (req.body.branchId !== undefined || req.body.branch_id !== undefined)) return res.status(400).json({ message: 'branchId ต้องเป็นตัวเลข' });
+    const { data, error } = await supabase.from(TABLES.warningLetters).insert([payload]).select().single();
+    if (error) throw error;
+    res.status(201).json({ message: 'ออกหนังสือเตือนสำเร็จ', data });
+  } catch (error) {
+    sendError(res, error, 'ไม่สามารถออกหนังสือเตือนได้');
+  }
+};
+
+exports.updateWarningLetter = async (req, res) => {
+  try {
+    const id = parseInteger(req.params.id);
+    if (id === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
+    const payload = cleanWarningLetterPayload(req.body);
+    Object.keys(payload).forEach((key) => payload[key] === undefined && delete payload[key]);
+    const { data, error } = await supabase.from(TABLES.warningLetters).update(payload).eq('id', id).select().single();
+    if (error) throw error;
+    res.json({ message: 'อัปเดตหนังสือเตือนสำเร็จ', data });
+  } catch (error) {
+    sendError(res, error, 'ไม่สามารถอัปเดตหนังสือเตือนได้');
+  }
+};
+
+exports.deleteWarningLetter = async (req, res) => {
+  try {
+    const id = parseInteger(req.params.id);
+    if (id === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
+    const { error } = await supabase.from(TABLES.warningLetters).delete().eq('id', id);
+    if (error) throw error;
+    res.json({ message: 'ลบหนังสือเตือนสำเร็จ' });
+  } catch (error) {
+    sendError(res, error, 'ไม่สามารถลบหนังสือเตือนได้');
+  }
+};

@@ -3,7 +3,7 @@ const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
 export const API_URL = configured || (isLocal ? 'http://127.0.0.1:5000/api' : '/api');
 
-async function request(path, options = {}) {
+export async function request(path, options = {}) {
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
     headers: {

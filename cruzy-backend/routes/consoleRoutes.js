@@ -1,35 +1,32 @@
 const express = require('express');
-const controller = require('../controllers/consoleController');
+
+const authRoutes = require('../modules/auth/authRoutes');
+const consoleRoutes = require('../modules/console/consoleRoutes');
+const employeesRoutes = require('../modules/employees/employeesRoutes');
+const branchesRoutes = require('../modules/branches/branchesRoutes');
+const regionsRoutes = require('../modules/regions/regionsRoutes');
+const bankAccountsRoutes = require('../modules/bankAccounts/bankAccountsRoutes');
+const schedulesRoutes = require('../modules/schedules/schedulesRoutes');
+const leavesRoutes = require('../modules/leaves/leavesRoutes');
+const salesRoutes = require('../modules/sales/salesRoutes');
+const storeInspectionsRoutes = require('../modules/storeInspections/storeInspectionsRoutes');
+const attendanceAlertsRoutes = require('../modules/attendanceAlerts/attendanceAlertsRoutes');
+const warningLettersRoutes = require('../modules/warningLetters/warningLettersRoutes');
 
 const router = express.Router();
 
-router.post('/auth/login', controller.login);
-router.get('/console/data', controller.getConsoleData);
-router.get('/admin-console/data', controller.getConsoleData);
-
-router.get('/employees', controller.listEmployees);
-router.post('/employees', controller.createEmployee);
-router.patch('/employees/:id', controller.updateEmployee);
-router.put('/employees/:id/work-rules', controller.saveEmployeeWorkRules);
-router.delete('/employees/:id', controller.deleteEmployee);
-
-router.get('/branches', controller.listBranches);
-router.post('/branches', controller.createBranch);
-router.patch('/branches/:id', controller.updateBranch);
-router.delete('/branches/:id', controller.deleteBranch);
-
-router.get('/regions', controller.getRegions);
-router.post('/bank-accounts', controller.createBankAccount);
-router.patch('/bank-accounts/:id', controller.updateBankAccount);
-router.get('/schedule', controller.getScheduleMap);
-router.post('/schedule/assign', controller.assignSchedule);
-router.post('/schedule/remove', controller.removeSchedule);
-
-router.patch('/leaves/:id/status', controller.updateLeaveStatus);
-router.patch('/sales/:id', controller.updateSale);
-router.post('/sales', controller.createSale);
-router.post('/store-inspections', controller.saveInspection);
-router.patch('/attendance-alerts/:id/ack', controller.acknowledgeAlert);
-router.post('/warning-letters', controller.createWarningLetter);
+router.use('/auth', authRoutes);
+router.use('/console', consoleRoutes);
+router.use('/admin-console', consoleRoutes);
+router.use('/employees', employeesRoutes);
+router.use('/branches', branchesRoutes);
+router.use('/regions', regionsRoutes);
+router.use('/bank-accounts', bankAccountsRoutes);
+router.use('/schedule', schedulesRoutes);
+router.use('/leaves', leavesRoutes);
+router.use('/sales', salesRoutes);
+router.use('/store-inspections', storeInspectionsRoutes);
+router.use('/attendance-alerts', attendanceAlertsRoutes);
+router.use('/warning-letters', warningLettersRoutes);
 
 module.exports = router;

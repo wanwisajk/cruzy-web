@@ -1,0 +1,23 @@
+module.exports = {
+  regions: 'regions',
+  branches: 'branches',
+  employees: 'employees',
+  employeeBranchEligibility: 'employee_branch_eligibility',
+  employeeAvailabilityRules: 'employee_availability_rules',
+  employeeAvailabilityOverrides: 'employee_availability_overrides',
+  employeePayProfiles: 'employee_pay_profiles',
+  branchStaffingRules: 'branch_staffing_rules',
+  schedules: 'schedules',
+  leaves: 'leaves',
+  leaveBalances: 'leave_balances',
+  contracts: 'contracts',
+  sales: 'sales',
+  cashDeposits: 'cash_deposits',
+  attendance: 'attendance',
+  attendanceAlerts: 'attendance_alerts',
+  bankAccounts: 'bank_accounts',
+  storeInspections: 'store_inspections',
+  warningLetterTemplates: 'warning_letter_templates',
+  warningLetters: 'warning_letters',
+  users: 'users'
+};
