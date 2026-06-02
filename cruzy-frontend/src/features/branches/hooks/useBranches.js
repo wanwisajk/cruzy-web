@@ -87,13 +87,15 @@ export function useBranches() {
 
       if (exists) {
         await branchesApi.updateBranch(form.id, payload);
-        setBranches((current) => current.map((branch) => branch.id === form.id ? form : branch));
         push(`✅ อัปเดต ${form.code} สำเร็จ`);
       } else {
-        const result = await branchesApi.createBranch(payload);
-        setBranches((current) => [...current, result.data]);
+        await branchesApi.createBranch(payload);
         push(`✅ เพิ่มสาขา ${form.code} สำเร็จ`);
       }
+      
+      // Reload branches to ensure data consistency
+      const branchesRes = await branchesApi.getBranches();
+      setBranches(Array.isArray(branchesRes) ? branchesRes : []);
       setModal(null);
     } catch (error) {
       push(error.message || 'เกิดข้อผิดพลาด', 'err');
