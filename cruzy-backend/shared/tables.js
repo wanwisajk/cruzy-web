@@ -12,6 +12,7 @@ module.exports = {
   leaveBalances: 'leave_balances',
   contracts: 'contracts',
   sales: 'sales',
+  salesLogs: 'sales_logs',
   cashDeposits: 'cash_deposits',
   attendance: 'attendance',
   attendanceAlerts: 'attendance_alerts',
@@ -19,5 +20,6 @@ module.exports = {
   storeInspections: 'store_inspections',
   warningLetterTemplates: 'warning_letter_templates',
   warningLetters: 'warning_letters',
+  attachments: 'attachments',
   users: 'users'
 };

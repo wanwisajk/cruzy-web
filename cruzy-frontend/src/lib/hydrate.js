@@ -16,6 +16,8 @@ const emptyData = {
   employeePayProfiles: [],
   branchStaffingRules: [],
   sales: [],
+  salesLogs: [],
+  attachments: [],
   bankAccounts: [],
   deposits: [],
   attendance: [],
@@ -109,7 +111,9 @@ export function hydrateConsoleData(data = {}) {
     end: contract.end_date,
     file: contract.file_url || ''
   }));
-  state.sales = (data.sales || []).map(mapSaleRow);
+  state.salesLogs = (data.salesLogs || []).map(mapSalesLogRow);
+  state.attachments = (data.attachments || []).map(mapAttachmentRow);
+  state.sales = (data.sales || []).map((row) => mapSaleRow(row, state.salesLogs, state.attachments));
   state.bankAccounts = (data.bankAccounts || []).map((bank) => ({
     id: bank.id,
     bank: bank.bank_name,
@@ -120,7 +124,7 @@ export function hydrateConsoleData(data = {}) {
     type: bank.account_type || 'ออมทรัพย์',
     active: bank.is_active !== false
   }));
-  state.deposits = (data.cashDeposits || []).map(mapDepositRow);
+  state.deposits = (data.cashDeposits || []).map((row) => mapDepositRow(row, state.attachments));
   state.attendance = (data.attendance || []).map((row) => ({
     id: String(row.id),
     empId: row.employee_id,
@@ -256,12 +260,56 @@ function getPayProfile(empId, rows, legacySalary) {
   return { payType: 'monthly', monthlySalary: Number(legacySalary || 0), dailyRate: 0, commissionEnabled: true };
 }
 
-function mapSaleRow(row) {
-  return { id: String(row.id), date: row.sell_date || row.date, bid: row.branch_id, total: Number(row.total_amount || 0), cash: Number(row.cash_amount || 0), transfer: Number(row.transfer_amount || 0), credit: Number(row.credit_amount || 0), qr: Number(row.qr_amount || 0), orders: Number(row.orders_count || 0), submittedBy: row.submitted_by || null, status: row.status || 'confirmed', rawText: row.raw_text || '' };
+function mapSaleRow(row, salesLogs = [], attachments = []) {
+  const id = String(row.id);
+  return {
+    id,
+    date: row.sell_date || row.date,
+    bid: row.branch_id,
+    total: Number(row.total_amount || 0),
+    cash: Number(row.cash_amount || 0),
+    transfer: Number(row.transfer_amount || 0),
+    credit: Number(row.credit_amount || 0),
+    qr: Number(row.qr_amount || 0),
+    orders: Number(row.orders_count || 0),
+    submittedBy: row.submitted_by || null,
+    submitTime: formatDbTime(row.submitted_at),
+    confirmedBy: row.confirmed_by || null,
+    confirmTime: formatDbTime(row.confirmed_at),
+    status: row.status || 'confirmed',
+    rawText: row.raw_text || '',
+    editLog: salesLogs.filter((log) => log.saleId === id),
+    attachments: attachments.filter((file) => file.entityType === 'sale' && String(file.entityId) === id)
+  };
 }
 
-function mapDepositRow(row) {
-  return { id: String(row.id), date: row.deposit_date || row.date, bid: row.branch_id, expected: Number(row.expected_amount || 0), deposited: Number(row.deposited_amount || 0), slip: Boolean(row.slip_url), bankAccId: row.bank_account_id || null, depositedBy: row.deposited_by || null, status: row.status || 'waiting' };
+function mapDepositRow(row, attachments = []) {
+  const id = String(row.id);
+  const files = attachments.filter((file) => file.entityType === 'cash_deposit' && String(file.entityId) === id);
+  return { id, date: row.deposit_date || row.date, bid: row.branch_id, expected: Number(row.expected_amount || 0), deposited: Number(row.deposited_amount || 0), slip: Boolean(row.slip_url || files.length), slipUrl: row.slip_url || files[0]?.fileUrl || '', attachments: files, bankAccId: row.bank_account_id || null, depositedBy: row.deposited_by || null, verifiedBy: row.verified_by || null, verifyTime: formatDbTime(row.verified_at), status: row.status || 'waiting' };
+}
+
+function mapSalesLogRow(row) {
+  return {
+    id: String(row.id),
+    saleId: String(row.sale_id),
+    time: formatDbTime(row.created_at),
+    by: row.edited_by || null,
+    field: row.field_name,
+    from: row.old_value,
+    to: row.new_value,
+    reason: row.reason || ''
+  };
+}
+
+function mapAttachmentRow(row) {
+  return {
+    id: String(row.id),
+    entityType: row.entity_type,
+    entityId: String(row.entity_id),
+    fileUrl: row.file_url,
+    createdAt: row.created_at || null
+  };
 }
 
 function buildAuditLogs(sales, inspections, deposits) {

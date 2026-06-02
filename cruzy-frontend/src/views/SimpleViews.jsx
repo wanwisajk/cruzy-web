@@ -35,7 +35,20 @@ export function LeaveView({ data, user, currentBranch }) {
 
 export function SalesView({ data, user, currentBranch, from, to }) {
   const branchIds = getVisibleBranches(data, user, currentBranch).map((branch) => branch.id);
-  const rows = data.sales.filter((sale) => branchIds.includes(sale.bid) && sale.date >= from && sale.date <= to);
+  // Map database field names to component format
+  const rows = data.sales
+    .filter((sale) => branchIds.includes(sale.branch_id) && sale.sell_date >= from && sale.sell_date <= to)
+    .map((sale) => ({
+      id: sale.id,
+      bid: sale.branch_id,
+      date: sale.sell_date,
+      total: sale.total_amount,
+      cash: sale.cash_amount,
+      transfer: sale.transfer_amount,
+      credit: sale.credit_amount,
+      orders: sale.orders_count
+    }));
+  
   const total = rows.reduce((sum, sale) => sum + sale.total, 0);
   return (
     <Content title="ยอดขาย" icon={Banknote} stats={[['ยอดรวม', numberTH(total)], ['รายการ', rows.length], ['ออเดอร์', rows.reduce((sum, sale) => sum + sale.orders, 0)]]}>
@@ -46,7 +59,7 @@ export function SalesView({ data, user, currentBranch, from, to }) {
             <div key={sale.id} className="card border-l-4 border-cruzy p-4">
               <div className="mb-2 flex items-center justify-between text-sm font-bold"><span>{branch?.code}</span><span>{numberTH(sale.total)}</span></div>
               <div className="grid grid-cols-2 gap-2 text-xs text-slate-500">
-                <span>เงินสด {numberTH(sale.cash)}</span><span>โอน {numberTH(sale.transfer)}</span><span>บัตร {numberTH(sale.credit)}</span><span>QR {numberTH(sale.qr)}</span>
+                <span>เงินสด {numberTH(sale.cash)}</span><span>โอน {numberTH(sale.transfer)}</span><span>บัตร {numberTH(sale.credit)}</span>
               </div>
               <div className="mt-3 text-[11px] text-slate-400">{thaiShortDate(sale.date)} · {sale.orders} orders</div>
             </div>

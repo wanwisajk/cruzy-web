@@ -11,10 +11,61 @@ import OverviewSection from './OverviewSection';
 export default function SchedulePage({ data, setData, user, currentBranch, from, to, toast }) {
   const [view, setView] = useState('planner');
   const [assignTarget, setAssignTarget] = useState(null);
+  const [dragOverCell, setDragOverCell] = useState('');
   const branches = useMemo(() => getVisibleBranches(data, user, currentBranch), [data, user, currentBranch]);
-  const days = useMemo(() => dateRange(from, to), [from, to]);
+  const days = useMemo(() => dateRange(from, to).slice(0, 7), [from, to]);
   const today = fmtDate(new Date());
   const alerts = useMemo(() => buildAlerts(data, branches, from), [data, branches, from]);
+
+  const issueCounts = useMemo(() => {
+    const employeeById = Object.fromEntries(data.employees.map((employee) => [employee.id, employee]));
+    const visibleEmployeeIds = new Set(data.employees.filter((employee) => branches.some((branch) => branch.id === employee.branch)).map((employee) => employee.id));
+
+    return days.map((date) => {
+      const scheduledIds = new Set(branches.flatMap((branch) => data.schedule[`${branch.id}_${date}`] || []));
+      const leaveIds = new Set(data.leaves.filter((leave) => leave.from <= date && leave.to >= date && employeeById[leave.empId] && visibleEmployeeIds.has(leave.empId)).map((leave) => leave.empId));
+      const emptyBranches = branches.filter((branch) => {
+        const scheduled = data.schedule[`${branch.id}_${date}`] || [];
+        return scheduled.length === 0 && requiredStaffFor(data, branch.id, date) > 0;
+      }).length;
+      const availableEmployees = [...visibleEmployeeIds].filter((empId) => !scheduledIds.has(empId) && !leaveIds.has(empId)).length;
+      return {
+        date,
+        emptyBranches,
+        leaveCount: leaveIds.size,
+        availableEmployees
+      };
+    });
+  }, [data, branches, days]);
+
+  function handleEmployeeDragStart(event, branchId, date, empId) {
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('application/json', JSON.stringify({ empId, branchId, date }));
+  }
+
+  function handleCellDragOver(event) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+  }
+
+  function handleCellDrop(event, targetBranchId, targetDate) {
+    event.preventDefault();
+    setDragOverCell('');
+    try {
+      const payload = JSON.parse(event.dataTransfer.getData('application/json'));
+      if (!payload || !payload.empId) return;
+      const { empId, branchId: sourceBranchId, date: sourceDate } = payload;
+      if (sourceBranchId === targetBranchId && sourceDate === targetDate) return;
+      moveSchedule(empId, sourceBranchId, sourceDate, targetBranchId, targetDate);
+    } catch (error) {
+      console.error('Drop failed', error);
+    }
+  }
+
+  async function moveSchedule(empId, sourceBranchId, sourceDate, targetBranchId, targetDate) {
+    await removeFromSchedule(sourceBranchId, sourceDate, empId);
+    await addToSchedule(targetBranchId, targetDate, empId);
+  }
 
   async function addToSchedule(branchId, date, empId) {
     const key = `${branchId}_${date}`;
@@ -90,10 +141,16 @@ export default function SchedulePage({ data, setData, user, currentBranch, from,
             to={to}
             user={user}
             alerts={alerts}
+            issueCounts={issueCounts}
+            dragOverCell={dragOverCell}
+            setDragOverCell={setDragOverCell}
             onAssign={setAssignTarget}
             onAutoFill={autoFill}
             onQuickAdd={addToSchedule}
             onRemove={removeFromSchedule}
+            onDragStart={handleEmployeeDragStart}
+            onCellDragOver={handleCellDragOver}
+            onCellDrop={handleCellDrop}
           />
         ) : view === 'overview' ? (
           <OverviewSection data={data} branches={branches} date={from} onAssign={setAssignTarget} />
@@ -118,7 +175,7 @@ export default function SchedulePage({ data, setData, user, currentBranch, from,
   );
 }
 
-function Planner({ data, branches, days, today, from, to, user, alerts, onAssign, onAutoFill, onQuickAdd, onRemove }) {
+function Planner({ data, branches, days, today, from, to, user, alerts, issueCounts, dragOverCell, setDragOverCell, onAssign, onAutoFill, onQuickAdd, onRemove, onDragStart, onCellDragOver, onCellDrop }) {
   const stats = branches.reduce((acc, branch) => {
     const employees = data.schedule[`${branch.id}_${today}`] || [];
     const need = requiredStaffFor(data, branch.id, today);
@@ -149,8 +206,23 @@ function Planner({ data, branches, days, today, from, to, user, alerts, onAssign
               </div>
             );
           })}
+          <IssueRow label="สาขาว่าง" tone="red" values={issueCounts.map((item) => item.emptyBranches)} />
+          <IssueRow label="คนลา" tone="yellow" values={issueCounts.map((item) => item.leaveCount)} />
+          <IssueRow label="พนง.ว่าง" tone="gray" values={issueCounts.map((item) => item.availableEmployees)} />
           {branches.map((branch) => (
-            <ScheduleRow key={branch.id} data={data} branch={branch} days={days} onAssign={onAssign} onRemove={onRemove} />
+            <ScheduleRow
+              key={branch.id}
+              data={data}
+              branch={branch}
+              days={days}
+              dragOverCell={dragOverCell}
+              setDragOverCell={setDragOverCell}
+              onAssign={onAssign}
+              onRemove={onRemove}
+              onDragStart={onDragStart}
+              onCellDragOver={onCellDragOver}
+              onCellDrop={onCellDrop}
+            />
           ))}
         </div>
       </div>
@@ -158,37 +230,82 @@ function Planner({ data, branches, days, today, from, to, user, alerts, onAssign
   );
 }
 
-function ScheduleRow({ data, branch, days, onAssign, onRemove }) {
+function ScheduleRow({ data, branch, days, dragOverCell, setDragOverCell, onAssign, onRemove, onDragStart, onCellDragOver, onCellDrop }) {
   return (
     <>
       <div className="flex items-center border-r-2 border-cruzy bg-white p-2 text-[11px] font-bold">{branch.code}</div>
       {days.map((date) => {
-        const employeeIds = data.schedule[`${branch.id}_${date}`] || [];
+        const cellKey = `${branch.id}_${date}`;
+        const employeeIds = data.schedule[cellKey] || [];
         const need = requiredStaffFor(data, branch.id, date);
         const short = employeeIds.length < need;
         const empty = employeeIds.length === 0;
+        const shift = shiftFor(data, branch.id, date);
         return (
-          <div key={`${branch.id}_${date}`} className={`relative min-h-[74px] bg-white p-1.5 pb-5 ${empty && need > 0 ? 'bg-red-50' : short ? 'bg-orange-50' : ''}`}>
-            {employeeIds.map((empId) => {
-              const employee = data.employees.find((item) => item.id === empId);
-              if (!employee) return null;
-              return (
-                <span key={empId} className="m-0.5 inline-flex items-center gap-1 rounded-full border border-green-200 bg-cruzy-50 px-1.5 py-0.5 text-[10px]">
-                  <Avatar employee={employee} size="sm" />
-                  {employee.nickname}
-                  <button className="text-danger/60 hover:text-danger" onClick={() => onRemove(branch.id, date, empId)} aria-label="ลบ">
-                    <Trash2 size={11} />
-                  </button>
+          <div
+            key={cellKey}
+            className={`relative min-h-[98px] rounded-3xl border p-3 pb-5 transition ${empty && need > 0 ? 'bg-red-50 border-red-200' : short ? 'bg-orange-50 border-orange-200' : 'bg-white border-slate-200'} ${dragOverCell === cellKey ? 'ring-2 ring-cruzy/60' : ''}`}
+            onDragOver={onCellDragOver}
+            onDragEnter={() => setDragOverCell(cellKey)}
+            onDragLeave={() => setDragOverCell((current) => (current === cellKey ? '' : current))}
+            onDrop={(event) => onCellDrop(event, branch.id, date)}
+          >
+            <div className="mb-2 flex items-center justify-between gap-2 text-[10px] text-slate-500">
+              <span className={`rounded-full px-2 py-1 font-semibold ${empty && need > 0 ? 'bg-red-100 text-red-700' : short ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-600'}`}>
+                ต้องการ {need} คน
+              </span>
+              {shift.start ? (
+                <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] text-slate-600">
+                  {shift.start}{shift.end ? ` - ${shift.end}` : ''}
                 </span>
-              );
-            })}
-            <button className="mt-1 flex w-full items-center justify-center rounded-lg border border-dashed border-slate-300 py-0.5 text-slate-400 hover:border-cruzy hover:bg-cruzy-50 hover:text-cruzy" onClick={() => onAssign({ branchId: branch.id, date })}>
+              ) : null}
+            </div>
+            <div className="space-y-1 min-h-[42px]">
+              {employeeIds.map((empId) => {
+                const employee = data.employees.find((item) => item.id === empId);
+                if (!employee) return null;
+                return (
+                  <span
+                    key={empId}
+                    draggable
+                    onDragStart={(event) => onDragStart(event, branch.id, date, empId)}
+                    onDragEnd={() => setDragOverCell('')}
+                    className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] shadow-sm"
+                  >
+                    <Avatar employee={employee} size="sm" />
+                    <span className="truncate">{employee.nickname || employee.name}</span>
+                    <button className="text-danger/60 hover:text-danger" onClick={() => onRemove(branch.id, date, empId)} aria-label="ลบ">
+                      <Trash2 size={11} />
+                    </button>
+                  </span>
+                );
+              })}
+            </div>
+            <button className="mt-2 flex w-full items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white/70 py-1.5 text-slate-500 hover:border-cruzy hover:bg-cruzy-50 hover:text-cruzy transition-colors" onClick={() => onAssign({ branchId: branch.id, date })}>
               <Plus size={14} />
             </button>
-            <div className={`absolute bottom-1 right-1 text-[9px] font-bold ${short ? 'text-danger' : 'text-cruzy'}`}>{employeeIds.length}/{need}</div>
+            <div className={`absolute bottom-2 right-2 rounded-full px-2 py-1 text-[10px] font-semibold ${short ? 'bg-red-500 text-white' : 'bg-cruzy text-white'}`}>
+              {employeeIds.length}/{need}
+            </div>
           </div>
         );
       })}
+    </>
+  );
+}
+
+function IssueRow({ label, tone, values }) {
+  const rowStyle = tone === 'red' ? 'bg-red-50 text-red-700 border-red-200' : tone === 'yellow' ? 'bg-yellow-50 text-amber-700 border-amber-200' : 'bg-slate-100 text-slate-600 border-slate-200';
+  return (
+    <>
+      <div className={`flex items-center px-3 text-[11px] font-bold uppercase tracking-wide border ${rowStyle}`}>
+        {label}
+      </div>
+      {values.map((value, index) => (
+        <div key={`${label}-${index}`} className={`p-2 text-center text-[11px] font-semibold border ${rowStyle}`}>
+          {value || '-'}
+        </div>
+      ))}
     </>
   );
 }

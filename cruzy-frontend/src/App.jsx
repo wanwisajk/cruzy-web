@@ -11,6 +11,7 @@ import { hydrateConsoleData } from './lib/hydrate';
 import { ScheduleView } from './views/ScheduleView';
 import { AccessView, AlertsView, AuditLogView, CommissionView, InspectionView, LeaveView, SalesView, WarningView } from './views/SimpleViews';
 import { EmployeesPage } from './features/employees/EmployeesPage';
+import SalesDashboard from './views/SaleDashboard';
 
 const sessionKey = 'cruzyAdminSession';
 
@@ -121,7 +122,7 @@ export default function App() {
         {currentTab === 'schedule' ? <ScheduleView data={data} setData={setData} user={user} currentBranch={currentBranch} from={from} to={to} toast={push} /> : null}
         {currentTab === 'leave' ? <LeaveView data={data} user={user} currentBranch={currentBranch} /> : null}
         {currentTab === 'employee' ? <EmployeesPage data={data} user={user} currentBranch={currentBranch} setData={setData} toast={push} /> : null}
-        {currentTab === 'sales' ? <SalesView data={data} user={user} currentBranch={currentBranch} from={from} to={to} /> : null}
+        {currentTab === 'sales' ? <SalesDashboard data={data} user={user} currentBranch={currentBranch} from={from} to={to} /> : null}
         {currentTab === 'commission' ? <CommissionView data={data} user={user} currentBranch={currentBranch} /> : null}
         {currentTab === 'inspection' ? <InspectionView data={data} user={user} currentBranch={currentBranch} /> : null}
         {currentTab === 'alerts' ? <AlertsView data={data} user={user} currentBranch={currentBranch} /> : null}

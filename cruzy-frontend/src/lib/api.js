@@ -58,5 +58,51 @@ export const api = {
   removeSchedule: (body) => request('/schedule/remove', {
     method: 'POST',
     body: JSON.stringify(body)
+  }),
+
+  // Sales
+  getSales: () => request('/sales'),
+  createSale: (body) => request('/sales', {
+    method: 'POST',
+    body: JSON.stringify(body)
+  }),
+  updateSale: (id, body) => request(`/sales/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body)
+  }),
+  
+  // Bank Accounts
+  getBankAccounts: () => request('/bank-accounts'),
+  createBankAccount: (body) => request('/bank-accounts', {
+    method: 'POST',
+    body: JSON.stringify(body)
+  }),
+  updateBankAccount: (id, body) => request(`/bank-accounts/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body)
+  }),
+  
+  // Cash Deposits
+  getCashDeposits: () => request('/cash-deposits'),
+  createCashDeposit: (body) => request('/cash-deposits', {
+    method: 'POST',
+    body: JSON.stringify(body)
+  }),
+  updateCashDeposit: (id, body) => request(`/cash-deposits/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body)
+  }),
+
+  // Attachments
+  createAttachment: (body) => request('/attachments', {
+    method: 'POST',
+    body: JSON.stringify(body)
+  }),
+  createAttachments: (attachments) => request('/attachments/bulk', {
+    method: 'POST',
+    body: JSON.stringify({ attachments })
+  }),
+  deleteAttachment: (id) => request(`/attachments/${id}`, {
+    method: 'DELETE'
   })
 };

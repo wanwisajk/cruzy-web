@@ -5,7 +5,6 @@ const TABLES = require('../../shared/tables');
 function cleanBankAccountPayload(body) {
   const bankShort = body.bankShort || body.bank_short;
   return {
-    id: body.id || bankShort,
     bank_name: body.bankName || body.bank_name,
     bank_short: bankShort,
     account_no: body.accountNo || body.account_no,
@@ -37,7 +36,7 @@ exports.getBankAccount = async (req, res) => {
 exports.createBankAccount = async (req, res) => {
   try {
     const payload = cleanBankAccountPayload(req.body);
-    if (!required(res, payload, ['id', 'bank_name', 'bank_short', 'account_no', 'account_name'])) return;
+    if (!required(res, payload, ['bank_name', 'bank_short', 'account_no', 'account_name'])) return;
     const { data, error } = await supabase.from(TABLES.bankAccounts).insert([payload]).select().single();
     if (error) throw error;
     res.status(201).json({ message: 'เพิ่มบัญชีธนาคารสำเร็จ', data });
@@ -49,7 +48,6 @@ exports.createBankAccount = async (req, res) => {
 exports.updateBankAccount = async (req, res) => {
   try {
     const update = cleanBankAccountPayload(req.body);
-    delete update.id;
     Object.keys(update).forEach((key) => update[key] === undefined && delete update[key]);
     const { data, error } = await supabase.from(TABLES.bankAccounts).update(update).eq('id', req.params.id).select().single();
     if (error) throw error;

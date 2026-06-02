@@ -8,7 +8,9 @@ const OPTIONAL_KEYS = [
   'employeeAvailabilityRules',
   'employeeAvailabilityOverrides',
   'employeePayProfiles',
-  'branchStaffingRules'
+  'branchStaffingRules',
+  'salesLogs',
+  'attachments'
 ];
 
 exports.getConsoleData = async (_req, res) => {

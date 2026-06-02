@@ -37,6 +37,13 @@ export function DateBar({ from, to, setFrom, setTo }) {
       setTo(fmtDate(lastDay));
       return;
     }
+    if (type === 'month') {
+      const start = new Date(today.getFullYear(), today.getMonth(), 1);
+      const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      setFrom(fmtDate(start));
+      setTo(fmtDate(end));
+      return;
+    }
     const start = new Date(today.getFullYear(), today.getMonth(), 1);
     setFrom(fmtDate(start));
     setTo(fmtDate(today));
