@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { DateBar } from './components/DateBar';
 import { Login } from './components/Login';
 import { Shell } from './components/Shell';
@@ -9,9 +10,11 @@ import { api } from './lib/api';
 import { fmtDate } from './lib/date';
 import { hydrateConsoleData } from './lib/hydrate';
 import { ScheduleView } from './views/ScheduleView';
-import { AccessView, AlertsView, AuditLogView, CommissionView, InspectionView, LeaveView, SalesView, WarningView } from './views/SimpleViews';
+import { AccessView, AlertsView, AuditLogView, InspectionView, SalesView, WarningView } from './views/SimpleViews';
 import { EmployeesPage } from './features/employees/EmployeesPage';
 import SalesDashboard from './views/SaleDashboard';
+import LeaveDashboard from './pages/LeaveDashboard.jsx';
+import CommissionDashboard from './pages/CommissionDashboard.jsx';
 
 const sessionKey = 'cruzyAdminSession';
 
@@ -26,6 +29,8 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState('');
   const { toasts, push } = useToast();
+  const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     bootFromSession();
@@ -89,6 +94,17 @@ export default function App() {
     return data.attendanceAlerts.filter((alert) => !alert.ack && (currentBranch === 'all' || alert.branch === currentBranch)).length;
   }, [data, currentBranch]);
 
+  useEffect(() => {
+    if (location.pathname === '/leave') {
+      setCurrentTab('leave');
+      return;
+    }
+    if (location.pathname === '/commission') {
+      setCurrentTab('commission');
+      return;
+    }
+  }, [location.pathname]);
+
   if (booting) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f5f5f5] text-cruzy">
@@ -117,18 +133,31 @@ export default function App() {
         setCurrentBranch={setCurrentBranch}
         onLogout={logout}
         alertCount={alertCount}
+        navigate={navigate}
       >
-        <DateBar from={from} to={to} setFrom={setFrom} setTo={setTo} />
-        {currentTab === 'schedule' ? <ScheduleView data={data} setData={setData} user={user} currentBranch={currentBranch} from={from} to={to} toast={push} /> : null}
-        {currentTab === 'leave' ? <LeaveView data={data} user={user} currentBranch={currentBranch} /> : null}
-        {currentTab === 'employee' ? <EmployeesPage data={data} user={user} currentBranch={currentBranch} setData={setData} toast={push} /> : null}
-        {currentTab === 'sales' ? <SalesDashboard data={data} user={user} currentBranch={currentBranch} from={from} to={to} /> : null}
-        {currentTab === 'commission' ? <CommissionView data={data} user={user} currentBranch={currentBranch} /> : null}
-        {currentTab === 'inspection' ? <InspectionView data={data} user={user} currentBranch={currentBranch} /> : null}
-        {currentTab === 'alerts' ? <AlertsView data={data} user={user} currentBranch={currentBranch} /> : null}
-        {currentTab === 'warning' ? <WarningView data={data} user={user} currentBranch={currentBranch} /> : null}
-        {currentTab === 'auditlog' ? <AuditLogView data={data} user={user} currentBranch={currentBranch} /> : null}
-        {currentTab === 'access' ? <AccessView data={data} user={user} currentBranch={currentBranch} /> : null}
+        {location.pathname !== '/leave' ? <DateBar from={from} to={to} setFrom={setFrom} setTo={setTo} /> : null}
+        <Routes>
+          <Route
+            path="/leave"
+            element={<LeaveDashboard data={data} currentBranch={currentBranch} />}
+          />
+          <Route
+            path="/*"
+            element={
+              <>
+                {currentTab === 'schedule' ? <ScheduleView data={data} setData={setData} user={user} currentBranch={currentBranch} from={from} to={to} toast={push} /> : null}
+                {currentTab === 'employee' ? <EmployeesPage data={data} user={user} currentBranch={currentBranch} setData={setData} toast={push} /> : null}
+                {currentTab === 'sales' ? <SalesDashboard data={data} user={user} currentBranch={currentBranch} from={from} to={to} /> : null}
+                {currentTab === 'commission' ? <CommissionDashboard data={data} user={user} currentBranch={currentBranch} /> : null}
+                {currentTab === 'inspection' ? <InspectionView data={data} user={user} currentBranch={currentBranch} /> : null}
+                {currentTab === 'alerts' ? <AlertsView data={data} user={user} currentBranch={currentBranch} /> : null}
+                {currentTab === 'warning' ? <WarningView data={data} user={user} currentBranch={currentBranch} /> : null}
+                {currentTab === 'auditlog' ? <AuditLogView data={data} user={user} currentBranch={currentBranch} /> : null}
+                {currentTab === 'access' ? <AccessView data={data} user={user} currentBranch={currentBranch} /> : null}
+              </>
+            }
+          />
+        </Routes>
       </Shell>
       <Toasts toasts={toasts} />
     </>

@@ -14,12 +14,23 @@ const menus = [
   { id: 'access', label: 'สิทธิ์', icon: LockKeyhole, ownerOnly: true }
 ];
 
-export function Shell({ data, user, currentTab, setCurrentTab, currentBranch, setCurrentBranch, children, onLogout, alertCount }) {
+export function Shell({ data, user, currentTab, setCurrentTab, currentBranch, setCurrentBranch, children, onLogout, alertCount, navigate }) {
   const branches = getScopeBranches(data, user);
   const availableMenus = menus.filter((menu) => !menu.ownerOnly || user.role === 'owner');
 
   function chooseTab(tab) {
     setCurrentTab(tab);
+    if (tab === 'leave') {
+      navigate?.('/leave');
+      return;
+    }
+    if (tab === 'commission') {
+      navigate?.('/commission');
+      return;
+    }
+    if (navigate) {
+      navigate('/');
+    }
   }
 
   return (
