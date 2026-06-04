@@ -9,7 +9,7 @@ const menus = [
   { id: 'commission', label: 'ค่าคอม', icon: UsersRound },
   { id: 'inspection', label: 'ตรวจร้าน', icon: Search },
   { id: 'alerts', label: 'แจ้งเตือน', icon: AlertTriangle },
-  { id: 'warning', label: 'หนังสือเตือน', icon: FileWarning },
+  { id: 'warning-letters', label: 'หนังสือเตือน', icon: FileWarning },
   { id: 'auditlog', label: 'Log', icon: ClipboardList, ownerOnly: true },
   { id: 'access', label: 'สิทธิ์', icon: LockKeyhole, ownerOnly: true }
 ];
@@ -30,6 +30,18 @@ export function Shell({ data, user, currentTab, setCurrentTab, currentBranch, se
     }
     if (tab === 'inspection') {
       navigate?.('/inspection');
+      return;
+    }
+    if (tab === 'alerts') {
+      navigate?.('/alerts');
+      return;
+    }
+    if (tab === 'warning-letters') {
+      navigate?.('/warning-letters');
+      return;
+    }
+    if (tab === 'auditlog') {
+      navigate?.('/auditlog');
       return;
     }
     if (navigate) {

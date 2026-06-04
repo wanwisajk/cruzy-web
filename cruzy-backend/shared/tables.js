@@ -23,5 +23,6 @@ module.exports = {
   warningLetterTemplates: 'warning_letter_templates',
   warningLetters: 'warning_letters',
   attachments: 'attachments',
+  systemAuditLogs: 'system_audit_logs',
   users: 'users'
 };

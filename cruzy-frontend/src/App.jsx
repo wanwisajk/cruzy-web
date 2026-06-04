@@ -10,12 +10,15 @@ import { api } from './lib/api';
 import { fmtDate } from './lib/date';
 import { hydrateConsoleData } from './lib/hydrate';
 import { ScheduleView } from './views/ScheduleView';
-import { AccessView, AlertsView, AuditLogView, SalesView, WarningView } from './views/SimpleViews';
+import { AccessView, AuditLogView, SalesView, WarningView } from './views/SimpleViews';
 import { EmployeesPage } from './features/employees/EmployeesPage';
 import SalesDashboard from './views/SaleDashboard';
 import LeaveDashboard from './pages/LeaveDashboard.jsx';
 import CommissionDashboard from './pages/CommissionDashboard.jsx';
 import InspectionDashboard from './pages/InspectionDashboard.jsx';
+import AlertPage from './pages/AlertPage.jsx';
+import WarningLetterPage from './pages/WarningLetterPage.jsx';
+import LogPage from './pages/LogPage.jsx';
 
 const sessionKey = 'cruzyAdminSession';
 
@@ -108,6 +111,18 @@ export default function App() {
       setCurrentTab('inspection');
       return;
     }
+    if (location.pathname === '/alerts') {
+      setCurrentTab('alerts');
+      return;
+    }
+    if (location.pathname === '/warning-letters') {
+      setCurrentTab('warning-letters');
+      return;
+    }
+    if (location.pathname === '/auditlog') {
+      setCurrentTab('auditlog');
+      return;
+    }
   }, [location.pathname]);
 
   if (booting) {
@@ -140,7 +155,7 @@ export default function App() {
         alertCount={alertCount}
         navigate={navigate}
       >
-        {location.pathname !== '/leave' ? <DateBar from={from} to={to} setFrom={setFrom} setTo={setTo} /> : null}
+        {location.pathname !== '/leave' && location.pathname !== '/auditlog' ? <DateBar from={from} to={to} setFrom={setFrom} setTo={setTo} /> : null}
         <Routes>
           <Route
             path="/leave"
@@ -151,6 +166,14 @@ export default function App() {
             element={<InspectionDashboard user={user} currentBranch={currentBranch} from={from} to={to} />}
           />
           <Route
+            path="/alerts"
+            element={<AlertPage data={data} currentBranch={currentBranch} />}
+          />
+          <Route
+            path="/auditlog"
+            element={<LogPage />}
+          />
+          <Route
             path="/*"
             element={
               <>
@@ -159,7 +182,8 @@ export default function App() {
                 {currentTab === 'sales' ? <SalesDashboard data={data} user={user} currentBranch={currentBranch} from={from} to={to} /> : null}
                 {currentTab === 'commission' ? <CommissionDashboard data={data} user={user} currentBranch={currentBranch} /> : null}
                 {currentTab === 'inspection' ? <InspectionDashboard user={user} currentBranch={currentBranch} from={from} to={to} /> : null}
-                {currentTab === 'alerts' ? <AlertsView data={data} user={user} currentBranch={currentBranch} /> : null}
+                {currentTab === 'alerts' ? <AlertPage data={data} currentBranch={currentBranch} /> : null}
+                {currentTab === 'warning-letters' ? <WarningLetterPage data={data} /> : null}
                 {currentTab === 'warning' ? <WarningView data={data} user={user} currentBranch={currentBranch} /> : null}
                 {currentTab === 'auditlog' ? <AuditLogView data={data} user={user} currentBranch={currentBranch} /> : null}
                 {currentTab === 'access' ? <AccessView data={data} user={user} currentBranch={currentBranch} /> : null}

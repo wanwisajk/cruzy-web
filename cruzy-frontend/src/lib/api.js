@@ -1,7 +1,7 @@
 const configured = window.__APP_CONFIG?.API_URL;
 const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
-export const API_URL = configured || (isLocal ? 'http://127.0.0.1:5000/api' : '/api');
+export const API_URL = configured || (isLocal ? 'http://127.0.0.1:4000/api' : '/api');
 
 export async function request(path, options = {}) {
   const response = await fetch(`${API_URL}${path}`, {
@@ -24,6 +24,39 @@ export const api = {
     body: JSON.stringify({ username, password })
   }),
   consoleData: () => request('/console/data'),
+
+  // Attendance alerts
+  getAttendanceAlerts: () => request('/attendance-alerts'),
+  getAttendanceAlert: (id) => request(`/attendance-alerts/${id}`),
+  createAttendanceAlert: (body) => request('/attendance-alerts', {
+    method: 'POST',
+    body: JSON.stringify(body)
+  }),
+  updateAttendanceAlert: (id, body) => request(`/attendance-alerts/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body)
+  }),
+  acknowledgeAttendanceAlert: (id) => request(`/attendance-alerts/${id}/ack`, {
+    method: 'PATCH'
+  }),
+  deleteAttendanceAlert: (id) => request(`/attendance-alerts/${id}`, {
+    method: 'DELETE'
+  }),
+
+  // Warning letters
+  getWarningLetters: () => request('/warning-letters'),
+  getWarningLetter: (id) => request(`/warning-letters/${id}`),
+  createWarningLetter: (body) => request('/warning-letters', {
+    method: 'POST',
+    body: JSON.stringify(body)
+  }),
+  updateWarningLetter: (id, body) => request(`/warning-letters/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body)
+  }),
+  deleteWarningLetter: (id) => request(`/warning-letters/${id}`, {
+    method: 'DELETE'
+  }),
   
   // Inspection
   getInspectionDetail: (id) => request(`/store-inspections/${id}`),

@@ -14,6 +14,7 @@ const inspectionSettingsRoutes = require('../modules/inspectionSettings/inspecti
 const inspectionLogsRoutes = require('../modules/inspectionLogs/inspectionLogsRoutes');
 const attendanceAlertsRoutes = require('../modules/attendanceAlerts/attendanceAlertsRoutes');
 const warningLettersRoutes = require('../modules/warningLetters/warningLettersRoutes');
+const auditLogsRoutes = require('../modules/auditLogs/auditLogsRoutes');
 const cashDepositsRoutes = require('../modules/cashDeposits/cashDepositsRoutes');
 const attachmentsRoutes = require('../modules/attachments/attachmentsRoutes');
 
@@ -35,6 +36,7 @@ router.use('/inspection-settings', inspectionSettingsRoutes);
 router.use('/inspection-logs', inspectionLogsRoutes);
 router.use('/attendance-alerts', attendanceAlertsRoutes);
 router.use('/warning-letters', warningLettersRoutes);
+router.use('/audit-logs', auditLogsRoutes);
 router.use('/attachments', attachmentsRoutes);
 
 module.exports = router;
