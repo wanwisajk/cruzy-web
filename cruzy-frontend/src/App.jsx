@@ -10,11 +10,12 @@ import { api } from './lib/api';
 import { fmtDate } from './lib/date';
 import { hydrateConsoleData } from './lib/hydrate';
 import { ScheduleView } from './views/ScheduleView';
-import { AccessView, AlertsView, AuditLogView, InspectionView, SalesView, WarningView } from './views/SimpleViews';
+import { AccessView, AlertsView, AuditLogView, SalesView, WarningView } from './views/SimpleViews';
 import { EmployeesPage } from './features/employees/EmployeesPage';
 import SalesDashboard from './views/SaleDashboard';
 import LeaveDashboard from './pages/LeaveDashboard.jsx';
 import CommissionDashboard from './pages/CommissionDashboard.jsx';
+import InspectionDashboard from './pages/InspectionDashboard.jsx';
 
 const sessionKey = 'cruzyAdminSession';
 
@@ -103,6 +104,10 @@ export default function App() {
       setCurrentTab('commission');
       return;
     }
+    if (location.pathname === '/inspection') {
+      setCurrentTab('inspection');
+      return;
+    }
   }, [location.pathname]);
 
   if (booting) {
@@ -142,6 +147,10 @@ export default function App() {
             element={<LeaveDashboard data={data} currentBranch={currentBranch} />}
           />
           <Route
+            path="/inspection"
+            element={<InspectionDashboard user={user} currentBranch={currentBranch} from={from} to={to} />}
+          />
+          <Route
             path="/*"
             element={
               <>
@@ -149,7 +158,7 @@ export default function App() {
                 {currentTab === 'employee' ? <EmployeesPage data={data} user={user} currentBranch={currentBranch} setData={setData} toast={push} /> : null}
                 {currentTab === 'sales' ? <SalesDashboard data={data} user={user} currentBranch={currentBranch} from={from} to={to} /> : null}
                 {currentTab === 'commission' ? <CommissionDashboard data={data} user={user} currentBranch={currentBranch} /> : null}
-                {currentTab === 'inspection' ? <InspectionView data={data} user={user} currentBranch={currentBranch} /> : null}
+                {currentTab === 'inspection' ? <InspectionDashboard user={user} currentBranch={currentBranch} from={from} to={to} /> : null}
                 {currentTab === 'alerts' ? <AlertsView data={data} user={user} currentBranch={currentBranch} /> : null}
                 {currentTab === 'warning' ? <WarningView data={data} user={user} currentBranch={currentBranch} /> : null}
                 {currentTab === 'auditlog' ? <AuditLogView data={data} user={user} currentBranch={currentBranch} /> : null}

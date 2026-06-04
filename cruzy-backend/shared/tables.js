@@ -18,6 +18,8 @@ module.exports = {
   attendanceAlerts: 'attendance_alerts',
   bankAccounts: 'bank_accounts',
   storeInspections: 'store_inspections',
+  inspectionSettings: 'inspection_settings',
+  inspectionLogs: 'inspection_logs',
   warningLetterTemplates: 'warning_letter_templates',
   warningLetters: 'warning_letters',
   attachments: 'attachments',

@@ -25,6 +25,23 @@ export const api = {
   }),
   consoleData: () => request('/console/data'),
   
+  // Inspection
+  getInspectionDetail: (id) => request(`/store-inspections/${id}`),
+  updateInspection: (id, body) => request(`/store-inspections/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body)
+  }),
+  getInspectionSettings: () => request('/inspection-settings'),
+  upsertInspectionSetting: (body) => request('/inspection-settings', {
+    method: 'POST',
+    body: JSON.stringify(body)
+  }),
+  getInspectionLogs: () => request('/inspection-logs'),
+  createInspectionLog: (body) => request('/inspection-logs', {
+    method: 'POST',
+    body: JSON.stringify(body)
+  }),
+  
   // Employees
   createEmployee: (body) => request('/employees', {
     method: 'POST',
@@ -94,6 +111,7 @@ export const api = {
   }),
 
   // Attachments
+  getAttachments: () => request('/attachments'),
   createAttachment: (body) => request('/attachments', {
     method: 'POST',
     body: JSON.stringify(body)

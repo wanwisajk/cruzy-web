@@ -28,6 +28,10 @@ export function Shell({ data, user, currentTab, setCurrentTab, currentBranch, se
       navigate?.('/commission');
       return;
     }
+    if (tab === 'inspection') {
+      navigate?.('/inspection');
+      return;
+    }
     if (navigate) {
       navigate('/');
     }
