@@ -1,4 +1,4 @@
-import AddEmployeeForm from '../../../components/AddEmployeeForm';
+import AddEmployeeForm from './AddEmployeeForm';
 
 const titles = {
   create: '➕ ลงทะเบียนและสร้างโปรไฟล์รายได้พนักงานใหม่',

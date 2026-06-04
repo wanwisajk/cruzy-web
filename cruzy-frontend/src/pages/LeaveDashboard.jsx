@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
 import { Loader2, Plus } from 'lucide-react';
-import { LeaveStats } from '../components/LeaveStats.jsx';
-import { LeaveFilters } from '../components/LeaveFilters.jsx';
-import { PendingLeaveTable } from '../components/PendingLeaveTable.jsx';
-import { LeaveHistoryTable } from '../components/LeaveHistoryTable.jsx';
-import { LeaveModal } from '../components/LeaveModal.jsx';
-import { useLeaves } from '../hooks/useLeaves.js';
+import { LeaveStats } from '../features/leaves/components/LeaveStats.jsx';
+import { LeaveFilters } from '../features/leaves/components/LeaveFilters.jsx';
+import { PendingLeaveTable } from '../features/leaves/components/PendingLeaveTable.jsx';
+import { LeaveHistoryTable } from '../features/leaves/components/LeaveHistoryTable.jsx';
+import { LeaveModal } from '../features/leaves/components/LeaveModal.jsx';
+import { useLeaves } from '../features/leaves/hooks/useLeaves.js';
 
 const DEFAULT_LEAVE_TYPES = ['ลาป่วย', 'ลากิจ', 'ลาพักร้อน', 'ลาอื่นๆ'];
 

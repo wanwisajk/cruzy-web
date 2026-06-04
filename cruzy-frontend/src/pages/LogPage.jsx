@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { useAuditLogs } from '../hooks/useAuditLogs.js';
+import { useAuditLogs } from '../features/auditLogs/hooks/useAuditLogs.js';
 import { thaiShortDate } from '../lib/date.js';
 
 const ACTION_CONFIG = {

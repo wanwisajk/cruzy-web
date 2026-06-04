@@ -44,6 +44,10 @@ export function Shell({ data, user, currentTab, setCurrentTab, currentBranch, se
       navigate?.('/auditlog');
       return;
     }
+    if (tab === 'access') {
+      navigate?.('/access');
+      return;
+    }
     if (navigate) {
       navigate('/');
     }

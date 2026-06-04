@@ -9,16 +9,16 @@ import { useToast } from './hooks/useToast';
 import { api } from './lib/api';
 import { fmtDate } from './lib/date';
 import { hydrateConsoleData } from './lib/hydrate';
-import { ScheduleView } from './views/ScheduleView';
-import { AccessView, AuditLogView, SalesView, WarningView } from './views/SimpleViews';
-import { EmployeesPage } from './features/employees/EmployeesPage';
-import SalesDashboard from './views/SaleDashboard';
+import EmployeesPage from './pages/EmployeesPage.jsx';
+import ScheduleDashboard from './pages/ScheduleDashboard.jsx';
+import SalesDashboard from './pages/SaleDashboard.jsx';
 import LeaveDashboard from './pages/LeaveDashboard.jsx';
 import CommissionDashboard from './pages/CommissionDashboard.jsx';
 import InspectionDashboard from './pages/InspectionDashboard.jsx';
 import AlertPage from './pages/AlertPage.jsx';
 import WarningLetterPage from './pages/WarningLetterPage.jsx';
 import LogPage from './pages/LogPage.jsx';
+import AccessDashboard from './pages/AccessDashboard.jsx';
 
 const sessionKey = 'cruzyAdminSession';
 
@@ -123,6 +123,10 @@ export default function App() {
       setCurrentTab('auditlog');
       return;
     }
+    if (location.pathname === '/access') {
+      setCurrentTab('access');
+      return;
+    }
   }, [location.pathname]);
 
   if (booting) {
@@ -174,19 +178,21 @@ export default function App() {
             element={<LogPage />}
           />
           <Route
+            path="/access"
+            element={<AccessDashboard user={user} fallbackData={data} />}
+          />
+          <Route
             path="/*"
             element={
               <>
-                {currentTab === 'schedule' ? <ScheduleView data={data} setData={setData} user={user} currentBranch={currentBranch} from={from} to={to} toast={push} /> : null}
+                {currentTab === 'schedule' ? <ScheduleDashboard data={data} setData={setData} user={user} currentBranch={currentBranch} from={from} to={to} toast={push} /> : null}
                 {currentTab === 'employee' ? <EmployeesPage data={data} user={user} currentBranch={currentBranch} setData={setData} toast={push} /> : null}
                 {currentTab === 'sales' ? <SalesDashboard data={data} user={user} currentBranch={currentBranch} from={from} to={to} /> : null}
                 {currentTab === 'commission' ? <CommissionDashboard data={data} user={user} currentBranch={currentBranch} /> : null}
                 {currentTab === 'inspection' ? <InspectionDashboard user={user} currentBranch={currentBranch} from={from} to={to} /> : null}
                 {currentTab === 'alerts' ? <AlertPage data={data} currentBranch={currentBranch} /> : null}
                 {currentTab === 'warning-letters' ? <WarningLetterPage data={data} /> : null}
-                {currentTab === 'warning' ? <WarningView data={data} user={user} currentBranch={currentBranch} /> : null}
-                {currentTab === 'auditlog' ? <AuditLogView data={data} user={user} currentBranch={currentBranch} /> : null}
-                {currentTab === 'access' ? <AccessView data={data} user={user} currentBranch={currentBranch} /> : null}
+                {currentTab === 'access' ? <AccessDashboard user={user} fallbackData={data} /> : null}
               </>
             }
           />

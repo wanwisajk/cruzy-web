@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Image, ListChecks, RefreshCcw, Search, X } from 'lucide-react';
 import { thaiLongDate, thaiShortDate } from '../lib/date';
-import { inspectionService } from '../services/inspectionService.js';
+import { useInspection } from '../features/inspection/hooks/useInspection.js';
 
 function formatBadge(status) {
   if (status === 'pass') return 'bg-emerald-50 text-emerald-700';
@@ -77,140 +77,29 @@ export default function InspectionDashboard({ user, from, to }) {
   const [activeTab, setActiveTab] = useState('opening');
   const [branchFilter, setBranchFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [branches, setBranches] = useState([]);
-  const [employees, setEmployees] = useState([]);
-  const [inspections, setInspections] = useState([]);
-  const [settings, setSettings] = useState([]);
-  const [logs, setLogs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [detailId, setDetailId] = useState(null);
-  const [detailInspection, setDetailInspection] = useState(null);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [settingsEdit, setSettingsEdit] = useState(null);
-  const [savingSettings, setSavingSettings] = useState(false);
-  const [savingReview, setSavingReview] = useState(false);
-  const [toast, setToast] = useState(null);
-
-  useEffect(() => {
-    loadAllData();
-  }, [from, to]);
-
-  useEffect(() => {
-    if (toast) {
-      const timer = setTimeout(() => setToast(null), 3200);
-      return () => clearTimeout(timer);
-    }
-    return undefined;
-  }, [toast]);
-
-  async function loadAllData() {
-    setLoading(true);
-    setError('');
-    try {
-      const data = await inspectionService.fetchConsoleData();
-      setBranches(data.branches || []);
-      setEmployees(data.employees || []);
-      setInspections((data.storeInspections || []).filter((item) => {
-        if (from && item.work_date < from) return false;
-        if (to && item.work_date > to) return false;
-        return true;
-      }).sort((a, b) => {
-        if (a.work_date > b.work_date) return -1;
-        if (a.work_date < b.work_date) return 1;
-        return b.id - a.id;
-      }));
-      setSettings(data.inspectionSettings || []);
-      setLogs(data.inspectionLogs || []);
-    } catch (err) {
-      setError(err.message || 'ไม่สามารถโหลดข้อมูลได้');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function loadInspectionDetail(id) {
-    setDetailLoading(true);
-    setDetailInspection(null);
-    setError('');
-    try {
-      const [inspection, attachments] = await Promise.all([
-        inspectionService.getInspection(id),
-        inspectionService.getAttachments(),
-      ]);
-      setDetailInspection({
-        ...inspection,
-        attachments: Array.isArray(attachments)
-          ? attachments.filter((attachment) => attachment.entity_type === 'inspection' && attachment.entity_id === id)
-          : [],
-      });
-    } catch (err) {
-      setError(err.message || 'ไม่สามารถโหลดรายละเอียดได้');
-    } finally {
-      setDetailLoading(false);
-    }
-  }
-
-  async function saveReview(id, status) {
-    setSavingReview(true);
-    setError('');
-    try {
-      const now = new Date().toISOString();
-      const userName = user?.name || user?.username || 'dashboard';
-      const result = await inspectionService.updateInspection(id, {
-        status,
-        reviewed_by: userName,
-        review_time: now,
-      });
-      const updated = result?.data || result;
-      await inspectionService.createInspectionLog({
-        inspection_id: id,
-        user_name: userName,
-        action: status === 'pass' ? 'approve' : 'reject',
-        description: status === 'pass' ? 'อนุมัติการตรวจร้าน' : 'บันทึกปัญหาการตรวจร้าน',
-        source: 'dashboard',
-      });
-      setInspections((prev) => prev.map((item) => (item.id === id ? { ...item, ...updated } : item)));
-      setLogs(await inspectionService.getInspectionLogs());
-      setToast(status === 'pass' ? '✅ อนุมัติแล้ว' : '⚠️ บันทึกเป็นมีปัญหาแล้ว');
-      setDetailOpen(false);
-    } catch (err) {
-      setError(err.message || 'ไม่สามารถบันทึกสถานะได้');
-    } finally {
-      setSavingReview(false);
-    }
-  }
-
-  async function saveSettings(branchId, values) {
-    setSavingSettings(true);
-    setError('');
-    try {
-      const payload = {
-        branch_id: branchId,
-        cctv_count: Number(values.cctvCount) || 0,
-        shelf_count: Number(values.shelfCount) || 0,
-        required_photos: values.requiredPhotos,
-        checklists: values.checklists,
-        required_products: values.requiredProducts,
-      };
-      const result = await inspectionService.upsertInspectionSetting(payload);
-      const updated = result?.data || result;
-      setSettings((prev) => {
-        const existing = prev.find((item) => item.branch_id === branchId);
-        if (existing) {
-          return prev.map((item) => (item.branch_id === branchId ? { ...item, ...updated } : item));
-        }
-        return [...prev, updated];
-      });
-      setToast('💾 บันทึกการตั้งค่าตรวจเรียบร้อย');
-      setSettingsEdit(null);
-    } catch (err) {
-      setError(err.message || 'ไม่สามารถบันทึกการตั้งค่าได้');
-    } finally {
-      setSavingSettings(false);
-    }
-  }
+  const {
+    branches,
+    employees,
+    inspections,
+    settings,
+    logs,
+    loading,
+    error,
+    detailOpen,
+    detailId,
+    detailInspection,
+    detailLoading,
+    settingsEdit,
+    savingSettings,
+    savingReview,
+    toast,
+    loadAllData,
+    openInspectionDetail,
+    saveReview,
+    saveSettings,
+    setDetailOpen,
+    setSettingsEdit
+  } = useInspection({ user, from, to });
 
   const branchMap = useMemo(() => Object.fromEntries(branches.map((branch) => [branch.id, branch])), [branches]);
   const employeeMap = useMemo(() => Object.fromEntries(employees.map((employee) => [employee.id, employee])), [employees]);
@@ -499,9 +388,7 @@ export default function InspectionDashboard({ user, from, to }) {
                             <button
                               type="button"
                               onClick={() => {
-                                setDetailId(item.id);
-                                setDetailOpen(true);
-                                loadInspectionDetail(item.id);
+                                openInspectionDetail(item.id);
                               }}
                               className="rounded-2xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
                             >

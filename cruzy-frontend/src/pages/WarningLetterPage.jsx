@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { FileText, Plus } from 'lucide-react';
 import { thaiShortDate } from '../lib/date.js';
-import { useWarningLetters } from '../hooks/useWarningLetters.js';
+import { useWarningLetters } from '../features/warningLetters/hooks/useWarningLetters.js';
 
 const TEMPLATES = [
   {

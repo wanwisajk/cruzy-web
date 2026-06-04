@@ -6,7 +6,7 @@ require('dotenv').config({
   path: path.join(__dirname, '..', '.env')
 });
 
-const consoleRoutes = require('./routes/consoleRoutes');
+const apiRoutes = require('./routes/apiRoutes');
 
 const app = express();
 const PORT = process.env.PORT;
@@ -28,7 +28,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-app.use('/api', consoleRoutes);
+app.use('/api', apiRoutes);
 
 app.listen(PORT, () => {
   console.log(`Cruzy backend running at http://localhost:${PORT}`);

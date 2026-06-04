@@ -1,4 +1,4 @@
-const configured = window.__APP_CONFIG?.API_URL;
+const configured = import.meta.env.VITE_API_URL;
 const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
 export const API_URL = configured || (isLocal ? 'http://127.0.0.1:4000/api' : '/api');

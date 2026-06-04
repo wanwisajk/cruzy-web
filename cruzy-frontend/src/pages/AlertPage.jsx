@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { AlertTriangle, Check, Search, Plus, Trash2 } from 'lucide-react';
 import { thaiShortDate, formatDbTime } from '../lib/date.js';
-import { useAlerts } from '../hooks/useAlerts.js';
+import { useAlerts } from '../features/alerts/hooks/useAlerts.js';
 
 const TYPE_CONFIG = {
   absent: { label: 'ขาดงาน', color: 'bg-red-50 text-red-700', badge: 'bg-red-100 text-red-800', icon: '👤' },

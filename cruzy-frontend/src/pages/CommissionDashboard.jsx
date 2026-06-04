@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Download, RefreshCw, Check } from 'lucide-react';
-import { commissionService } from '../services/commissionService.js';
 import { useToast } from '../hooks/useToast';
+import { useCommission } from '../features/commission/hooks/useCommission.js';
 
 function calculateCommission(sales) {
   const s = Number(sales || 0);
@@ -17,31 +17,10 @@ function money(v) {
 
 export default function CommissionDashboard({ data: initialData, user, currentBranch }) {
   const { push } = useToast();
-  const [data, setData] = useState(initialData || null);
-  const [loading, setLoading] = useState(false);
+  const { data, loading, statusMap, markPaid, refreshCommissionData } = useCommission(initialData, push);
   const [branchFilter, setBranchFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [computed, setComputed] = useState([]);
-  const [statusMap, setStatusMap] = useState({});
-
-  useEffect(() => {
-    if (!data) refresh();
-  }, []);
-
-  async function refresh() {
-    setLoading(true);
-    try {
-      const payload = await commissionService.fetchConsoleData();
-      // hydrate is available in App; structure matches hydrateConsoleData
-      setData((prev) => ({ ...prev, ...(payload || {}) }));
-      push && push('โหลดข้อมูลคอนโซลสำเร็จ');
-    } catch (err) {
-      console.error(err);
-      push && push('ไม่สามารถโหลดข้อมูลได้');
-    } finally {
-      setLoading(false);
-    }
-  }
 
   const branches = useMemo(() => (data?.branches || []).map((b) => ({ id: b.id, code: b.code, name: b.name })), [data]);
   const employees = useMemo(() => data?.employees || [], [data]);
@@ -100,7 +79,7 @@ export default function CommissionDashboard({ data: initialData, user, currentBr
   }, [filtered]);
 
   function doPay(empId) {
-    setStatusMap((s) => ({ ...s, [empId]: 'paid' }));
+    markPaid(empId);
     push && push('ยืนยันการจ่ายเงินสำเร็จ');
   }
 

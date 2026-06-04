@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { getVisibleBranches } from '../../../lib/schedule';
+import { employeesApi } from '../services/employeesApi';
 
 export function useEmployees({ data, user, currentBranch, setData, toast }) {
   const [showModal, setShowModal] = useState(false);
@@ -51,8 +52,17 @@ export function useEmployees({ data, user, currentBranch, setData, toast }) {
     setModalMode('create');
   }
 
-  function handleFormSubmit(savedPayload) {
+  async function handleFormSubmit(savedPayload) {
     const id = savedPayload.id;
+    const isEdit = Boolean(activeEmployee?.id);
+    const result = isEdit
+      ? await employeesApi.updateEmployee(activeEmployee.id, savedPayload)
+      : await employeesApi.createEmployee(savedPayload);
+
+    if (isEdit) {
+      await employeesApi.saveWorkRules(activeEmployee.id, savedPayload);
+    }
+
     const employeeBranchIds = savedPayload.branchEligibility?.map((branch) => branch.branchId || branch.branch_id) || (activeEmployee?.branch ? [activeEmployee.branch] : []);
     const updatedEmployee = {
       id,
@@ -101,6 +111,7 @@ export function useEmployees({ data, user, currentBranch, setData, toast }) {
 
     closeModal();
     if (toast) toast(`✅ บันทึกข้อมูลพนักงาน ${updatedEmployee.name} สำเร็จเรียบร้อย!`);
+    return { ...savedPayload, ...(result?.data || {}) };
   }
 
   return {
