@@ -6,6 +6,21 @@ const COLORS = [
   "#3F51B5", "#009688", "#F44336", "#FFC107", "#673AB7",
 ];
 
+const COMMISSION_TYPES = [
+  {
+    value: "scheduled_assigned_branch_days",
+    label: "เลือกสาขาเอง แล้วคิดเฉพาะวันที่ทำงานในสาขานั้น"
+  },
+  {
+    value: "actual_work_days_all_branches",
+    label: "ทุกสาขาที่ไปทำงานจริงตามตารางงาน/เข้างาน"
+  },
+  {
+    value: "period_days_responsible_branches",
+    label: "ทุกวันในงวดของสาขาที่รับผิดชอบดูแล"
+  }
+];
+
 const INITIAL = {
   id: "",
   color: "#4CAF50",
@@ -13,6 +28,7 @@ const INITIAL = {
   nickname: "",
   pos: "พนักงานขาย",
   selectedBranches: [],
+  commissionBranches: [],
   phone: "",
   lineUserId: "",
   empType: "fulltime",
@@ -20,7 +36,7 @@ const INITIAL = {
   payType: "monthly",
   payCycle: "monthly",
   wage: "",
-  comType: "tier",
+  comType: "scheduled_assigned_branch_days",
   comPct: "",
   weeklyOffs: ["0"],
   holidays: "วันหยุดนักขัตฤกษ์",
@@ -34,12 +50,23 @@ function getInitialFormState(employee = {}, branches = []) {
   if (!employee || Object.keys(employee).length === 0) {
     return {
       ...INITIAL,
-      selectedBranches: branches[0] ? [branches[0].id] : []
+      selectedBranches: branches[0] ? [branches[0].id] : [],
+      commissionBranches: branches[0] ? [branches[0].id] : []
     };
   }
 
-  const branchIds = (employee.branchEligibility || []).map((row) => row.branchId || row.branch_id).filter(Boolean);
+  const branchEligibility = employee.branchEligibility || [];
+  const branchIds = branchEligibility.map((row) => row.branchId || row.branch_id).filter(Boolean);
   const selectedBranches = branchIds.length ? branchIds : employee.branch ? [employee.branch] : (branches[0] ? [branches[0].id] : []);
+  const commissionBranchIds = branchEligibility
+    .filter((row) => row.commissionEligible !== false && row.commission_eligible !== false)
+    .map((row) => row.branchId || row.branch_id)
+    .filter(Boolean);
+  const commissionBranches = employee.commissionBranches?.length
+    ? employee.commissionBranches
+    : commissionBranchIds.length
+      ? commissionBranchIds
+      : selectedBranches;
   const payProfile = employee.payProfile || {};
   const rawAbsenceMode = payProfile.absence_deduct_mode || payProfile.absDeduct || payProfile.absenceDeductMode;
   let absDeduct = "system_hourly_avg";
@@ -77,6 +104,7 @@ function getInitialFormState(employee = {}, branches = []) {
     nickname: employee.nickname || "",
     pos: employee.position || employee.pos || "พนักงานขาย",
     selectedBranches,
+    commissionBranches,
     phone: employee.phone || "",
     lineUserId: employee.line_user_id || employee.lineUserId || "",
     empType: employee.empType || "fulltime",
@@ -84,8 +112,8 @@ function getInitialFormState(employee = {}, branches = []) {
     payType: payProfile.payType || payProfile.pay_type || "monthly",
     payCycle: payProfile.payCycle || payProfile.pay_cycle || "monthly",
     wage: String(payProfile.salary ?? payProfile.monthly_salary ?? payProfile.daily_rate ?? employee.salary ?? ""),
-    comType: employee.comType || (payProfile.commission_enabled ? (payProfile.commission_rate ? "flat" : "tier") : "none"),
-    comPct: String(payProfile.commission_rate ?? ""),
+    comType: employee.comType || employee.commissionCalcType || payProfile.commissionCalcType || payProfile.commission_calc_type || "scheduled_assigned_branch_days",
+    comPct: String(payProfile.commission_rate ?? payProfile.commissionRate ?? employee.commissionRate ?? ""),
     weeklyOffs,
     holidays: employee.holidays || "วันหยุดนักขัตฤกษ์",
     breakHours: String(payProfile.breakHours ?? payProfile.break_hours ?? "1"),
@@ -130,11 +158,30 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
       const updatedBranches = selected
         ? f.selectedBranches.filter((id) => id !== branchId)
         : [...f.selectedBranches, branchId];
+      const updatedCommissionBranches = selected
+        ? f.commissionBranches.filter((id) => id !== branchId)
+        : f.commissionBranches.includes(branchId)
+          ? f.commissionBranches
+          : [...f.commissionBranches, branchId];
       
       if (updatedBranches.length && errors.selectedBranches) {
         setErrors((errs) => ({ ...errs, selectedBranches: false }));
       }
-      return { ...f, selectedBranches: updatedBranches };
+      return { ...f, selectedBranches: updatedBranches, commissionBranches: updatedCommissionBranches };
+    });
+  };
+
+  const toggleCommissionBranchSelection = (branchId) => () => {
+    setForm((f) => {
+      const selected = f.commissionBranches.includes(branchId);
+      const updatedBranches = selected
+        ? f.commissionBranches.filter((id) => id !== branchId)
+        : [...f.commissionBranches, branchId];
+
+      if (updatedBranches.length && errors.commissionBranches) {
+        setErrors((errs) => ({ ...errs, commissionBranches: false }));
+      }
+      return { ...f, commissionBranches: updatedBranches };
     });
   };
 
@@ -154,6 +201,11 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
     if (!form.name.trim()) e.name = true;
     if (!form.nickname.trim()) e.nickname = true;
     if (!form.wage || Number(form.wage) <= 0) e.wage = true;
+    if (!form.comPct || Number(form.comPct) <= 0) e.comPct = true;
+    if (form.comType !== "actual_work_days_all_branches" && !form.commissionBranches.length) {
+      e.commissionBranches = true;
+      showToast("⚠️ กรุณาเลือกสาขาที่ได้ค่าคอม", true);
+    }
     if (!form.selectedBranches.length) {
       e.selectedBranches = true;
       showToast("⚠️ กรุณาเลือกอย่างน้อยหนึ่งสาขาในแบบฟอร์ม", true);
@@ -179,6 +231,9 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
     try {
       const payTypeMap = { monthly: "monthly", daily_shift: "daily", daily_full: "daily" };
       const selectedBranchIds = form.selectedBranches.length ? form.selectedBranches : [];
+      const commissionBranchIds = form.comType === "actual_work_days_all_branches"
+        ? selectedBranchIds
+        : form.commissionBranches.filter((branchId) => selectedBranchIds.includes(branchId));
       const selectedBranchObj = branches.find(b => b.id === selectedBranchIds[0]);
       const calculatedRegion = selectedBranchObj?.region_id || selectedBranchObj?.region || "default";
       const employeeId = form.id.trim();
@@ -224,9 +279,11 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
           monthly_salary: payTypeMap[form.payType] === "monthly" ? Number(form.wage) : 0,
           dailyRate: payTypeMap[form.payType] === "daily" ? Number(form.wage) : 0,
           daily_rate: payTypeMap[form.payType] === "daily" ? Number(form.wage) : 0,
-          commissionEnabled: form.comType !== "none",
-          commission_enabled: form.comType !== "none",
-          commission_rate: form.comType === "flat" ? Number(form.comPct) : null,
+          commissionEnabled: true,
+          commission_enabled: true,
+          commissionCalcType: form.comType,
+          commission_calc_type: form.comType,
+          commission_rate: Number(form.comPct) || 0,
           special_allowance: Number(form.allowance) || 0,
           breakHours: Number(form.breakHours) || 1,
           break_hours: Number(form.breakHours) || 1,
@@ -248,7 +305,7 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
           canWork: true,
           isPreferred: index === 0,
           priority: index === 0 ? 1 : 0,
-          commissionEligible: form.comType !== "none"
+          commissionEligible: commissionBranchIds.includes(branchId)
         })),
         availabilityRules: (function() {
           const mapping = { 'จันทร์': 1, 'อังคาร': 2, 'พุธ': 3, 'พฤหัส': 4, 'ศุกร์': 5, 'เสาร์': 6, 'อาทิตย์': 0 };
@@ -280,14 +337,14 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
     } else {
       setForm({
         ...INITIAL,
-        selectedBranches: branches[0] ? [branches[0].id] : []
+        selectedBranches: branches[0] ? [branches[0].id] : [],
+        commissionBranches: branches[0] ? [branches[0].id] : []
       });
       setErrors({});
       showToast("🔄 ล้างฟอร์มแล้ว");
     }
   }
 
-  const comDisabled = form.comType !== "flat";
   const absFixedDisabled = form.absDeduct === "system_hourly_avg";
 
   const inputBaseStyle = "w-full border rounded-lg p-2.5 bg-white text-slate-800 transition-all outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/10 text-xs shadow-sm placeholder:text-slate-400";
@@ -484,19 +541,49 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
             <input type="number" value={form.wage} onChange={set("wage")} placeholder="15000" className={`${inputBaseStyle} ${errors.wage ? "border-red-400 bg-red-50/20" : "border-slate-200"}`} />
           </div>
 
-          <div>
-            <label className={labelBaseStyle}>ระบบคิดค่าคอมมิชชั่น</label>
+          <div className="lg:col-span-2">
+            <label className={labelBaseStyle}>สรุปประเภทค่าคอมมิชชัน</label>
             <select value={form.comType} onChange={set("comType")} className={`${inputBaseStyle} border-slate-200 cursor-pointer`}>
-              <option value="tier">Tier ตามยอดขายสาขา</option>
-              <option value="flat">เรทคงที่ (%)</option>
-              <option value="none">ไม่มี</option>
+              {COMMISSION_TYPES.map((type, index) => (
+                <option key={type.value} value={type.value}>{index + 1}. {type.label}</option>
+              ))}
             </select>
           </div>
 
           <div>
-            <label className={labelBaseStyle}>% คอมมิชชั่นคงที่</label>
-            <input type="number" value={form.comPct} onChange={set("comPct")} disabled={comDisabled} placeholder="2" className={`${inputBaseStyle} border-slate-200 disabled:bg-slate-50 disabled:text-slate-400 disabled:border-slate-100`} />
+            <label className={labelBaseStyle}>ได้ค่าคอม (%)</label>
+            <input type="number" value={form.comPct} onChange={set("comPct")} placeholder="2" className={`${inputBaseStyle} ${errors.comPct ? "border-red-400 bg-red-50/20" : "border-slate-200"}`} />
+            {errors.comPct && <p className="text-red-500 text-[10px] mt-1">ต้องระบุเปอร์เซ็นต์ค่าคอมมากกว่า 0</p>}
           </div>
+
+          {form.comType !== "actual_work_days_all_branches" && (
+            <div className="lg:col-span-3 bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2">
+              <label className={`${labelBaseStyle} text-slate-700 font-bold`}>
+                {form.comType === "period_days_responsible_branches" ? "สาขาที่รับผิดชอบดูแลและได้ค่าคอม" : "สาขาที่ได้ค่าคอม"} <span className="text-red-500">*</span>
+              </label>
+              <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 p-3 rounded-lg bg-white border ${errors.commissionBranches ? "border-red-300" : "border-slate-100"}`}>
+                {branches.filter((branch) => form.selectedBranches.includes(branch.id)).map((b) => {
+                  const isChecked = form.commissionBranches.includes(b.id);
+                  return (
+                    <label key={b.id} className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition-all hover:bg-slate-50 ${isChecked ? "bg-emerald-50/40 border-emerald-200 text-emerald-900" : "border-slate-100 text-slate-600"}`}>
+                      <input
+                        type="checkbox"
+                        value={b.id}
+                        checked={isChecked}
+                        onChange={toggleCommissionBranchSelection(b.id)}
+                        className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                      />
+                      <div className="flex flex-col">
+                        <span className="font-bold text-[11px]">{b.code}</span>
+                        <span className="text-[10px] text-slate-500">{b.name}</span>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+              {errors.commissionBranches && <p className="text-red-500 text-[10px]">ต้องเลือกอย่างน้อย 1 สาขาที่ได้ค่าคอม</p>}
+            </div>
+          )}
 
           <div>
             <label className={labelBaseStyle}>เบี้ยเลี้ยงพิเศษอื่น ๆ (฿/เดือน)</label>
@@ -504,7 +591,7 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
           </div>
 
           <div>
-            <label className={labelBaseStyle}>ลоจิกการหักเงินมาสาย</label>
+            <label className={labelBaseStyle}>การหักเงินมาสาย</label>
             <select value={form.absDeduct} onChange={set("absDeduct")} className={`${inputBaseStyle} border-slate-200 cursor-pointer`}>
               <option value="system_hourly_avg">คำนวณอัตโนมัติ (เรทเฉลี่ยชั่วโมงจริง)</option>
               <option value="system_hourly_fixed">หักคงที่คำนวณรายชั่วโมง</option>

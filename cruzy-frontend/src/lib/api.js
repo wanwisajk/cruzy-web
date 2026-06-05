@@ -26,6 +26,21 @@ export const api = {
   consoleData: () => request('/console/data'),
 
   // Attendance alerts
+  getAttendance: () => request('/attendance'),
+  getAttendanceRecord: (id) => request(`/attendance/${id}`),
+  createAttendance: (body) => request('/attendance', {
+    method: 'POST',
+    body: JSON.stringify(body)
+  }),
+  updateAttendance: (id, body) => request(`/attendance/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body)
+  }),
+  deleteAttendance: (id) => request(`/attendance/${id}`, {
+    method: 'DELETE'
+  }),
+
+  // Attendance alerts
   getAttendanceAlerts: () => request('/attendance-alerts'),
   getAttendanceAlert: (id) => request(`/attendance-alerts/${id}`),
   createAttendanceAlert: (body) => request('/attendance-alerts', {

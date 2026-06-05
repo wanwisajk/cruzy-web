@@ -1,11 +1,12 @@
-export function Content({ title, icon: Icon, stats, children }) {
+export function Content({ title, icon: Icon, stats, action, children }) {
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between border-b border-slate-200 pb-4">
+      <div className="mb-6 flex items-center justify-between pb-4">
         <div className="flex items-center gap-3">
           {Icon && <Icon size={24} className="text-cruzy" />}
-          <h1 className="text-2xl font-bold">{title}</h1>
+          <h1 className="text-xl font-bold">{title}</h1>
         </div>
+        {action}
         {stats?.length > 0 && (
           <div className="flex gap-6">
             {stats.map(([label, value]) => (

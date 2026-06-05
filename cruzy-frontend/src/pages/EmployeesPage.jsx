@@ -3,6 +3,8 @@ import { Button } from '../components/ui/Button';
 import { EmployeeFormModal } from '../features/employees/components/EmployeeFormModal';
 import { EmployeeViewModal } from '../features/employees/components/EmployeeViewModal';
 import { useEmployees } from '../features/employees/hooks/useEmployees';
+import { api } from '../lib/api';
+import { fmtDate } from '../lib/date';
 
 function nf(n) {
   return (n ?? 0).toLocaleString('th-TH');
@@ -19,11 +21,9 @@ function thDate(ds) {
 
 function statusLabel(status) {
   return {
-    fulltime: 'เต็มเวลา',
-    parttime: 'พาร์ตไทม์',
+    fulltime: 'Full time ประจำ',
+    parttime: 'Part time',
     freelance: 'Freelance',
-    active: 'ประจำ',
-    trial: 'ทดลองงาน'
   }[status] || status;
 }
 
@@ -32,8 +32,6 @@ function statusColor(status) {
     fulltime: 'bg-emerald-100 text-emerald-800',
     parttime: 'bg-purple-100 text-purple-800',
     freelance: 'bg-blue-100 text-blue-800',
-    active: 'bg-emerald-100 text-emerald-800',
-    trial: 'bg-amber-100 text-amber-800'
   }[status] || 'bg-gray-100 text-gray-700';
 }
 
@@ -43,6 +41,135 @@ function payCycleLabel(c) {
     bimonthly: 'จ่ายครึ่งเดือน',
     monthly: 'รายเดือน'
   }[c] || c;
+}
+
+function emptyAttendanceForm(date) {
+  return {
+    id: '',
+    employeeId: '',
+    branchId: '',
+    workDate: date,
+    clockIn: '',
+    clockOut: '',
+    lateMinutes: '0',
+    breakStart: '',
+    breakEnd: '',
+    isBreakOver: false
+  };
+}
+
+function mapAttendanceResponse(row) {
+  return {
+    id: String(row.id),
+    empId: row.employee_id,
+    date: row.work_date,
+    clockIn: String(row.clock_in || '').slice(0, 5),
+    clockOut: String(row.clock_out || '').slice(0, 5),
+    lateMin: Number(row.late_minutes || 0),
+    breakStart: String(row.break_start || '').slice(0, 5),
+    breakEnd: String(row.break_end || '').slice(0, 5),
+    breakMinutes: Number(row.break_minutes || 0),
+    breakOver: Boolean(row.is_break_over),
+    branch: row.branch_id
+  };
+}
+
+function timeToMinutes(value) {
+  if (!value) return null;
+  const [hours, minutes] = String(value).split(':').map(Number);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+  return hours * 60 + minutes;
+}
+
+function positiveDiffMinutes(value, target) {
+  const valueMinutes = timeToMinutes(value);
+  const targetMinutes = timeToMinutes(target);
+  if (valueMinutes === null || targetMinutes === null) return 0;
+  return Math.max(0, valueMinutes - targetMinutes);
+}
+
+function earlyCloseMinutes(clockOut, shiftEnd) {
+  const outMinutes = timeToMinutes(clockOut);
+  const endMinutes = timeToMinutes(shiftEnd);
+  if (outMinutes === null || endMinutes === null) return 0;
+  return Math.max(0, endMinutes - outMinutes);
+}
+
+function breakDurationMinutes(breakStart, breakEnd, fallbackMinutes = 0) {
+  const startMinutes = timeToMinutes(breakStart);
+  const endMinutes = timeToMinutes(breakEnd);
+  if (startMinutes === null || endMinutes === null) return Number(fallbackMinutes || 0);
+  return Math.max(0, endMinutes - startMinutes);
+}
+
+function employeeBreakMinutes(employee) {
+  const rawBreakHours = employee?.breakHours ?? 1;
+  const value = Number(rawBreakHours || 1);
+  if (!Number.isFinite(value)) return 60;
+
+  const hours = Math.trunc(value);
+  const fraction = Number((value - hours).toFixed(2));
+  if (fraction === 0.5) return (hours * 60) + 30;
+  if (fraction > 0 && fraction <= 0.59) return (hours * 60) + Math.round(fraction * 100);
+  return Math.round(value * 60);
+}
+
+function branchShiftInfo(data, branchId, date) {
+  if (!branchId || !date) return { start: '10:00', end: '21:00', source: 'default' };
+  const day = new Date(`${date}T00:00:00`).getDay();
+  const dayKey = { 1: 'จ', 2: 'อ', 3: 'พ', 4: 'พฤ', 5: 'ศ', 6: 'ส', 0: 'อา' }[day];
+  const branch = (data.branches || []).find((item) => String(item.id) === String(branchId));
+  if (branch?.hours?.[dayKey] || branch?.hoursEnd?.[dayKey]) {
+    return {
+      start: branch.hours?.[dayKey] || '10:00',
+      end: branch.hoursEnd?.[dayKey] || '21:00',
+      source: 'branch_db'
+    };
+  }
+  const rule = (data.branchStaffingRules || []).find((item) => (
+    String(item.branchId) === String(branchId) &&
+    item.dayOfWeek === day &&
+    item.active !== false
+  ));
+  if (rule) {
+    return {
+      start: rule.shiftStart || '10:00',
+      end: rule.shiftEnd || '21:00',
+      source: 'branch_rule'
+    };
+  }
+  return { start: '10:00', end: '21:00', source: 'default' };
+}
+
+function calculateAttendanceMetrics(data, row, employee) {
+  const shift = branchShiftInfo(data, row.branchId || row.branch, row.workDate || row.date);
+  const shiftStart = shift.start;
+  const shiftEnd = shift.end;
+  const allowedBreak = employeeBreakMinutes(employee);
+  const lateMinutes = positiveDiffMinutes(row.clockIn, shiftStart);
+  const earlyMinutes = earlyCloseMinutes(row.clockOut, shiftEnd);
+  const actualBreakMinutes = breakDurationMinutes(row.breakStart, row.breakEnd, row.breakMinutes);
+  const breakOverMinutes = Math.max(0, actualBreakMinutes - allowedBreak);
+  const tags = [];
+  if (lateMinutes > 0) tags.push(`สาย ${lateMinutes} นาที`);
+  if (earlyMinutes > 0) tags.push(`ปิดก่อน ${earlyMinutes} นาที`);
+  if (breakOverMinutes > 0) tags.push(`พักเกิน ${breakOverMinutes} นาที`);
+  return {
+    shiftStart,
+    shiftEnd,
+    shiftSource: shift.source,
+    allowedBreak,
+    actualBreakMinutes,
+    lateMinutes,
+    earlyMinutes,
+    breakOverMinutes,
+    breakOver: breakOverMinutes > 0,
+    status: tags.length ? tags.join(', ') : 'ปกติ'
+  };
+}
+
+function attendanceStatus(row, data, employee) {
+  return calculateAttendanceMetrics(data, row, employee).status;
 }
 
 function StatCard({ label, value, accent = 'green' }) {
@@ -70,6 +197,9 @@ export default function EmployeesPage(props) {
   const [filterStatus, setFilterStatus] = useState('all');
   const [payCycleFilter, setPayCycleFilter] = useState('all');
   const [contractFilter, setContractFilter] = useState('all');
+  const [attendanceDate, setAttendanceDate] = useState(() => props.data.initialDate || fmtDate(new Date()));
+  const [attendanceForm, setAttendanceForm] = useState(() => emptyAttendanceForm(props.data.initialDate || fmtDate(new Date())));
+  const [attendanceSaving, setAttendanceSaving] = useState(false);
 
   const branchOptions = useMemo(() => {
     return props.data.branches?.slice().sort((a, b) => a.code.localeCompare(b.code)) || [];
@@ -77,10 +207,10 @@ export default function EmployeesPage(props) {
 
   const counts = useMemo(() => {
     const all = (employees.employees || []).length;
-    const active = (employees.employees || []).filter(e => e.status === 'active').length;
-    const trial = (employees.employees || []).filter(e => e.status === 'trial').length;
-    const freelance = (employees.employees || []).filter(e => e.status === 'freelance').length;
-    return { all, active, trial, freelance };
+    const fulltime = (employees.employees || []).filter(e => (e.empType || 'fulltime') === 'fulltime').length;
+    const parttime = (employees.employees || []).filter(e => e.empType === 'parttime').length;
+    const freelance = (employees.employees || []).filter(e => e.empType === 'freelance').length;
+    return { all, fulltime, parttime, freelance };
   }, [employees.employees]);
 
   const filteredEmployees = useMemo(() => {
@@ -121,8 +251,9 @@ export default function EmployeesPage(props) {
 
   const contractRows = useMemo(() => {
     return contracts.filter((contract) => {
-      const matchEmployee = filteredEmployees.some((employee) => employee.id === contract.empId);
-      const matchFilter = contractFilter === 'all' || contract.type === contractFilter;
+      const employee = filteredEmployees.find((item) => item.id === contract.empId);
+      const matchEmployee = Boolean(employee);
+      const matchFilter = contractFilter === 'all' || (employee?.empType || 'fulltime') === contractFilter;
       return matchEmployee && matchFilter;
     });
   }, [contracts, filteredEmployees, contractFilter]);
@@ -171,10 +302,157 @@ export default function EmployeesPage(props) {
       const position = `${employee.position || ''}`.toLowerCase();
       const query = search.trim().toLowerCase();
       const matchesSearch = !query || name.includes(query) || nickname.includes(query) || code.includes(query) || position.includes(query);
-      const matchesStatus = filterStatus === 'all' || employee.status === filterStatus || employee.empType === filterStatus;
+      const matchesStatus = filterStatus === 'all' || (employee.empType || 'fulltime') === filterStatus;
       return matchesSearch && matchesStatus;
     });
   }, [filteredEmployees, search, filterStatus]);
+
+  const attendanceDateRows = useMemo(() => {
+    return attendanceRows
+      .filter((row) => row.date === attendanceDate)
+      .filter((row) => filteredEmployees.some((employee) => employee.id === row.empId));
+  }, [attendanceRows, attendanceDate, filteredEmployees]);
+
+  const attendanceSummaryRows = useMemo(() => {
+    const groups = {};
+    attendanceDateRows.forEach((row) => {
+      const employee = filteredEmployees.find((item) => item.id === row.empId);
+      const metrics = calculateAttendanceMetrics(props.data, row, employee);
+      const key = `${row.empId}_${row.branch}`;
+      if (!groups[key]) {
+        groups[key] = {
+          empId: row.empId,
+          branchId: row.branch,
+          workDays: 0,
+          lateCount: 0,
+          lateTotal: 0,
+          breakOverCount: 0,
+          disciplineCount: 0
+        };
+      }
+      groups[key].workDays += 1;
+      if (metrics.lateMinutes > 0) groups[key].lateCount += 1;
+      groups[key].lateTotal += metrics.lateMinutes;
+      if (metrics.breakOver) groups[key].breakOverCount += 1;
+    });
+
+    Object.values(groups).forEach((row) => {
+      const alertCount = attendanceAlerts.filter((alert) => (
+        alert.empId === row.empId &&
+        String(alert.branch) === String(row.branchId) &&
+        alert.date === attendanceDate
+      )).length;
+      const warningCount = warningLetters.filter((letter) => (
+        letter.empId === row.empId &&
+        letter.date === attendanceDate &&
+        (!letter.branch || String(letter.branch) === String(row.branchId))
+      )).length;
+      row.disciplineCount = alertCount + warningCount;
+    });
+
+    return Object.values(groups);
+  }, [attendanceDateRows, attendanceAlerts, warningLetters, attendanceDate, filteredEmployees, props.data]);
+
+  const attendanceFormEmployee = useMemo(() => (
+    filteredEmployees.find((employee) => employee.id === attendanceForm.employeeId)
+  ), [filteredEmployees, attendanceForm.employeeId]);
+
+  const attendanceFormMetrics = useMemo(() => (
+    calculateAttendanceMetrics(props.data, attendanceForm, attendanceFormEmployee)
+  ), [props.data, attendanceForm, attendanceFormEmployee]);
+
+  function setAttendanceField(key) {
+    return (event) => {
+      const value = event.target.type === 'checkbox' ? event.target.checked : event.target.value;
+      setAttendanceForm((current) => ({ ...current, [key]: value }));
+    };
+  }
+
+  function setAttendanceEmployee(event) {
+    const employeeId = event.target.value;
+    const employee = filteredEmployees.find((item) => item.id === employeeId);
+    setAttendanceForm((current) => ({
+      ...current,
+      employeeId,
+      branchId: current.branchId || employee?.branch || ''
+    }));
+  }
+
+  function resetAttendanceForm(date = attendanceDate) {
+    setAttendanceForm(emptyAttendanceForm(date));
+  }
+
+  function editAttendance(row) {
+    setAttendanceForm({
+      id: row.id,
+      employeeId: row.empId,
+      branchId: row.branch,
+      workDate: row.date,
+      clockIn: row.clockIn || '',
+      clockOut: row.clockOut || '',
+      lateMinutes: String(row.lateMin || 0),
+      breakStart: row.breakStart || '',
+      breakEnd: row.breakEnd || '',
+      isBreakOver: Boolean(row.breakOver)
+    });
+    setAttendanceDate(row.date);
+  }
+
+  async function saveAttendance() {
+    if (!attendanceForm.employeeId || !attendanceForm.branchId || !attendanceForm.workDate) {
+      props.toast?.('กรุณาเลือกพนักงาน สาขา และวันที่');
+      return;
+    }
+    setAttendanceSaving(true);
+    try {
+      const payload = {
+        employeeId: attendanceForm.employeeId,
+        branchId: attendanceForm.branchId,
+        workDate: attendanceForm.workDate,
+        clockIn: attendanceForm.clockIn || null,
+        clockOut: attendanceForm.clockOut || null,
+        lateMinutes: attendanceFormMetrics.lateMinutes,
+        breakStart: attendanceForm.breakStart || null,
+        breakEnd: attendanceForm.breakEnd || null,
+        breakMinutes: attendanceFormMetrics.actualBreakMinutes,
+        isBreakOver: attendanceFormMetrics.breakOver
+      };
+      const result = attendanceForm.id
+        ? await api.updateAttendance(attendanceForm.id, payload)
+        : await api.createAttendance(payload);
+      const savedRow = mapAttendanceResponse(result.data || result);
+
+      props.setData((current) => {
+        const rows = current.attendance || [];
+        const exists = rows.some((row) => row.id === savedRow.id);
+        return {
+          ...current,
+          attendance: exists
+            ? rows.map((row) => row.id === savedRow.id ? savedRow : row)
+            : [...rows, savedRow]
+        };
+      });
+      setAttendanceDate(savedRow.date);
+      resetAttendanceForm(savedRow.date);
+      props.toast?.(attendanceForm.id ? 'อัปเดตข้อมูลเข้างานแล้ว' : 'เพิ่มข้อมูลเข้างานแล้ว');
+    } catch (error) {
+      props.toast?.(error.message || 'บันทึกข้อมูลเข้างานไม่สำเร็จ');
+    } finally {
+      setAttendanceSaving(false);
+    }
+  }
+
+  async function deleteAttendance(row) {
+    const ok = window.confirm(`ลบข้อมูลเข้างานวันที่ ${row.date} ของ ${filteredEmployees.find((employee) => employee.id === row.empId)?.name || row.empId} ใช่ไหม?`);
+    if (!ok) return;
+    await api.deleteAttendance(row.id);
+    props.setData((current) => ({
+      ...current,
+      attendance: (current.attendance || []).filter((item) => item.id !== row.id)
+    }));
+    if (attendanceForm.id === row.id) resetAttendanceForm();
+    props.toast?.('ลบข้อมูลเข้างานแล้ว');
+  }
 
   return (
     <div className="min-h-screen bg-gray-50/50 font-sans antialiased text-gray-600">
@@ -206,8 +484,8 @@ export default function EmployeesPage(props) {
           <div className="space-y-4">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
               <StatCard label="ทั้งหมด" value={counts.all} accent="green" />
-              <StatCard label="พนักงานประจำ" value={counts.active} accent="teal" />
-              <StatCard label="ทดลองงาน" value={counts.trial} accent="amber" />
+              <StatCard label="Full time ประจำ" value={counts.fulltime} accent="teal" />
+              <StatCard label="Part time" value={counts.parttime} accent="amber" />
               <StatCard label="Freelance" value={counts.freelance} accent="blue" />
             </div>
 
@@ -228,7 +506,7 @@ export default function EmployeesPage(props) {
               </div>
               <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto justify-end">
                 <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-                  {['all','active','trial','freelance'].map(s => (
+                  {['all','fulltime','parttime','freelance'].map(s => (
                     <button key={s} onClick={() => setFilterStatus(s)} className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${filterStatus === s ? 'bg-white shadow text-emerald-700' : 'text-gray-500 hover:text-gray-700'}`}>
                       {s === 'all' ? 'ทั้งหมด' : statusLabel(s)}
                     </button>
@@ -272,19 +550,36 @@ export default function EmployeesPage(props) {
                             </span>
                           </td>
                           <td className="px-4 py-3">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-2xs font-semibold tracking-wide ${statusColor(employee.status || employee.empType)}`}>
-                              {statusLabel(employee.status || employee.empType)}
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-2xs font-semibold tracking-wide ${statusColor(employee.empType || 'fulltime')}`}>
+                              {statusLabel(employee.empType || 'fulltime')}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-xs font-mono">{employee.phone || '—'}</td>
                           <td className="px-4 py-3 text-xs text-gray-500">{thDate(employee.startDate || employee.start || employee.hiredAt)}</td>
                           <td className="px-4 py-3">
-                            <button
-                              onClick={() => setSelectedEmp(employee)}
-                              className="text-xs px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-semibold transition-all"
-                            >
-                              ดูข้อมูล →
-                            </button>
+                            <div className="flex flex-wrap gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedEmp(employee)}
+                                className="text-xs px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-semibold transition-all"
+                              >
+                                ดูข้อมูล
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => employees.openEdit(employee)}
+                                className="text-xs px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 font-semibold transition-all"
+                              >
+                                แก้ไข
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => employees.handleDeleteEmployee(employee)}
+                                className="text-xs px-3 py-1.5 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 font-semibold transition-all"
+                              >
+                                ลบ
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -355,14 +650,14 @@ export default function EmployeesPage(props) {
         {activeTab === 'contracts' && (
           <div className="space-y-4">
             <div className="flex gap-2 border-b border-gray-100 pb-2">
-              {['all', 'ประจำ', 'ทดลองงาน', 'freelance'].map((type) => (
+              {['all', 'fulltime', 'parttime', 'freelance'].map((type) => (
                 <button
                   key={type}
                   type="button"
                   onClick={() => setContractFilter(type)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${contractFilter === type ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
                 >
-                  {type === 'all' ? 'ทั้งหมด' : type}
+                  {type === 'all' ? 'ทั้งหมด' : statusLabel(type)}
                 </button>
               ))}
             </div>
@@ -392,131 +687,206 @@ export default function EmployeesPage(props) {
 
         {activeTab === 'attendance_discipline' && (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-                <div className="text-2xl font-bold">{attendanceStats.totalLate}</div>
-                <div className="text-xs text-gray-400 mt-0.5">เวลารวมที่มาสายสะสม</div>
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 mb-1">วันที่</label>
+                  <input
+                    type="date"
+                    value={attendanceDate}
+                    onChange={(event) => {
+                      setAttendanceDate(event.target.value);
+                      setAttendanceForm((current) => ({ ...current, workDate: event.target.value }));
+                    }}
+                    className="border border-gray-200 rounded-lg px-3 py-2 text-xs outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 flex-1">
+                  <label className="text-xs font-bold text-gray-500">
+                    พนักงาน
+                    <select value={attendanceForm.employeeId} onChange={setAttendanceEmployee} className="mt-1 w-full border border-gray-200 rounded-lg px-2 py-2 text-xs outline-none">
+                      <option value="">เลือกพนักงาน</option>
+                      {filteredEmployees.map((employee) => (
+                        <option key={employee.id} value={employee.id}>{employee.name} ({employee.nickname || employee.id})</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-xs font-bold text-gray-500">
+                    สาขา
+                    <select value={attendanceForm.branchId} onChange={setAttendanceField('branchId')} className="mt-1 w-full border border-gray-200 rounded-lg px-2 py-2 text-xs outline-none">
+                      <option value="">เลือกสาขา</option>
+                      {props.data.branches.map((branch) => (
+                        <option key={branch.id} value={branch.id}>{branch.code} - {branch.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-xs font-bold text-gray-500">
+                    เข้างาน
+                    <input type="time" value={attendanceForm.clockIn} onChange={setAttendanceField('clockIn')} className="mt-1 w-full border border-gray-200 rounded-lg px-2 py-2 text-xs outline-none" />
+                  </label>
+                  <label className="text-xs font-bold text-gray-500">
+                    ออกงาน
+                    <input type="time" value={attendanceForm.clockOut} onChange={setAttendanceField('clockOut')} className="mt-1 w-full border border-gray-200 rounded-lg px-2 py-2 text-xs outline-none" />
+                  </label>
+                  <label className="text-xs font-bold text-gray-500">
+                    เริ่มพัก
+                    <input type="time" value={attendanceForm.breakStart} onChange={setAttendanceField('breakStart')} className="mt-1 w-full border border-gray-200 rounded-lg px-2 py-2 text-xs outline-none" />
+                  </label>
+                  <label className="text-xs font-bold text-gray-500">
+                    พักเสร็จ
+                    <input type="time" value={attendanceForm.breakEnd} onChange={setAttendanceField('breakEnd')} className="mt-1 w-full border border-gray-200 rounded-lg px-2 py-2 text-xs outline-none" />
+                  </label>
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                    <div className="font-bold text-gray-500">เวลาสาขา</div>
+                    <div>{attendanceFormMetrics.shiftStart} - {attendanceFormMetrics.shiftEnd}</div>
+                    <div className="mt-0.5 text-[10px] text-gray-400">
+                      {attendanceFormMetrics.shiftSource === 'branch_db' || attendanceFormMetrics.shiftSource === 'branch_rule' ? 'จากเวลาสาขาใน DB' : 'ค่าเริ่มต้น'}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                    <div className="font-bold text-gray-500">พักที่กำหนด</div>
+                    <div>{attendanceFormMetrics.allowedBreak} นาที</div>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                    <div className="font-bold text-gray-500">พักจริง</div>
+                    <div>{attendanceFormMetrics.actualBreakMinutes} นาที</div>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                    <div className="font-bold text-gray-500">สาย</div>
+                    <div>{attendanceFormMetrics.lateMinutes} นาที</div>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                    <div className="font-bold text-gray-500">ปิดก่อน</div>
+                    <div>{attendanceFormMetrics.earlyMinutes} นาที</div>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                    <div className="font-bold text-gray-500">พักเกิน</div>
+                    <div>{attendanceFormMetrics.breakOverMinutes} นาที</div>
+                  </div>
+                  <div className={`rounded-lg border px-3 py-2 text-xs ${attendanceFormMetrics.status === 'ปกติ' ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-red-50 border-red-100 text-red-700'}`}>
+                    <div className="font-bold">สถานะ</div>
+                    <div>{attendanceFormMetrics.status}</div>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={saveAttendance}
+                    disabled={attendanceSaving}
+                    className="px-4 py-2 rounded-lg bg-emerald-700 text-white text-xs font-bold disabled:bg-emerald-300"
+                  >
+                    {attendanceForm.id ? 'อัปเดต' : 'เพิ่ม'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => resetAttendanceForm()}
+                    className="px-4 py-2 rounded-lg bg-gray-100 text-gray-600 text-xs font-bold"
+                  >
+                    ล้าง
+                  </button>
+                </div>
               </div>
-              <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-                <div className="text-2xl font-bold">{attendanceStats.totalBreakOver}</div>
-                <div className="text-xs text-gray-400 mt-0.5">จำนวนครั้งที่พักเกินเวลา</div>
-              </div>
-              <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-                <div className="text-2xl font-bold">{attendanceStats.totalWarnLetters}</div>
-                <div className="text-xs text-gray-400 mt-0.5">ใบเตือน/วินัยพนักงานที่ออกแล้ว</div>
-              </div>
-            </div>
-
-            <div className="flex gap-2 border-b border-gray-100 pb-3 overflow-x-auto">
-              <button
-                type="button"
-                onClick={() => setAttendanceFilter('all')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${attendanceFilter === 'all' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-              >
-                ทั้งหมด ({attendanceSummary.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setAttendanceFilter('late')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${attendanceFilter === 'late' ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-              >
-                ⚠️ มีประวัติสาย
-              </button>
-              <button
-                type="button"
-                onClick={() => setAttendanceFilter('break')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${attendanceFilter === 'break' ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-              >
-                ⏰ พักเกินกำหนด
-              </button>
-              <button
-                type="button"
-                onClick={() => setAttendanceFilter('warn')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${attendanceFilter === 'warn' ? 'bg-purple-50 text-purple-700 border border-purple-200' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-              >
-                📋 ถูกตักเตือน/มีใบเตือน
-              </button>
             </div>
 
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
-                <h3 className="text-sm font-bold text-gray-700">📊 สรุปสถิติเข้างานและมาตรการวินัยพนักงาน</h3>
+                <h3 className="text-sm font-bold text-gray-700">สรุปวินัย</h3>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm border-collapse text-left">
                   <thead>
                     <tr className="bg-gray-50/50 border-b border-gray-100 text-xs text-gray-400 font-semibold uppercase">
                       <th className="p-3">พนักงาน</th>
-                      <th className="p-3">ตำแหน่ง</th>
-                      <th className="p-3">มาสายรวม</th>
-                      <th className="p-3">พักเกินเวลา</th>
-                      <th className="p-3">สถานะวินัย / ใบเตือน</th>
+                      <th className="p-3">สาขา</th>
+                      <th className="p-3 text-right">วันทำงาน</th>
+                      <th className="p-3 text-right">สาย</th>
+                      <th className="p-3 text-right">รวมสาย (นาที)</th>
+                      <th className="p-3 text-right">พักเกิน</th>
+                      <th className="p-3 text-right">วินัย</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50 text-gray-700 font-medium">
-                    {attendanceFiltered.map((item) => (
-                      <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
-                        <td className="p-3 text-gray-900 font-bold">
-                          <span className="inline-block w-2 h-2 rounded-full mr-2" style={{ backgroundColor: item.color }} />
-                          {item.name} ({item.nickname || ''})
-                        </td>
-                        <td className="p-3 text-gray-500 text-xs">{item.position}</td>
-                        <td className={`p-3 ${item.totalLateMins > 30 ? 'text-red-500 font-bold' : 'text-gray-600'}`}>
-                          {item.totalLateMins > 0 ? `${item.totalLateMins} นาที` : '—'}
-                        </td>
-                        <td className={`p-3 ${item.breakOverCount > 0 ? 'text-amber-600 font-bold' : 'text-gray-600'}`}>
-                          {item.breakOverCount > 0 ? `${item.breakOverCount} ครั้ง` : '—'}
-                        </td>
-                        <td className="p-3">
-                          {item.warnCount > 0 ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-red-50 text-red-700 border border-red-100">
-                              📄 ใบเตือน {item.warnCount} ฉบับ
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700">
-                              ✅ ปกติ
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                    {attendanceFiltered.length === 0 && (
-                      <tr>
-                        <td colSpan={5} className="text-center py-8 text-gray-400 text-xs">
-                          ไม่พบข้อมูลประวัติเข้างานผิดกำหนดในกลุ่มตัวกรองนี้
-                        </td>
-                      </tr>
+                    {attendanceSummaryRows.map((row) => {
+                      const employee = filteredEmployees.find((item) => item.id === row.empId);
+                      const branch = props.data.branches.find((item) => String(item.id) === String(row.branchId));
+                      return (
+                        <tr key={`${row.empId}_${row.branchId}`}>
+                          <td className="p-3 font-bold text-gray-900">{employee?.name || row.empId}</td>
+                          <td className="p-3">{branch?.code || row.branchId}</td>
+                          <td className="p-3 text-right">{row.workDays}</td>
+                          <td className="p-3 text-right">{row.lateCount}</td>
+                          <td className="p-3 text-right">{row.lateTotal}</td>
+                          <td className="p-3 text-right">{row.breakOverCount}</td>
+                          <td className="p-3 text-right">{row.disciplineCount}</td>
+                        </tr>
+                      );
+                    })}
+                    {attendanceSummaryRows.length === 0 && (
+                      <tr><td colSpan={7} className="text-center py-8 text-gray-400 text-xs">ไม่มีข้อมูลสรุปวินัยในวันที่เลือก</td></tr>
                     )}
                   </tbody>
                 </table>
               </div>
             </div>
 
-            <div className="space-y-3">
-              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">📋 เอกสารใบเตือนและมาตรการที่มีผลบังคับใช้</h3>
-              {filteredWarningLetters.length === 0 ? (
-                <div className="text-center py-8 text-gray-400">ไม่มีบันทึกประวัติการทำผิดวินัยใดๆ</div>
-              ) : (
-                filteredWarningLetters.map((letter) => {
-                  const employee = filteredEmployees.find((emp) => emp.id === letter.empId);
-                  return (
-                    <div key={letter.id} className="bg-white border border-gray-100 rounded-xl p-4 shadow-2xs hover:shadow-xs transition-all">
-                      <div className="flex justify-between items-start gap-2 mb-2">
-                        <div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-bold text-sm text-gray-800">{letter.reason || 'ใบเตือนพนักงาน'}</span>
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-2xs font-semibold tracking-wide bg-red-50 text-red-700 border border-red-100">
-                              {letter.status === 'approved' ? 'ได้รับการอนุมัติ' : 'รอดำเนินการ'}
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
+                <h3 className="text-sm font-bold text-gray-700">รายละเอียดรายวัน</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm border-collapse text-left">
+                  <thead>
+                    <tr className="bg-gray-50/50 border-b border-gray-100 text-xs text-gray-400 font-semibold uppercase">
+                      <th className="p-3">วันที่</th>
+                      <th className="p-3">พนักงาน</th>
+                      <th className="p-3">สาขา</th>
+                      <th className="p-3">เข้างาน</th>
+                      <th className="p-3">ออกงาน</th>
+                      <th className="p-3 text-right">สาย</th>
+                      <th className="p-3">เริ่มพัก</th>
+                      <th className="p-3">พักเสร็จ</th>
+                      <th className="p-3 text-right">พัก (นาที)</th>
+                      <th className="p-3">สถานะ</th>
+                      <th className="p-3 text-center">จัดการ</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50 text-gray-700 font-medium">
+                    {attendanceDateRows.map((row) => {
+                      const employee = filteredEmployees.find((item) => item.id === row.empId);
+                      const branch = props.data.branches.find((item) => String(item.id) === String(row.branch));
+                      const metrics = calculateAttendanceMetrics(props.data, row, employee);
+                      const status = attendanceStatus(row, props.data, employee);
+                      return (
+                        <tr key={row.id}>
+                          <td className="p-3">{thDate(row.date)}</td>
+                          <td className="p-3 font-bold text-gray-900">{employee?.name || row.empId}</td>
+                          <td className="p-3">{branch?.code || row.branch}</td>
+                          <td className="p-3">{row.clockIn || '-'}</td>
+                          <td className="p-3">{row.clockOut || '-'}</td>
+                          <td className="p-3 text-right">{metrics.lateMinutes}</td>
+                          <td className="p-3">{row.breakStart || '-'}</td>
+                          <td className="p-3">{row.breakEnd || '-'}</td>
+                          <td className="p-3 text-right">{metrics.actualBreakMinutes}</td>
+                          <td className="p-3">
+                            <span className={`inline-flex px-2 py-0.5 rounded-full text-2xs font-semibold ${status === 'ปกติ' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                              {status}
                             </span>
-                          </div>
-                          <div className="text-2xs text-gray-400 mt-0.5">วันที่ออกบันทึก: {thDate(letter.date)} · พนักงาน: {employee?.name || 'ไม่พบข้อมูล'}</div>
-                        </div>
-                      </div>
-                      <p className="text-xs text-gray-600 leading-relaxed bg-gray-50 p-2.5 rounded-lg border border-gray-50">{letter.reason || 'ไม่มีรายละเอียดเพิ่มเติม'}</p>
-                    </div>
-                  );
-                })
-              )}
+                          </td>
+                          <td className="p-3">
+                            <div className="flex justify-center gap-1.5">
+                              <button type="button" onClick={() => editAttendance(row)} className="px-2 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-bold">แก้ไข</button>
+                              <button type="button" onClick={() => deleteAttendance(row)} className="px-2 py-1 rounded-md bg-red-50 text-red-700 text-xs font-bold">ลบ</button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {attendanceDateRows.length === 0 && (
+                      <tr><td colSpan={11} className="text-center py-8 text-gray-400 text-xs">ไม่มีรายละเอียดเข้างานในวันที่เลือก</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
@@ -548,7 +918,29 @@ export default function EmployeesPage(props) {
                 <h2 className="text-base font-bold text-gray-900">{selectedEmp.name} ({selectedEmp.nickname || ''})</h2>
                 <p className="text-2xs text-gray-400 font-mono mt-0.5">{selectedEmp.code || selectedEmp.id} · {selectedEmp.position}</p>
               </div>
-              <button onClick={() => setSelectedEmp(null)} className="text-gray-400 hover:text-gray-600 text-xl font-semibold">&times;</button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    employees.openEdit(selectedEmp);
+                    setSelectedEmp(null);
+                  }}
+                  className="text-xs px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 font-semibold transition-all"
+                >
+                  แก้ไข
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const deleted = await employees.handleDeleteEmployee(selectedEmp);
+                    if (deleted) setSelectedEmp(null);
+                  }}
+                  className="text-xs px-3 py-1.5 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 font-semibold transition-all"
+                >
+                  ลบ
+                </button>
+                <button onClick={() => setSelectedEmp(null)} className="text-gray-400 hover:text-gray-600 text-xl font-semibold">&times;</button>
+              </div>
             </div>
             <div className="p-5 overflow-y-auto text-sm">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -556,7 +948,7 @@ export default function EmployeesPage(props) {
                   <div className="flex justify-between"><span className="text-gray-400">เบอร์โทร:</span> <span className="font-semibold">{selectedEmp.phone || '—'}</span></div>
                   <div className="flex justify-between"><span className="text-gray-400">สาขาหลัก:</span> <span className="font-semibold">{props.data.branches?.find((b) => b.id === selectedEmp.branch)?.name || '—'}</span></div>
                   <div className="flex justify-between"><span className="text-gray-400">สาขาที่วิ่งงานได้:</span> <span className="font-semibold text-emerald-700">{(props.data.employeeBranches?.[selectedEmp.id] || []).map((bid) => props.data.branches?.find((b) => b.id === bid)?.code).filter(Boolean).join(', ') || '—'}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-400">ประเภทสัญญา:</span> <span className="font-semibold">{statusLabel(selectedEmp.status || selectedEmp.empType)}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-400">ประเภทสัญญา:</span> <span className="font-semibold">{statusLabel(selectedEmp.empType || 'fulltime')}</span></div>
                 </div>
                 <div className="bg-gray-50 p-3 rounded-xl space-y-2">
                   <div className="flex justify-between"><span className="text-gray-400">รูปแบบค่าจ้าง:</span> <span className="font-semibold">{payCycleLabel(selectedEmp.payType)}</span></div>

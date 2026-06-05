@@ -693,8 +693,6 @@ export default function SaleDashboard({ data, user, currentBranch, from, to }) {
                   <th className="p-3">QR/โอน</th>
                   <th className="p-3">เครดิต</th>
                   <th className="p-3">ส่งโดย</th>
-                  <th className="p-3">ยืนยัน</th>
-                  <th className="p-3 text-right">เครื่องมือ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 font-medium text-gray-700">
@@ -706,7 +704,6 @@ export default function SaleDashboard({ data, user, currentBranch, from, to }) {
                     <td className="p-3">฿{money(sale.qr + sale.transfer)}</td>
                     <td className="p-3">฿{money(sale.credit)}</td>
                     <td className="p-3"><EmployeeChip data={localData} employeeId={sale.submittedBy} time={sale.submitTime} /></td>
-                    <td className="p-3"><StatusBadge status={sale.status} /></td>
                     <td className="p-3 text-right">
                       <div className="inline-flex items-center gap-1 bg-gray-50 p-1 rounded-lg border border-gray-200">
                         <button className="p-1 hover:bg-white rounded text-gray-500 transition-all" onClick={() => setEditor({ type: 'sale', mode: 'view', item: sale })}><Eye size={13} /></button>
@@ -738,7 +735,6 @@ export default function SaleDashboard({ data, user, currentBranch, from, to }) {
                   <th className="p-3">เครดิต</th>
                   <th className="p-3">ส่งโดย</th>
                   <th className="p-3">ยืนยัน</th>
-                  <th className="p-3 text-right">เครื่องมือ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 font-medium text-gray-600">

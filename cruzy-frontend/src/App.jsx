@@ -179,7 +179,8 @@ export default function App() {
         alertCount={alertCount}
         navigate={navigate}
       >
-        {location.pathname !== '/leave' && location.pathname !== '/auditlog' ? <DateBar from={from} to={to} setFrom={setFrom} setTo={setTo} /> : null}
+        {location.pathname !== '/leave' && location.pathname !== '/auditlog' ? // App.tsx
+<DateBar from={from} to={to} setFrom={setFrom} setTo={setTo} initialDate={data.initialDate} /> : null}
         <Routes>
           <Route
             path="/leave"
@@ -208,8 +209,7 @@ export default function App() {
                 {currentTab === 'schedule' ? <ScheduleDashboard data={data} setData={setData} user={user} currentBranch={currentBranch} from={from} to={to} toast={push} /> : null}
                 {currentTab === 'employee' ? <EmployeesPage data={data} user={user} currentBranch={currentBranch} setData={setData} toast={push} /> : null}
                 {currentTab === 'sales' ? <SalesDashboard data={data} user={user} currentBranch={currentBranch} from={from} to={to} /> : null}
-                {currentTab === 'commission' ? <CommissionDashboard data={data} user={user} currentBranch={currentBranch} /> : null}
-                {currentTab === 'inspection' ? <InspectionDashboard user={user} currentBranch={currentBranch} from={from} to={to} /> : null}
+  {currentTab === 'commission' ? <CommissionDashboard data={data} user={user} currentBranch={currentBranch} from={from} to={to} /> : null}                {currentTab === 'inspection' ? <InspectionDashboard user={user} currentBranch={currentBranch} from={from} to={to} /> : null}
                 {currentTab === 'alerts' ? <AlertPage data={data} currentBranch={currentBranch} /> : null}
                 {currentTab === 'warning-letters' ? <WarningLetterPage data={data} /> : null}
                 {currentTab === 'access' ? <AccessDashboard user={user} fallbackData={data} /> : null}

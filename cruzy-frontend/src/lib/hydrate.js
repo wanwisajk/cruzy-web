@@ -33,6 +33,10 @@ const emptyData = {
   initialDateTo: fmtDate(new Date())
 };
 
+const DAY_NUMBER_TO_KEY = { 1: 'จ', 2: 'อ', 3: 'พ', 4: 'พฤ', 5: 'ศ', 6: 'ส', 0: 'อา' };
+const DEFAULT_BRANCH_HOURS = { จ: '10:00', อ: '10:00', พ: '10:00', พฤ: '10:00', ศ: '10:00', ส: '10:00', อา: '10:00' };
+const DEFAULT_BRANCH_CLOSE = { จ: '21:00', อ: '21:00', พ: '21:00', พฤ: '21:00', ศ: '21:00', ส: '21:00', อา: '21:00' };
+
 export function hydrateConsoleData(data = {}) {
   const state = structuredClone(emptyData);
   const regionRows = data.regions || [];
@@ -46,12 +50,32 @@ export function hydrateConsoleData(data = {}) {
     state.regions[r.id] = { name: r.name, branches: [] };
   });
 
-  state.branches = branchRows.map((b) => ({
-    id: b.id,
-    name: b.name,
-    code: b.code,
-    region: b.region_id || b.region || 'default'
-  }));
+  state.branches = branchRows.map((b) => {
+    const branchStaffingRules = staffingRules.filter((rule) => String(rule.branchId) === String(b.id));
+    const hours = { ...DEFAULT_BRANCH_HOURS };
+    const hoursEnd = { ...DEFAULT_BRANCH_CLOSE };
+    let minWeekday = 1;
+    let minWeekend = 1;
+    branchStaffingRules.forEach((rule) => {
+      const dayKey = DAY_NUMBER_TO_KEY[rule.dayOfWeek];
+      if (dayKey) {
+        hours[dayKey] = rule.shiftStart || hours[dayKey];
+        hoursEnd[dayKey] = rule.shiftEnd || hoursEnd[dayKey];
+      }
+      if (rule.dayOfWeek >= 1 && rule.dayOfWeek <= 5) minWeekday = Math.max(minWeekday, Number(rule.requiredStaff || 1));
+      if (rule.dayOfWeek === 0 || rule.dayOfWeek === 6) minWeekend = Math.max(minWeekend, Number(rule.requiredStaff || 1));
+    });
+    return {
+      id: b.id,
+      name: b.name,
+      code: b.code,
+      region: b.region_id || b.region || 'default',
+      hours,
+      hoursEnd,
+      minWeekday,
+      minWeekend
+    };
+  });
   state.branches.forEach((branch) => {
     if (!state.regions[branch.region]) state.regions[branch.region] = { name: branch.region, branches: [] };
     state.regions[branch.region].branches.push(branch.id);
@@ -75,12 +99,21 @@ export function hydrateConsoleData(data = {}) {
       color: employee.color || '#4CAF50',
       branch: primaryBranches[employee.id] || employee.branch_id || fallbackBranch,
       position: employee.position || 'พนักงานขาย',
+      empType: employee.emp_type || employee.empType || 'fulltime',
       salary: Number(employee.salary || pay.monthlySalary || 0),
       region: employee.region_id || '',
       payType: pay.payType,
       dailyRate: pay.dailyRate,
       monthlySalary: pay.monthlySalary,
-      commissionEnabled: pay.commissionEnabled
+      breakHours: pay.breakHours,
+      commissionEnabled: pay.commissionEnabled,
+      commissionRate: pay.commissionRate,
+      commissionCalcType: pay.commissionCalcType,
+      commissionBranches: branchRules
+        .filter((rule) => rule.empId === employee.id && rule.canWork !== false && rule.commissionEligible !== false)
+        .map((rule) => rule.branchId),
+      specialAllowance: pay.specialAllowance,
+      startDate: pay.effectiveFrom
     };
   });
 
@@ -160,6 +193,10 @@ export function hydrateConsoleData(data = {}) {
     clockIn: formatDbTime(row.clock_in),
     clockOut: formatDbTime(row.clock_out),
     lateMin: Number(row.late_minutes || 0),
+    breakStart: formatDbTime(row.break_start),
+    breakEnd: formatDbTime(row.break_end),
+    breakMinutes: Number(row.break_minutes || 0),
+    breakOver: Boolean(row.is_break_over),
     branch: row.branch_id
   }));
   state.attendanceAlerts = (data.attendanceAlerts || []).map((alert) => ({
@@ -275,7 +312,7 @@ function mapAvailabilityOverride(row) {
 }
 
 function mapPayProfile(row) {
-  return { id: String(row.id || ''), empId: row.employee_id, payType: row.pay_type || 'monthly', monthlySalary: Number(row.monthly_salary || 0), dailyRate: Number(row.daily_rate || 0), commissionEnabled: row.commission_enabled !== false, effectiveFrom: row.effective_from, effectiveTo: row.effective_to, active: row.is_active !== false };
+  return { id: String(row.id || ''), empId: row.employee_id, payType: row.pay_type || 'monthly', monthlySalary: Number(row.monthly_salary || 0), dailyRate: Number(row.daily_rate || 0), breakHours: Number(row.break_hours || 1), commissionEnabled: row.commission_enabled !== false, commissionRate: Number(row.commission_rate || 0), commissionCalcType: row.commission_calc_type || 'scheduled_assigned_branch_days', specialAllowance: Number(row.special_allowance || 0), effectiveFrom: row.effective_from, effectiveTo: row.effective_to, active: row.is_active !== false };
 }
 
 function mapStaffingRule(row) {
@@ -284,8 +321,20 @@ function mapStaffingRule(row) {
 
 function getPayProfile(empId, rows, legacySalary) {
   const active = (rows || []).filter((row) => row.employee_id === empId && row.is_active !== false).sort((a, b) => String(b.effective_from || '').localeCompare(String(a.effective_from || '')))[0];
-  if (active) return { payType: active.pay_type || 'monthly', monthlySalary: Number(active.monthly_salary || 0), dailyRate: Number(active.daily_rate || 0), commissionEnabled: active.commission_enabled !== false };
-  return { payType: 'monthly', monthlySalary: Number(legacySalary || 0), dailyRate: 0, commissionEnabled: true };
+  if (active) {
+    return {
+      payType: active.pay_type || 'monthly',
+      monthlySalary: Number(active.monthly_salary || 0),
+      dailyRate: Number(active.daily_rate || 0),
+      breakHours: Number(active.break_hours || 1),
+      commissionEnabled: active.commission_enabled !== false,
+      commissionRate: Number(active.commission_rate || 0),
+      commissionCalcType: active.commission_calc_type || 'scheduled_assigned_branch_days',
+      specialAllowance: Number(active.special_allowance || 0),
+      effectiveFrom: active.effective_from
+    };
+  }
+  return { payType: 'monthly', monthlySalary: Number(legacySalary || 0), dailyRate: 0, breakHours: 1, commissionEnabled: true, commissionRate: 0, commissionCalcType: 'scheduled_assigned_branch_days', specialAllowance: 0, effectiveFrom: null };
 }
 
 function mapSaleRow(row, salesLogs = [], attachments = []) {

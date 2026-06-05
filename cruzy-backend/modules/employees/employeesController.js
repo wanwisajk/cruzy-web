@@ -10,6 +10,7 @@ function cleanEmployeePayload(body) {
     position: body.position || body.pos || null,
     salary: body.salary === undefined ? null : toNumber(body.salary),
     region_id: parseInteger(body.regionId ?? body.region_id),
+    emp_type: body.empType || body.emp_type || 'fulltime',
     nickname: body.nickname || null,
     phone: body.phone || null,
     line_user_id: body.line_user_id || null
@@ -54,6 +55,12 @@ function cleanPayProfilePayload(employeeId, body) {
   const payType = body.payType || body.pay_type || 'monthly';
   const monthlySalary = toNumber(body.monthlySalary ?? body.monthly_salary ?? body.salary, 0);
   const dailyRate = toNumber(body.dailyRate ?? body.daily_rate ?? body.salary, 0);
+  const commissionCalcType = body.commissionCalcType || body.commission_calc_type || 'scheduled_assigned_branch_days';
+  const validCommissionCalcTypes = new Set([
+    'scheduled_assigned_branch_days',
+    'actual_work_days_all_branches',
+    'period_days_responsible_branches'
+  ]);
   let rawAbsenceMode = body.absDeduct || body.absence_deduct_mode || body.absenceDeductMode || 'system_hourly_avg';
   let absenceDeductMode = null;
   let absenceSystemCalc = body.absenceSystemCalc || body.absence_system_calc || null;
@@ -78,6 +85,9 @@ function cleanPayProfilePayload(employeeId, body) {
   if (!absenceDeductMode) {
     throw new Error(`Invalid absence_deduct_mode: ${JSON.stringify(rawAbsenceMode)}.`);
   }
+  if (!validCommissionCalcTypes.has(commissionCalcType)) {
+    throw new Error(`Invalid commission_calc_type: ${JSON.stringify(commissionCalcType)}.`);
+  }
 
   return {
     employee_id: employeeId,
@@ -86,6 +96,9 @@ function cleanPayProfilePayload(employeeId, body) {
     monthly_salary: payType === 'monthly' ? monthlySalary : 0,
     daily_rate: payType === 'daily' ? dailyRate : 0,
     commission_enabled: body.commissionEnabled === undefined ? body.commission_enabled !== false : Boolean(body.commissionEnabled),
+    commission_rate: body.commission_rate !== undefined ? toNumber(body.commission_rate, 0) : body.commissionRate !== undefined ? toNumber(body.commissionRate, 0) : null,
+    commission_calc_type: commissionCalcType,
+    special_allowance: body.special_allowance !== undefined ? toNumber(body.special_allowance, 0) : body.specialAllowance !== undefined ? toNumber(body.specialAllowance, 0) : 0,
     break_hours: body.breakHours !== undefined ? parseFloat(body.breakHours) : body.break_hours !== undefined ? parseFloat(body.break_hours) : 1,
     absence_deduct_mode: absenceDeductMode,
     absence_system_calc: absenceSystemCalc,
@@ -145,11 +158,14 @@ async function saveWorkRules(employeeId, body) {
 
 async function deleteEmployeeCascade(employeeId) {
   const operations = [
+    supabase.from(TABLES.salesLogs).update({ edited_by: null }).eq('edited_by', employeeId),
+    supabase.from(TABLES.sales).update({ submitted_by: null }).eq('submitted_by', employeeId),
+    supabase.from(TABLES.cashDeposits).update({ deposited_by: null }).eq('deposited_by', employeeId),
+    supabase.from(TABLES.storeInspections).update({ submitted_by: null }).eq('submitted_by', employeeId),
     supabase.from(TABLES.schedules).delete().eq('employee_id', employeeId),
+    supabase.from(TABLES.warningLetters).delete().eq('employee_id', employeeId),
     supabase.from(TABLES.attendanceAlerts).delete().eq('employee_id', employeeId),
     supabase.from(TABLES.attendance).delete().eq('employee_id', employeeId),
-    supabase.from(TABLES.storeInspections).delete().eq('submitted_by', employeeId),
-    supabase.from(TABLES.warningLetters).delete().eq('employee_id', employeeId),
     supabase.from(TABLES.leaves).delete().eq('employee_id', employeeId),
     supabase.from(TABLES.contracts).delete().eq('employee_id', employeeId),
     supabase.from(TABLES.employeePayProfiles).delete().eq('employee_id', employeeId),
@@ -238,6 +254,7 @@ exports.updateEmployee = async (req, res) => {
     if (req.body.color !== undefined || req.body.c !== undefined) employee.color = req.body.color || req.body.c;
     if (req.body.position !== undefined || req.body.pos !== undefined) employee.position = req.body.position || req.body.pos;
     if (req.body.salary !== undefined) employee.salary = toNumber(req.body.salary);
+    if (req.body.empType !== undefined || req.body.emp_type !== undefined) employee.emp_type = req.body.empType || req.body.emp_type;
     if (req.body.nickname !== undefined) employee.nickname = req.body.nickname;
     if (req.body.phone !== undefined) employee.phone = req.body.phone;
     if (req.body.line_user_id !== undefined) employee.line_user_id = req.body.line_user_id;

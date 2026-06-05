@@ -2,20 +2,64 @@ import { useEffect, useMemo, useState } from 'react';
 import { Download, RefreshCw, Check } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
 import { useCommission } from '../features/commission/hooks/useCommission.js';
+import { dateRange } from '../lib/date';
 
-function calculateCommission(sales) {
-  const s = Number(sales || 0);
-  if (s <= 50000) return { tier: 'Tier 1', rate: 0.01, commission: Math.round(s * 0.01) };
-  if (s <= 100000) return { tier: 'Tier 2', rate: 0.015, commission: Math.round(s * 0.015) };
-  if (s <= 200000) return { tier: 'Tier 3', rate: 0.02, commission: Math.round(s * 0.02) };
-  return { tier: 'Tier 4', rate: 0.03, commission: Math.round(s * 0.03) };
-}
+const COMMISSION_TYPE_LABELS = {
+  scheduled_assigned_branch_days: 'เลือกสาขาเอง',
+  actual_work_days_all_branches: 'ทุกสาขาตามตารางงาน',
+  period_days_responsible_branches: 'ทุกวันของสาขาที่ดูแล'
+};
 
 function money(v) {
   return Number(v || 0).toLocaleString('th-TH');
 }
 
-export default function CommissionDashboard({ data: initialData, user, currentBranch }) {
+function getResponsibleBranches(data, emp, fallbackBranch) {
+  const empId = emp.id;
+  const rules = (data?.employeeBranchRules || []).filter((rule) => rule.empId === empId && rule.canWork !== false);
+  if (emp.commissionCalcType === 'actual_work_days_all_branches') {
+    const workRuleBranches = rules.map((rule) => rule.branchId);
+    if (workRuleBranches.length) return [...new Set(workRuleBranches.filter(Boolean))];
+  }
+
+  const ruleBranches = rules
+    .filter((rule) => rule.commissionEligible !== false)
+    .map((rule) => rule.branchId);
+  if (rules.length) return [...new Set(ruleBranches.filter(Boolean))];
+
+  const mappedBranches = data?.employeeBranches?.[empId] || [];
+  return [...new Set([...ruleBranches, ...mappedBranches, fallbackBranch].filter(Boolean))];
+}
+
+function hasScheduledShift(data, empId, branchId, date) {
+  return (data?.schedule?.[`${branchId}_${date}`] || []).includes(empId);
+}
+
+function hasAttendance(data, empId, branchId, date) {
+  return (data?.attendance || []).some((row) => (
+    row.empId === empId &&
+    String(row.branch) === String(branchId) &&
+    row.date === date
+  ));
+}
+
+function saleMatchesCommissionType(data, emp, sale, responsibleBranches, periodDays) {
+  const branchId = sale.bid;
+  const date = sale.date;
+  if (!responsibleBranches.map(String).includes(String(branchId))) return false;
+
+  if (emp.commissionCalcType === 'period_days_responsible_branches') {
+    return periodDays.includes(date);
+  }
+
+  if (emp.commissionCalcType === 'actual_work_days_all_branches') {
+    return hasAttendance(data, emp.id, branchId, date) || hasScheduledShift(data, emp.id, branchId, date);
+  }
+
+  return hasAttendance(data, emp.id, branchId, date) || hasScheduledShift(data, emp.id, branchId, date);
+}
+
+export default function CommissionDashboard({ data: initialData, user, currentBranch, from, to }) {
   const { push } = useToast();
   const { data, loading, statusMap, markPaid, refreshCommissionData } = useCommission(initialData, push);
   const [branchFilter, setBranchFilter] = useState('all');
@@ -25,21 +69,24 @@ export default function CommissionDashboard({ data: initialData, user, currentBr
   const branches = useMemo(() => (data?.branches || []).map((b) => ({ id: b.id, code: b.code, name: b.name })), [data]);
   const employees = useMemo(() => data?.employees || [], [data]);
   const sales = useMemo(() => data?.sales || [], [data]);
+  const periodDays = useMemo(() => {
+    const start = from || data?.initialDate;
+    const end = to || data?.initialDateTo || start;
+    return start && end ? dateRange(start, end) : [];
+  }, [from, to, data]);
 
   function computeAll() {
-    const byEmp = {};
-    sales.forEach((s) => {
-      const emp = s.submittedBy || s.submittedBy || s.submittedBy; // tolerant
-      if (!emp) return;
-      // branch filter
-      if (branchFilter !== 'all' && String(s.bid) !== String(branchFilter)) return;
-      // basic search by branch code/name or employee fields applied later on rows
-      byEmp[emp] = (byEmp[emp] || 0) + Number(s.total || 0);
-    });
-
     const rows = employees.map((emp) => {
-      const total = byEmp[emp.id] || 0;
-      const { tier, rate, commission } = calculateCommission(total);
+      const responsibleBranches = getResponsibleBranches(data, emp, emp.branch);
+      const eligibleSales = sales.filter((sale) => {
+        if (!periodDays.includes(sale.date)) return false;
+        if (branchFilter !== 'all' && String(sale.bid) !== String(branchFilter)) return false;
+        return saleMatchesCommissionType(data, emp, sale, responsibleBranches, periodDays);
+      });
+      const total = eligibleSales.reduce((sum, sale) => sum + Number(sale.total || 0), 0);
+      const rate = Number(emp.commissionRate || 0) / 100;
+      const commission = emp.commissionEnabled === false ? 0 : Math.round(total * rate);
+      const eligibleDates = [...new Set(eligibleSales.map((sale) => sale.date))];
       const branchObj = branches.find((b) => String(b.id) === String(emp.branch)) || {};
       return {
         empId: emp.id,
@@ -48,8 +95,10 @@ export default function CommissionDashboard({ data: initialData, user, currentBr
         branchId: emp.branch,
         branchCode: branchObj.code || '',
         branchName: branchObj.name || '',
+        responsibleBranches,
+        eligibleDays: eligibleDates.length,
         sales: total,
-        tier,
+        tier: COMMISSION_TYPE_LABELS[emp.commissionCalcType] || COMMISSION_TYPE_LABELS.scheduled_assigned_branch_days,
         rate,
         commission,
         status: statusMap[emp.id] || (total > 0 ? 'calculated' : 'none')
@@ -62,7 +111,7 @@ export default function CommissionDashboard({ data: initialData, user, currentBr
 
   useEffect(() => {
     computeAll();
-  }, [data, branchFilter, statusMap, search]);
+  }, [data, branchFilter, statusMap, search, from, to]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -84,10 +133,10 @@ export default function CommissionDashboard({ data: initialData, user, currentBr
   }
 
   function exportCsv() {
-    const header = ['พนักงาน', 'รหัส', 'สาขา', 'ยอดขาย', 'Tier', '%', 'ค่าคอมมิชชัน', 'สถานะ'];
+    const header = ['พนักงาน', 'รหัส', 'สาขา', 'ยอดขาย', 'ประเภทคอม', 'วัน', '%', 'ค่าคอมมิชชัน', 'สถานะ'];
     const lines = [header.join(',')];
     filtered.forEach((r) => {
-      lines.push([`"${r.name}"`, r.code, `"${r.branchCode || r.branchName}"`, r.sales, r.tier, r.rate, r.commission, r.status].join(','));
+      lines.push([`"${r.name}"`, r.code, `"${r.branchCode || r.branchName}"`, r.sales, `"${r.tier}"`, r.eligibleDays, r.rate, r.commission, r.status].join(','));
     });
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -165,7 +214,8 @@ export default function CommissionDashboard({ data: initialData, user, currentBr
               <th className="p-3 text-left">พนักงาน</th>
               <th className="p-3 text-left">สาขา</th>
               <th className="p-3 text-right">ยอดขาย</th>
-              <th className="p-3 text-left">Tier</th>
+              <th className="p-3 text-left">ประเภทคอม</th>
+              <th className="p-3 text-right">วัน</th>
               <th className="p-3 text-right">%</th>
               <th className="p-3 text-right">ค่าคอมมิชชัน</th>
               <th className="p-3 text-left">สถานะ</th>
@@ -174,7 +224,7 @@ export default function CommissionDashboard({ data: initialData, user, currentBr
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan="8" className="empty-row">ยังไม่มีข้อมูลค่าคอมมิชชัน</td></tr>
+              <tr><td colSpan="9" className="empty-row">ยังไม่มีข้อมูลค่าคอมมิชชัน</td></tr>
             ) : (
               filtered.map((r) => (
                 <tr key={r.empId} className="hover:bg-slate-50">
@@ -182,6 +232,7 @@ export default function CommissionDashboard({ data: initialData, user, currentBr
                   <td className="p-3">{r.branchCode || r.branchName}</td>
                   <td className="p-3 text-right">฿{money(r.sales)}</td>
                   <td className="p-3">{r.tier}</td>
+                  <td className="p-3 text-right">{r.eligibleDays}</td>
                   <td className="p-3 text-right">{(r.rate*100).toFixed(1)}%</td>
                   <td className="p-3 text-right">฿{money(r.commission)}</td>
                   <td className="p-3">
