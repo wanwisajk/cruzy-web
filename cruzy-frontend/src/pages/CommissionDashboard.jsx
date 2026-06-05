@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Download, RefreshCw, Check } from 'lucide-react';
+import { Download, RefreshCw } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
 import { useCommission } from '../features/commission/hooks/useCommission.js';
 import { dateRange } from '../lib/date';
@@ -61,7 +61,7 @@ function saleMatchesCommissionType(data, emp, sale, responsibleBranches, periodD
 
 export default function CommissionDashboard({ data: initialData, user, currentBranch, from, to }) {
   const { push } = useToast();
-  const { data, loading, statusMap, markPaid, refreshCommissionData } = useCommission(initialData, push);
+  const { data, loading, refreshCommissionData } = useCommission(initialData, push);
   const [branchFilter, setBranchFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [computed, setComputed] = useState([]);
@@ -101,7 +101,7 @@ export default function CommissionDashboard({ data: initialData, user, currentBr
         tier: COMMISSION_TYPE_LABELS[emp.commissionCalcType] || COMMISSION_TYPE_LABELS.scheduled_assigned_branch_days,
         rate,
         commission,
-        status: statusMap[emp.id] || (total > 0 ? 'calculated' : 'none')
+        status: total > 0 ? 'calculated' : 'none'
       };
     });
 
@@ -111,7 +111,7 @@ export default function CommissionDashboard({ data: initialData, user, currentBr
 
   useEffect(() => {
     computeAll();
-  }, [data, branchFilter, statusMap, search, from, to]);
+  }, [data, branchFilter, search, from, to]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -122,21 +122,16 @@ export default function CommissionDashboard({ data: initialData, user, currentBr
   const summary = useMemo(() => {
     const totalSales = filtered.reduce((s, r) => s + Number(r.sales || 0), 0);
     const totalCommission = filtered.reduce((s, r) => s + Number(r.commission || 0), 0);
-    const pending = filtered.filter((r) => r.status === 'calculated').length;
-    const paid = filtered.filter((r) => r.status === 'paid').length;
-    return { totalSales, totalCommission, pending, paid };
+    const earners = filtered.filter((r) => Number(r.commission || 0) > 0).length;
+    const totalDays = filtered.reduce((s, r) => s + Number(r.eligibleDays || 0), 0);
+    return { totalSales, totalCommission, earners, totalDays };
   }, [filtered]);
 
-  function doPay(empId) {
-    markPaid(empId);
-    push && push('ยืนยันการจ่ายเงินสำเร็จ');
-  }
-
   function exportCsv() {
-    const header = ['พนักงาน', 'รหัส', 'สาขา', 'ยอดขาย', 'ประเภทคอม', 'วัน', '%', 'ค่าคอมมิชชัน', 'สถานะ'];
+    const header = ['พนักงาน', 'รหัส', 'สาขา', 'ยอดขาย', 'ประเภทคอม', 'วัน', '%', 'ค่าคอมมิชชัน'];
     const lines = [header.join(',')];
     filtered.forEach((r) => {
-      lines.push([`"${r.name}"`, r.code, `"${r.branchCode || r.branchName}"`, r.sales, `"${r.tier}"`, r.eligibleDays, r.rate, r.commission, r.status].join(','));
+      lines.push([`"${r.name}"`, r.code, `"${r.branchCode || r.branchName}"`, r.sales, `"${r.tier}"`, r.eligibleDays, r.rate, r.commission].join(','));
     });
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -185,12 +180,12 @@ export default function CommissionDashboard({ data: initialData, user, currentBr
           <div className="text-2xl font-bold">฿{money(summary.totalCommission)}</div>
         </div>
         <div className="p-4 bg-white rounded-xl shadow-md">
-          <div className="text-sm text-slate-500">รอโอนจ่าย</div>
-          <div className="text-2xl font-bold">{summary.pending}</div>
+          <div className="text-sm text-slate-500">พนักงานที่ได้คอม</div>
+          <div className="text-2xl font-bold">{summary.earners}</div>
         </div>
         <div className="p-4 bg-white rounded-xl shadow-md">
-          <div className="text-sm text-slate-500">จ่ายแล้ว</div>
-          <div className="text-2xl font-bold">{summary.paid}</div>
+          <div className="text-sm text-slate-500">จำนวนวันที่คิดคอม</div>
+          <div className="text-2xl font-bold">{summary.totalDays}</div>
         </div>
       </div>
 
@@ -218,13 +213,11 @@ export default function CommissionDashboard({ data: initialData, user, currentBr
               <th className="p-3 text-right">วัน</th>
               <th className="p-3 text-right">%</th>
               <th className="p-3 text-right">ค่าคอมมิชชัน</th>
-              <th className="p-3 text-left">สถานะ</th>
-              <th className="p-3 text-center">จัดการ</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
-              <tr><td colSpan="9" className="empty-row">ยังไม่มีข้อมูลค่าคอมมิชชัน</td></tr>
+              <tr><td colSpan="7" className="empty-row">ยังไม่มีข้อมูลค่าคอมมิชชัน</td></tr>
             ) : (
               filtered.map((r) => (
                 <tr key={r.empId} className="hover:bg-slate-50">
@@ -235,14 +228,6 @@ export default function CommissionDashboard({ data: initialData, user, currentBr
                   <td className="p-3 text-right">{r.eligibleDays}</td>
                   <td className="p-3 text-right">{(r.rate*100).toFixed(1)}%</td>
                   <td className="p-3 text-right">฿{money(r.commission)}</td>
-                  <td className="p-3">
-                    {r.status === 'calculated' ? <span className="badge waiting">รอโอนจ่าย</span> : r.status === 'paid' ? <span className="badge approved">จ่ายแล้ว</span> : <span className="text-slate-500">-</span>}
-                  </td>
-                  <td className="p-3 text-center">
-                    {r.status === 'calculated' ? (
-                      <button onClick={() => doPay(r.empId)} className="px-3 py-1 rounded-md bg-green-600 text-white flex items-center gap-2"><Check size={14} /> ยืนยันจ่ายเงิน</button>
-                    ) : null}
-                  </td>
                 </tr>
               ))
             )}

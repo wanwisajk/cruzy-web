@@ -4,7 +4,6 @@ import { commissionService } from '../services/commissionService.js';
 export function useCommission(initialData, notify) {
   const [data, setData] = useState(initialData || null);
   const [loading, setLoading] = useState(false);
-  const [statusMap, setStatusMap] = useState({});
 
   const refreshCommissionData = useCallback(async () => {
     setLoading(true);
@@ -24,16 +23,9 @@ export function useCommission(initialData, notify) {
     if (!data) refreshCommissionData();
   }, [data, refreshCommissionData]);
 
-  const markPaid = useCallback((empId) => {
-    setStatusMap((current) => ({ ...current, [empId]: 'paid' }));
-  }, []);
-
   return {
     data,
     loading,
-    statusMap,
-    setStatusMap,
-    refreshCommissionData,
-    markPaid
+    refreshCommissionData
   };
 }

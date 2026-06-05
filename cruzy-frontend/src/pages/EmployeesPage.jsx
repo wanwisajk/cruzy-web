@@ -253,7 +253,7 @@ function StatCard({ label, value, accent = 'green' }) {
   return (
     <div className={`bg-white rounded-xl border border-gray-100 border-l-4 ${colorMap[accent] || colorMap.green} px-4 py-3 shadow-sm`}>
       <p className="text-xs text-gray-400 mb-1">{label}</p>
-      <p className="text-2xl font-bold text-gray-800 leading-none">{value}</p>
+      <p className="text-xl font-bold text-gray-800 leading-none">{value}</p>
     </div>
   );
 }
@@ -588,12 +588,12 @@ export default function EmployeesPage(props) {
         </div>
       </div>
 
-      <div className="px-6 py-5 max-w-7xl mx-auto">
+      <div className="px-6 py-5 max-w-7xl">
         {activeTab === 'info' && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
               <StatCard label="ทั้งหมด" value={counts.all} accent="green" />
-              <StatCard label="Full time ประจำ" value={counts.fulltime} accent="teal" />
+              <StatCard label="Full time" value={counts.fulltime} accent="teal" />
               <StatCard label="Part time" value={counts.parttime} accent="amber" />
               <StatCard label="Freelance" value={counts.freelance} accent="blue" />
             </div>
@@ -613,10 +613,10 @@ export default function EmployeesPage(props) {
                   <Button variant="primary" size="sm" onClick={employees.openCreate}>+ เพิ่มพนักงาน</Button>
                 </div>
               </div>
-              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto justify-end">
-                <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+              <div className="flex flex-col sm:flex-row gap-2 w-full justify-end">
+                <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
                   {['all','fulltime','parttime','freelance'].map(s => (
-                    <button key={s} onClick={() => setFilterStatus(s)} className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${filterStatus === s ? 'bg-white shadow text-emerald-700' : 'text-gray-500 hover:text-gray-700'}`}>
+                    <button key={s} onClick={() => setFilterStatus(s)} className={`px-3 py-1 rounded-xl text-xs font-semibold transition-all ${filterStatus === s ? 'bg-white shadow text-emerald-700' : 'text-gray-500 hover:text-gray-700'}`}>
                       {s === 'all' ? 'ทั้งหมด' : statusLabel(s)}
                     </button>
                   ))}
