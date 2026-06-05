@@ -11,8 +11,8 @@ export function useLeaves() {
     setLoading(true);
     setError('');
     try {
-      const data = await leaveService.getLeaves();
-      setLeaves(Array.isArray(data) ? data : []);
+      const leavesData = await leaveService.getLeaves();
+      setLeaves(Array.isArray(leavesData) ? leavesData : []);
     } catch (err) {
       setError(err.message || 'ไม่สามารถโหลดข้อมูลการลาได้');
     } finally {

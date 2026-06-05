@@ -99,6 +99,11 @@ export default function LeaveDashboard({ data, currentBranch }) {
     setEditingLeave(null);
   }
 
+  function handleEditLeave(leave) {
+    setEditingLeave(leave);
+    setModalOpen(true);
+  }
+
   function handleCancelLeave(leave) {
     setConfirmationLeave(leave);
     setConfirmationOpen(true);
@@ -123,7 +128,7 @@ export default function LeaveDashboard({ data, currentBranch }) {
       <div className="content-header">
         <h2>📅 ระบบลาของพนักงาน</h2>
         <button type="button" className="btn btn-primary" onClick={openCreateModal}>
-          <Plus size={16} /> + ขอวันลา
+          <Plus size={16} /> ขอวันลา
         </button>
       </div>
 
@@ -147,9 +152,10 @@ export default function LeaveDashboard({ data, currentBranch }) {
             employees={tableEmployees}
             onApprove={handleApproveLeave}
             onReject={handleRejectLeave}
+            onEdit={handleEditLeave}
           />
           <div className="mt-4">
-            <LeaveHistoryTable leaves={historyLeaves} employees={tableEmployees} />
+            <LeaveHistoryTable leaves={historyLeaves} employees={tableEmployees} onEdit={handleEditLeave} />
           </div>
         </>
       )}

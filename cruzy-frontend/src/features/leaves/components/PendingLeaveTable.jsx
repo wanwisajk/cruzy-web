@@ -1,7 +1,7 @@
 import { Badge } from './LeaveBadge.jsx';
-import { Check, X } from 'lucide-react';
+import { Check, X, Eye } from 'lucide-react';
 
-export function PendingLeaveTable({ leaves, employees, onApprove, onReject }) {
+export function PendingLeaveTable({ leaves, employees, onApprove, onReject, onEdit }) {
   return (
     <div className="tw pending-zone">
       <div className="tw-head">
@@ -45,6 +45,11 @@ export function PendingLeaveTable({ leaves, employees, onApprove, onReject }) {
                     <td className="px-4 py-3">{leave.reason || '-'}</td>
                     <td className="px-4 py-3"><Badge status="pending">Pending</Badge></td>
                     <td className="px-4 py-3 text-center space-x-2">
+                      {onEdit ? (
+                        <button type="button" className="action-btn view" onClick={() => onEdit(leave)} title="ดูรายละเอียด / แก้ไข">
+                          <Eye size={14} />
+                        </button>
+                      ) : null}
                       <button type="button" className="action-btn approve" onClick={() => onApprove(leave)} title="อนุมัติ">
                         <Check size={14} />
                       </button>

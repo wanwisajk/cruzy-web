@@ -92,16 +92,6 @@ export function hydrateConsoleData(data = {}) {
 
   state.branchQuota = deriveBranchQuota(state.branches, state.schedule, staffingRules);
   state.employeeBranches = deriveEmployeeBranches(state.employees, branchRules, state.schedule);
-  state.leaves = (data.leaves || []).map((leave) => ({
-    id: String(leave.id),
-    empId: leave.employee_id,
-    type: leave.leave_type || 'ลา',
-    from: leave.start_date,
-    to: leave.end_date,
-    days: Number(leave.days_count || 1),
-    status: leave.status || 'pending',
-    reason: leave.reason || ''
-  }));
   state.contracts = (data.contracts || []).map((contract) => ({
     id: String(contract.id),
     empId: contract.employee_id,
@@ -113,6 +103,21 @@ export function hydrateConsoleData(data = {}) {
   }));
   state.salesLogs = (data.salesLogs || []).map(mapSalesLogRow);
   state.attachments = (data.attachments || []).map(mapAttachmentRow);
+  state.leaves = (data.leaves || []).map((leave) => {
+    const id = String(leave.id);
+    const attachments = state.attachments.filter((file) => file.entityType === 'leave' && String(file.entityId) === id);
+    return {
+      id,
+      empId: leave.employee_id,
+      type: leave.leave_type || 'ลา',
+      from: leave.start_date,
+      to: leave.end_date,
+      days: Number(leave.days_count || 1),
+      status: leave.status || 'pending',
+      reason: leave.reason || '',
+      attachments
+    };
+  });
   state.sales = (data.sales || []).map((row) => mapSaleRow(row, state.salesLogs, state.attachments));
   state.bankAccounts = (data.bankAccounts || []).map((bank) => ({
     id: bank.id,

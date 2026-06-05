@@ -1,6 +1,7 @@
 import { Badge } from './LeaveBadge.jsx';
+import { Eye } from 'lucide-react';
 
-export function LeaveHistoryTable({ leaves, employees }) {
+export function LeaveHistoryTable({ leaves, employees, onEdit }) {
   return (
     <div className="tw">
       <div className="tw-head processed-head">
@@ -18,12 +19,13 @@ export function LeaveHistoryTable({ leaves, employees }) {
               <th className="px-4 py-3 text-left">จำนวนวัน</th>
               <th className="px-4 py-3 text-left">เหตุผล</th>
               <th className="px-4 py-3 text-left">สถานะ</th>
+              <th className="px-4 py-3 text-center">จัดการ</th>
             </tr>
           </thead>
           <tbody>
             {leaves.length === 0 ? (
               <tr>
-                <td colSpan="7" className="empty-row">ยังไม่มีประวัติการลา</td>
+                <td colSpan="8" className="empty-row">ยังไม่มีประวัติการลา</td>
               </tr>
             ) : (
               leaves.map((leave) => {
@@ -37,6 +39,13 @@ export function LeaveHistoryTable({ leaves, employees }) {
                     <td className="px-4 py-3">{leave.days_count}</td>
                     <td className="px-4 py-3">{leave.reason || '-'}</td>
                     <td className="px-4 py-3"><Badge status={leave.status} /></td>
+                    <td className="px-4 py-3 text-center">
+                      {onEdit ? (
+                        <button type="button" className="action-btn view" onClick={() => onEdit(leave)} title="ดูรายละเอียด / แก้ไข">
+                          <Eye size={14} />
+                        </button>
+                      ) : null}
+                    </td>
                   </tr>
                 );
               })
