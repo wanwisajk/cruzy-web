@@ -84,6 +84,29 @@ export function hydrateConsoleData(data = {}) {
     };
   });
 
+  state.leaveBalances = (data.leaveBalances || []).reduce((acc, row) => {
+    const annualQuota = Number(row.annual_quota ?? row.annual_remaining ?? 0);
+    const vacationQuota = Number(row.vacation_quota ?? row.vacation_remaining ?? 0);
+    const personalQuota = Number(row.personal_quota ?? 0);
+    const annualRemaining = Number(row.annual_remaining ?? 0);
+    const vacationRemaining = Number(row.vacation_remaining ?? 0);
+    const annualUsed = Number(row.annual_used ?? (annualQuota - annualRemaining) ?? 0);
+    const vacationUsed = Number(row.vacation_used ?? (vacationQuota - vacationRemaining) ?? 0);
+    acc[row.employee_id] = {
+      annualQuota,
+      annualRemaining,
+      annualUsed,
+      vacationQuota,
+      vacationRemaining,
+      vacationUsed,
+      personalQuota,
+      personalUsed: Number(row.personal_used ?? 0),
+      sickUsed: Number(row.sick_used ?? 0),
+      updatedAt: row.updated_at || null
+    };
+    return acc;
+  }, {});
+
   scheduleRows.forEach((row) => {
     const key = `${row.branch_id}_${row.work_date}`;
     if (!state.schedule[key]) state.schedule[key] = [];

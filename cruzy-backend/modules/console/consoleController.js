@@ -9,6 +9,7 @@ const OPTIONAL_KEYS = [
   'employeeAvailabilityOverrides',
   'employeePayProfiles',
   'branchStaffingRules',
+  'leaveBalances',
   'salesLogs',
   'attachments'
 ];

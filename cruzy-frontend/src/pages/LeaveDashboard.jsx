@@ -4,6 +4,7 @@ import { LeaveStats } from '../features/leaves/components/LeaveStats.jsx';
 import { LeaveFilters } from '../features/leaves/components/LeaveFilters.jsx';
 import { PendingLeaveTable } from '../features/leaves/components/PendingLeaveTable.jsx';
 import { LeaveHistoryTable } from '../features/leaves/components/LeaveHistoryTable.jsx';
+import { ApprovedLeaveHistoryModal } from '../features/leaves/components/ApprovedLeaveHistoryModal.jsx';
 import { LeaveModal } from '../features/leaves/components/LeaveModal.jsx';
 import { useLeaves } from '../features/leaves/hooks/useLeaves.js';
 
@@ -14,6 +15,8 @@ export default function LeaveDashboard({ data, currentBranch }) {
   const [filters, setFilters] = useState({ leaveType: '', status: '', month: '', search: '' });
   const [modalOpen, setModalOpen] = useState(false);
   const [editingLeave, setEditingLeave] = useState(null);
+  const [approvedSummaryOpen, setApprovedSummaryOpen] = useState(false);
+  const [approvedSummaryEmployee, setApprovedSummaryEmployee] = useState(null);
   const [confirmationLeave, setConfirmationLeave] = useState(null);
   const [confirmationOpen, setConfirmationOpen] = useState(false);
 
@@ -23,6 +26,22 @@ export default function LeaveDashboard({ data, currentBranch }) {
   }, [data, currentBranch]);
 
   const visibleEmployeeIds = useMemo(() => visibleEmployees.map((employee) => employee.id), [visibleEmployees]);
+
+  const leaveBalances = useMemo(() => data?.leaveBalances || {}, [data]);
+  const visibleEmployeeBalances = useMemo(() => {
+    return visibleEmployees.map((employee) => ({
+      ...employee,
+      leaveBalance: leaveBalances[employee.id] || {
+        annualQuota: 0,
+        annualUsed: 0,
+        vacationQuota: 0,
+        vacationUsed: 0,
+        personalQuota: 0,
+        personalUsed: 0,
+        sickUsed: 0
+      }
+    }));
+  }, [visibleEmployees, leaveBalances]);
 
   const filteredLeaves = useMemo(() => {
     return leaves
@@ -43,7 +62,47 @@ export default function LeaveDashboard({ data, currentBranch }) {
   }, [leaves, visibleEmployeeIds, filters]);
 
   const pendingLeaves = filteredLeaves.filter((leave) => leave.status === 'pending');
-  const historyLeaves = filteredLeaves.filter((leave) => leave.status === 'approved' || leave.status === 'rejected');
+  const approvedLeaves = filteredLeaves.filter((leave) => leave.status === 'approved');
+
+  const approvedSummary = useMemo(() => {
+    return visibleEmployees
+      .map((employee) => {
+        const employeeLeaves = approvedLeaves.filter((leave) => leave.employee_id === employee.id);
+        if (!employeeLeaves.length) return null;
+
+        const totals = employeeLeaves.reduce((sum, leave) => {
+          const type = String(leave.leave_type || '').toLowerCase();
+          if (/ประจำปี|annual|year/i.test(type)) {
+            sum.annual += Number(leave.days_count || 0);
+          } else if (/พักร้อน|vacation|holiday/i.test(type)) {
+            sum.vacation += Number(leave.days_count || 0);
+          } else if (/ป่วย|sick/i.test(type)) {
+            sum.sick += Number(leave.days_count || 0);
+          } else {
+            sum.personal += Number(leave.days_count || 0);
+          }
+          return sum;
+        }, { annual: 0, vacation: 0, sick: 0, personal: 0 });
+
+        const leaveBalance = leaveBalances[employee.id] || {};
+        return {
+          employeeId: employee.id,
+          name: employee.name,
+          approvedLeaves: employeeLeaves,
+          summary: {
+            annualUsed: totals.annual,
+            annualQuota: Number(leaveBalance.annualQuota ?? leaveBalance.annual_quota ?? 13),
+            vacationUsed: totals.vacation,
+            vacationQuota: Number(leaveBalance.vacationQuota ?? leaveBalance.vacation_quota ?? 5),
+            sickUsed: totals.sick,
+            personalUsed: totals.personal
+          }
+        };
+      })
+      .filter(Boolean);
+  }, [approvedLeaves, leaveBalances, visibleEmployees]);
+
+  const historyLeaves = approvedSummary;
 
   const leaveTypes = useMemo(() => {
     const types = new Set(DEFAULT_LEAVE_TYPES);
@@ -104,6 +163,11 @@ export default function LeaveDashboard({ data, currentBranch }) {
     setModalOpen(true);
   }
 
+  function handleViewApprovedSummary(row) {
+    setApprovedSummaryEmployee(row);
+    setApprovedSummaryOpen(true);
+  }
+
   function handleCancelLeave(leave) {
     setConfirmationLeave(leave);
     setConfirmationOpen(true);
@@ -140,6 +204,8 @@ export default function LeaveDashboard({ data, currentBranch }) {
         <LeaveFilters filters={filters} leaveTypes={leaveTypes} months={months} onChange={handleFilterChange} />
       </div>
 
+     
+
       {loading ? (
         <div className="card p-6 text-center">
           <Loader2 className="mx-auto mb-4 animate-spin" size={28} />
@@ -155,8 +221,13 @@ export default function LeaveDashboard({ data, currentBranch }) {
             onEdit={handleEditLeave}
           />
           <div className="mt-4">
-            <LeaveHistoryTable leaves={historyLeaves} employees={tableEmployees} onEdit={handleEditLeave} />
+            <LeaveHistoryTable rows={historyLeaves} employees={tableEmployees} onView={handleViewApprovedSummary} />
           </div>
+          <ApprovedLeaveHistoryModal
+            open={approvedSummaryOpen}
+            onClose={() => setApprovedSummaryOpen(false)}
+            employee={approvedSummaryEmployee}
+          />
         </>
       )}
 
