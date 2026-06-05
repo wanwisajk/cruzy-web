@@ -207,7 +207,7 @@ export default function App() {
             element={
               <>
                 {currentTab === 'schedule' ? <ScheduleDashboard data={data} setData={setData} user={user} currentBranch={currentBranch} from={from} to={to} toast={push} /> : null}
-                {currentTab === 'employee' ? <EmployeesPage data={data} user={user} currentBranch={currentBranch} setData={setData} toast={push} /> : null}
+                {currentTab === 'employee' ? <EmployeesPage data={data} user={user} currentBranch={currentBranch} from={from} to={to} setData={setData} toast={push} /> : null}
                 {currentTab === 'sales' ? <SalesDashboard data={data} user={user} currentBranch={currentBranch} from={from} to={to} /> : null}
   {currentTab === 'commission' ? <CommissionDashboard data={data} user={user} currentBranch={currentBranch} from={from} to={to} /> : null}                {currentTab === 'inspection' ? <InspectionDashboard user={user} currentBranch={currentBranch} from={from} to={to} /> : null}
                 {currentTab === 'alerts' ? <AlertPage data={data} currentBranch={currentBranch} /> : null}

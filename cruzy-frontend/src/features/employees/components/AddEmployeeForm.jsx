@@ -42,6 +42,7 @@ const INITIAL = {
   holidays: "วันหยุดนักขัตฤกษ์",
   breakHours: "1",
   allowance: "",
+  socialSecurityEnabled: true,
   absDeduct: "system_hourly_avg",
   absFixed: "",
 };
@@ -97,6 +98,12 @@ function getInitialFormState(employee = {}, branches = []) {
     weeklyOffs = employee.weeklyOffs;
   }
 
+  const storedPayType = payProfile.payType || payProfile.pay_type || "monthly";
+  const formPayType = storedPayType === "daily" ? "daily_shift" : storedPayType;
+  const wageValue = storedPayType === "daily"
+    ? (payProfile.daily_rate ?? payProfile.dailyRate ?? employee.dailyRate ?? employee.salary ?? "")
+    : (payProfile.salary ?? payProfile.monthly_salary ?? payProfile.monthlySalary ?? employee.salary ?? "");
+
   return {
     id: employee.id || "",
     color: employee.color || "#4CAF50",
@@ -109,15 +116,16 @@ function getInitialFormState(employee = {}, branches = []) {
     lineUserId: employee.line_user_id || employee.lineUserId || "",
     empType: employee.empType || "fulltime",
     start: payProfile.effectiveFrom || payProfile.effective_from || employee.startDate || new Date().toISOString().slice(0, 10),
-    payType: payProfile.payType || payProfile.pay_type || "monthly",
+    payType: formPayType,
     payCycle: payProfile.payCycle || payProfile.pay_cycle || "monthly",
-    wage: String(payProfile.salary ?? payProfile.monthly_salary ?? payProfile.daily_rate ?? employee.salary ?? ""),
+    wage: String(wageValue),
     comType: employee.comType || employee.commissionCalcType || payProfile.commissionCalcType || payProfile.commission_calc_type || "scheduled_assigned_branch_days",
     comPct: String(payProfile.commission_rate ?? payProfile.commissionRate ?? employee.commissionRate ?? ""),
     weeklyOffs,
     holidays: employee.holidays || "วันหยุดนักขัตฤกษ์",
     breakHours: String(payProfile.breakHours ?? payProfile.break_hours ?? "1"),
     allowance: String(payProfile.special_allowance ?? ""),
+    socialSecurityEnabled: payProfile.socialSecurityEnabled ?? payProfile.social_security_enabled ?? employee.socialSecurityEnabled ?? employee.social_security_enabled ?? true,
     absDeduct,
     absFixed
   };
@@ -229,7 +237,7 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
     setLoading(true);
 
     try {
-      const payTypeMap = { monthly: "monthly", daily_shift: "daily", daily_full: "daily" };
+      const payTypeMap = { monthly: "monthly", daily: "daily", daily_shift: "daily", daily_full: "daily" };
       const selectedBranchIds = form.selectedBranches.length ? form.selectedBranches : [];
       const commissionBranchIds = form.comType === "actual_work_days_all_branches"
         ? selectedBranchIds
@@ -285,6 +293,8 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
           commission_calc_type: form.comType,
           commission_rate: Number(form.comPct) || 0,
           special_allowance: Number(form.allowance) || 0,
+          socialSecurityEnabled: Boolean(form.socialSecurityEnabled),
+          social_security_enabled: Boolean(form.socialSecurityEnabled),
           breakHours: Number(form.breakHours) || 1,
           break_hours: Number(form.breakHours) || 1,
           effectiveFrom: form.start,
@@ -589,6 +599,16 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
             <label className={labelBaseStyle}>เบี้ยเลี้ยงพิเศษอื่น ๆ (฿/เดือน)</label>
             <input type="number" value={form.allowance} onChange={set("allowance")} placeholder="0" className={`${inputBaseStyle} border-slate-200`} />
           </div>
+
+          <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={Boolean(form.socialSecurityEnabled)}
+              onChange={(event) => setForm((current) => ({ ...current, socialSecurityEnabled: event.target.checked }))}
+              className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+            />
+            <span className="text-xs  text-slate-600">มีประกันสังคม</span>
+          </label>
 
           <div>
             <label className={labelBaseStyle}>การหักเงินมาสาย</label>

@@ -65,6 +65,8 @@ export function useEmployees({ data, user, currentBranch, setData, toast }) {
         commissionCalcType: payProfile.commissionCalcType || payProfile.commission_calc_type,
         commission_calc_type: payProfile.commission_calc_type || payProfile.commissionCalcType,
         special_allowance: payProfile.special_allowance ?? payProfile.specialAllowance,
+        socialSecurityEnabled: payProfile.socialSecurityEnabled ?? payProfile.social_security_enabled,
+        social_security_enabled: payProfile.social_security_enabled ?? payProfile.socialSecurityEnabled,
         effectiveFrom: payProfile.effectiveFrom || payProfile.effective_from,
         effective_from: payProfile.effective_from || payProfile.effectiveFrom
       } : {
@@ -75,6 +77,8 @@ export function useEmployees({ data, user, currentBranch, setData, toast }) {
         commission_rate: employee.commissionRate || 0,
         commission_calc_type: employee.commissionCalcType,
         special_allowance: employee.specialAllowance || 0,
+        socialSecurityEnabled: employee.socialSecurityEnabled,
+        social_security_enabled: employee.socialSecurityEnabled,
         effectiveFrom: employee.startDate
       },
       availabilityRules
@@ -145,6 +149,7 @@ export function useEmployees({ data, user, currentBranch, setData, toast }) {
       commissionCalcType: savedPayload.payProfile?.commission_calc_type || savedPayload.payProfile?.commissionCalcType || 'scheduled_assigned_branch_days',
       commissionBranches: employeeBranchRules.filter((rule) => rule.commissionEligible).map((rule) => rule.branchId),
       specialAllowance: savedPayload.payProfile?.special_allowance || savedPayload.payProfile?.specialAllowance || 0,
+      socialSecurityEnabled: savedPayload.payProfile?.social_security_enabled ?? savedPayload.payProfile?.socialSecurityEnabled ?? true,
       startDate: savedPayload.payProfile?.effectiveFrom || activeEmployee?.startDate || new Date().toISOString().split('T')[0],
       region: savedPayload.regionId || activeEmployee?.region || '',
       phone: savedPayload.phone || ''
@@ -152,6 +157,34 @@ export function useEmployees({ data, user, currentBranch, setData, toast }) {
 
     setData((current) => {
       const existingIndex = current.employees.findIndex((employee) => employee.id === id);
+      const existingPayProfile = (current.employeePayProfiles || []).find((profile) => (profile.empId || profile.employee_id) === id);
+      const savedPayProfile = {
+        id: existingPayProfile?.id || `profile_${Date.now()}`,
+        empId: id,
+        employee_id: id,
+        payType: savedPayload.payProfile?.payType,
+        pay_type: savedPayload.payProfile?.payType,
+        payCycle: savedPayload.payProfile?.payCycle,
+        pay_cycle: savedPayload.payProfile?.payCycle,
+        monthlySalary: savedPayload.payProfile?.monthlySalary || 0,
+        monthly_salary: savedPayload.payProfile?.monthlySalary || 0,
+        dailyRate: savedPayload.payProfile?.dailyRate || 0,
+        daily_rate: savedPayload.payProfile?.dailyRate || 0,
+        commissionEnabled: savedPayload.payProfile?.commissionEnabled,
+        commission_enabled: savedPayload.payProfile?.commissionEnabled,
+        commissionRate: savedPayload.payProfile?.commission_rate || savedPayload.payProfile?.commissionRate || 0,
+        commission_rate: savedPayload.payProfile?.commission_rate || savedPayload.payProfile?.commissionRate || 0,
+        commissionCalcType: savedPayload.payProfile?.commission_calc_type || savedPayload.payProfile?.commissionCalcType || 'scheduled_assigned_branch_days',
+        commission_calc_type: savedPayload.payProfile?.commission_calc_type || savedPayload.payProfile?.commissionCalcType || 'scheduled_assigned_branch_days',
+        specialAllowance: savedPayload.payProfile?.special_allowance || savedPayload.payProfile?.specialAllowance || 0,
+        special_allowance: savedPayload.payProfile?.special_allowance || savedPayload.payProfile?.specialAllowance || 0,
+        socialSecurityEnabled: savedPayload.payProfile?.social_security_enabled ?? savedPayload.payProfile?.socialSecurityEnabled ?? true,
+        social_security_enabled: savedPayload.payProfile?.social_security_enabled ?? savedPayload.payProfile?.socialSecurityEnabled ?? true,
+        effectiveFrom: savedPayload.payProfile?.effectiveFrom,
+        effective_from: savedPayload.payProfile?.effectiveFrom,
+        active: true,
+        is_active: true
+      };
       const employees = existingIndex >= 0
         ? current.employees.map((employee) => employee.id === id ? { ...employee, ...updatedEmployee } : employee)
         : [...current.employees, updatedEmployee];
@@ -167,19 +200,10 @@ export function useEmployees({ data, user, currentBranch, setData, toast }) {
           ...(current.employeeBranchRules || []).filter((rule) => rule.empId !== id),
           ...employeeBranchRules
         ],
-        employeePayProfiles: existingIndex >= 0 ? current.employeePayProfiles : [...(current.employeePayProfiles || []), {
-          id: `profile_${Date.now()}`,
-          employee_id: id,
-          pay_type: savedPayload.payProfile?.payType,
-          monthly_salary: savedPayload.payProfile?.monthlySalary || 0,
-          daily_rate: savedPayload.payProfile?.dailyRate || 0,
-          commission_enabled: savedPayload.payProfile?.commissionEnabled,
-          commission_rate: savedPayload.payProfile?.commission_rate || savedPayload.payProfile?.commissionRate || 0,
-          commission_calc_type: savedPayload.payProfile?.commission_calc_type || savedPayload.payProfile?.commissionCalcType || 'scheduled_assigned_branch_days',
-          special_allowance: savedPayload.payProfile?.special_allowance || savedPayload.payProfile?.specialAllowance || 0,
-          effective_from: savedPayload.payProfile?.effectiveFrom,
-          is_active: true
-        }]
+        employeePayProfiles: [
+          ...(current.employeePayProfiles || []).filter((profile) => (profile.empId || profile.employee_id) !== id),
+          savedPayProfile
+        ]
       };
     });
 

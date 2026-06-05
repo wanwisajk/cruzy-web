@@ -99,6 +99,7 @@ function cleanPayProfilePayload(employeeId, body) {
     commission_rate: body.commission_rate !== undefined ? toNumber(body.commission_rate, 0) : body.commissionRate !== undefined ? toNumber(body.commissionRate, 0) : null,
     commission_calc_type: commissionCalcType,
     special_allowance: body.special_allowance !== undefined ? toNumber(body.special_allowance, 0) : body.specialAllowance !== undefined ? toNumber(body.specialAllowance, 0) : 0,
+    social_security_enabled: body.socialSecurityEnabled === undefined ? body.social_security_enabled !== false : Boolean(body.socialSecurityEnabled),
     break_hours: body.breakHours !== undefined ? parseFloat(body.breakHours) : body.break_hours !== undefined ? parseFloat(body.break_hours) : 1,
     absence_deduct_mode: absenceDeductMode,
     absence_system_calc: absenceSystemCalc,

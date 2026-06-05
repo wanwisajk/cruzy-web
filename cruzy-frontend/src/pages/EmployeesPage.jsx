@@ -4,7 +4,7 @@ import { EmployeeFormModal } from '../features/employees/components/EmployeeForm
 import { EmployeeViewModal } from '../features/employees/components/EmployeeViewModal';
 import { useEmployees } from '../features/employees/hooks/useEmployees';
 import { api } from '../lib/api';
-import { fmtDate } from '../lib/date';
+import { dateRange, fmtDate } from '../lib/date';
 
 function nf(n) {
   return (n ?? 0).toLocaleString('th-TH');
@@ -37,11 +37,18 @@ function statusColor(status) {
 
 function payCycleLabel(c) {
   return {
+    daily: 'รายวัน/รายกะ',
     weekly: 'รายสัปดาห์',
     bimonthly: 'จ่ายครึ่งเดือน',
     monthly: 'รายเดือน'
   }[c] || c;
 }
+
+const COMMISSION_TYPE_LABELS = {
+  scheduled_assigned_branch_days: 'เลือกสาขาเอง',
+  actual_work_days_all_branches: 'ทุกสาขาตามตารางงาน',
+  period_days_responsible_branches: 'ทุกวันของสาขาที่ดูแล'
+};
 
 function emptyAttendanceForm(date) {
   return {
@@ -172,6 +179,70 @@ function attendanceStatus(row, data, employee) {
   return calculateAttendanceMetrics(data, row, employee).status;
 }
 
+function getResponsibleBranches(data, employee, fallbackBranch) {
+  const empId = employee.id;
+  const rules = (data?.employeeBranchRules || []).filter((rule) => rule.empId === empId && rule.canWork !== false);
+  if (employee.commissionCalcType === 'actual_work_days_all_branches') {
+    const workRuleBranches = rules.map((rule) => rule.branchId);
+    if (workRuleBranches.length) return [...new Set(workRuleBranches.filter(Boolean))];
+  }
+
+  const ruleBranches = rules
+    .filter((rule) => rule.commissionEligible !== false)
+    .map((rule) => rule.branchId);
+  if (rules.length) return [...new Set(ruleBranches.filter(Boolean))];
+
+  const mappedBranches = data?.employeeBranches?.[empId] || [];
+  return [...new Set([...ruleBranches, ...mappedBranches, fallbackBranch].filter(Boolean))];
+}
+
+function hasScheduledShift(data, empId, branchId, date) {
+  return (data?.schedule?.[`${branchId}_${date}`] || []).includes(empId);
+}
+
+function hasAttendance(data, empId, branchId, date) {
+  return (data?.attendance || []).some((row) => (
+    row.empId === empId &&
+    String(row.branch) === String(branchId) &&
+    row.date === date
+  ));
+}
+
+function saleMatchesCommissionType(data, employee, sale, responsibleBranches, periodDays) {
+  const branchId = sale.bid;
+  const date = sale.date;
+  if (!responsibleBranches.map(String).includes(String(branchId))) return false;
+
+  if (employee.commissionCalcType === 'period_days_responsible_branches') {
+    return periodDays.includes(date);
+  }
+
+  return hasAttendance(data, employee.id, branchId, date) || hasScheduledShift(data, employee.id, branchId, date);
+}
+
+function employeeCommissionForPeriod(data, employee, periodDays, selectedBranch = 'all') {
+  if (employee.commissionEnabled === false) {
+    return { commission: 0, commissionSales: 0, commissionDays: 0, commissionTypeLabel: 'ไม่คิดค่าคอม' };
+  }
+
+  const responsibleBranches = getResponsibleBranches(data, employee, employee.branch);
+  const eligibleSales = (data?.sales || []).filter((sale) => {
+    if (!periodDays.includes(sale.date)) return false;
+    if (selectedBranch !== 'all' && String(sale.bid) !== String(selectedBranch)) return false;
+    return saleMatchesCommissionType(data, employee, sale, responsibleBranches, periodDays);
+  });
+  const commissionSales = eligibleSales.reduce((sum, sale) => sum + Number(sale.total || 0), 0);
+  const commission = Math.round(commissionSales * (Number(employee.commissionRate || 0) / 100));
+  const commissionDays = new Set(eligibleSales.map((sale) => sale.date)).size;
+
+  return {
+    commission,
+    commissionSales,
+    commissionDays,
+    commissionTypeLabel: COMMISSION_TYPE_LABELS[employee.commissionCalcType] || COMMISSION_TYPE_LABELS.scheduled_assigned_branch_days
+  };
+}
+
 function StatCard({ label, value, accent = 'green' }) {
   const colorMap = {
     green: 'border-l-emerald-500',
@@ -228,26 +299,64 @@ export default function EmployeesPage(props) {
     return warningLetters.filter((letter) => filteredEmployees.some((employee) => employee.id === letter.empId));
   }, [warningLetters, filteredEmployees]);
   const contracts = props.data.contracts || [];
+  const payrollPeriodDays = useMemo(() => {
+    const start = props.from || props.data.initialDate || fmtDate(new Date());
+    const end = props.to || props.data.initialDateTo || start;
+    return start && end ? dateRange(start, end) : [];
+  }, [props.from, props.to, props.data.initialDate, props.data.initialDateTo]);
 
   const payrollRows = useMemo(() => {
+    const periodDaySet = new Set(payrollPeriodDays);
     return filteredEmployees
       .filter((employee) => payCycleFilter === 'all' || (employee.payType || 'monthly') === payCycleFilter)
       .map((employee) => {
+        const scheduledDays = new Set();
+        Object.entries(props.data.schedule || {}).forEach(([key, empIds]) => {
+          const date = key.slice(-10);
+          const branchId = key.slice(0, -11);
+          if (!periodDaySet.has(date)) return;
+          if (selectedBranch !== 'all' && String(branchId) !== String(selectedBranch)) return;
+          if ((empIds || []).includes(employee.id)) scheduledDays.add(`${date}_${branchId}`);
+        });
+
+        const empAttendanceRows = attendanceRows.filter((row) => (
+          row.empId === employee.id &&
+          periodDaySet.has(row.date) &&
+          (selectedBranch === 'all' || String(row.branch) === String(selectedBranch))
+        ));
+        empAttendanceRows.forEach((row) => scheduledDays.add(`${row.date}_${row.branch}`));
+
+        const workDays = scheduledDays.size;
         const baseWage = employee.payType === 'monthly'
           ? Number(employee.monthlySalary || employee.salary || 0)
-          : Number(employee.dailyRate || 0) * 26;
-        const comm = employee.commissionEnabled ? Math.round(baseWage * 0.08) : 0;
+          : Number(employee.dailyRate || 0) * workDays;
+        const commissionInfo = employeeCommissionForPeriod(props.data, employee, payrollPeriodDays, selectedBranch);
+        const comm = commissionInfo.commission;
         const allowance = Number(employee.specialAllowance || 0);
-        const lateDeduct = attendanceRows
-          .filter((row) => row.empId === employee.id)
-          .reduce((sum, row) => sum + (Number(row.lateMin || 0) * 5), 0);
-        const sso = employee.payType === 'monthly'
-          ? Math.min(Math.round(baseWage * 0.05), 750)
-          : 0;
+        const lateCount = empAttendanceRows.reduce((sum, row) => {
+          const metrics = calculateAttendanceMetrics(props.data, row, employee);
+          return sum + (metrics.lateMinutes > 0 ? 1 : 0);
+        }, 0);
+        const lateDeduct = lateCount * 50;
+        const hasSocialSecurity = employee.socialSecurityEnabled ?? employee.ssoEnabled ?? employee.hasSocialSecurity ?? employee.payType === 'monthly';
+        const sso = hasSocialSecurity ? 750 : 0;
         const net = baseWage + comm + allowance - lateDeduct - sso;
-        return { ...employee, baseWage, comm, allowance, lateDeduct, sso, net };
+        return {
+          ...employee,
+          workDays,
+          baseWage,
+          comm,
+          commissionSales: commissionInfo.commissionSales,
+          commissionDays: commissionInfo.commissionDays,
+          commissionTypeLabel: commissionInfo.commissionTypeLabel,
+          allowance,
+          lateCount,
+          lateDeduct,
+          sso,
+          net
+        };
       });
-  }, [filteredEmployees, attendanceRows, payCycleFilter]);
+  }, [filteredEmployees, attendanceRows, payCycleFilter, payrollPeriodDays, props.data, selectedBranch]);
 
   const contractRows = useMemo(() => {
     return contracts.filter((contract) => {
@@ -599,16 +708,20 @@ export default function EmployeesPage(props) {
         {activeTab === 'payroll' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-              <span className="text-sm font-bold text-gray-700">💰 รายการคำนวณรอบจ่ายปัจจุบัน</span>
+              <div>
+                <span className="text-sm font-bold text-gray-700">รายการคำนวณรอบจ่ายปัจจุบัน</span>
+                <div className="text-[11px] text-gray-400 mt-0.5">
+                  ช่วงวันที่ {payrollPeriodDays[0] || '-'} ถึง {payrollPeriodDays.at(-1) || '-'}
+                </div>
+              </div>
               <select
                 value={payCycleFilter}
                 onChange={(e) => setPayCycleFilter(e.target.value)}
                 className="border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs outline-none bg-white font-semibold"
               >
-                <option value="all">รอบจ่ายทั้งหมด</option>
-                <option value="weekly">รายสัปดาห์</option>
-                <option value="bimonthly">จ่ายครึ่งเดือน</option>
+                <option value="all">ประเภทค่าจ้างทั้งหมด</option>
                 <option value="monthly">รายเดือน</option>
+                <option value="daily">รายวัน/รายกะ</option>
               </select>
             </div>
 
@@ -618,11 +731,12 @@ export default function EmployeesPage(props) {
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-100 text-gray-400 font-semibold uppercase">
                       <th className="px-3 py-2.5">พนักงาน</th>
-                      <th className="px-3 py-2.5">รอบจ่าย</th>
+                      <th className="px-3 py-2.5">ประเภท</th>
+                      <th className="px-3 py-2.5 text-right">วันทำงาน</th>
                       <th className="px-3 py-2.5">ค่าจ้างพื้นฐาน</th>
                       <th className="px-3 py-2.5">ค่าคอมฯ</th>
                       <th className="px-3 py-2.5">เบี้ยพิเศษ</th>
-                      <th className="px-3 py-2.5">หักสาย/ขาด</th>
+                      <th className="px-3 py-2.5">หักสาย</th>
                       <th className="px-3 py-2.5">หัก ปกส.</th>
                       <th className="px-3 py-2.5 text-right">สุทธิ</th>
                     </tr>
@@ -632,14 +746,23 @@ export default function EmployeesPage(props) {
                       <tr key={p.id} className="hover:bg-gray-50/30">
                         <td className="px-3 py-2.5 text-gray-900 font-semibold">{p.name} ({p.nickname || ''})</td>
                         <td className="px-3 py-2.5 text-gray-500">{payCycleLabel(p.payType)}</td>
+                        <td className="px-3 py-2.5 text-right">{p.payType === 'monthly' ? '-' : nf(p.workDays)}</td>
                         <td className="px-3 py-2.5">฿{nf(p.baseWage)}</td>
-                        <td className="px-3 py-2.5 text-emerald-600">+฿{nf(p.comm)}</td>
+                        <td className="px-3 py-2.5 text-emerald-600">
+                          +฿{nf(p.comm)}
+                          <div className="text-[10px] text-gray-400">{p.commissionTypeLabel} · {p.commissionDays} วัน</div>
+                        </td>
                         <td className="px-3 py-2.5 text-blue-600">+฿{nf(p.allowance)}</td>
-                        <td className="px-3 py-2.5 text-red-500">-฿{nf(p.lateDeduct)}</td>
+                        <td className="px-3 py-2.5 text-red-500">-฿{nf(p.lateDeduct)} <span className="text-[10px] text-gray-400">({p.lateCount} ครั้ง)</span></td>
                         <td className="px-3 py-2.5 text-gray-400">-฿{nf(p.sso)}</td>
                         <td className="px-3 py-2.5 text-right font-bold text-emerald-700 text-sm">฿{nf(p.net)}</td>
                       </tr>
                     ))}
+                    {payrollRows.length === 0 && (
+                      <tr>
+                        <td colSpan={9} className="px-3 py-8 text-center text-gray-400">ไม่มีข้อมูลเงินเดือนในตัวกรองนี้</td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>

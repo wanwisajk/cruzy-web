@@ -103,6 +103,7 @@ export function hydrateConsoleData(data = {}) {
       salary: Number(employee.salary || pay.monthlySalary || 0),
       region: employee.region_id || '',
       payType: pay.payType,
+      payCycle: pay.payCycle,
       dailyRate: pay.dailyRate,
       monthlySalary: pay.monthlySalary,
       breakHours: pay.breakHours,
@@ -113,6 +114,7 @@ export function hydrateConsoleData(data = {}) {
         .filter((rule) => rule.empId === employee.id && rule.canWork !== false && rule.commissionEligible !== false)
         .map((rule) => rule.branchId),
       specialAllowance: pay.specialAllowance,
+      socialSecurityEnabled: pay.socialSecurityEnabled,
       startDate: pay.effectiveFrom
     };
   });
@@ -312,7 +314,7 @@ function mapAvailabilityOverride(row) {
 }
 
 function mapPayProfile(row) {
-  return { id: String(row.id || ''), empId: row.employee_id, payType: row.pay_type || 'monthly', monthlySalary: Number(row.monthly_salary || 0), dailyRate: Number(row.daily_rate || 0), breakHours: Number(row.break_hours || 1), commissionEnabled: row.commission_enabled !== false, commissionRate: Number(row.commission_rate || 0), commissionCalcType: row.commission_calc_type || 'scheduled_assigned_branch_days', specialAllowance: Number(row.special_allowance || 0), effectiveFrom: row.effective_from, effectiveTo: row.effective_to, active: row.is_active !== false };
+  return { id: String(row.id || ''), empId: row.employee_id, payType: row.pay_type || 'monthly', payCycle: row.pay_cycle || 'monthly', monthlySalary: Number(row.monthly_salary || 0), dailyRate: Number(row.daily_rate || 0), breakHours: Number(row.break_hours || 1), commissionEnabled: row.commission_enabled !== false, commissionRate: Number(row.commission_rate || 0), commissionCalcType: row.commission_calc_type || 'scheduled_assigned_branch_days', specialAllowance: Number(row.special_allowance || 0), socialSecurityEnabled: row.social_security_enabled !== false, effectiveFrom: row.effective_from, effectiveTo: row.effective_to, active: row.is_active !== false };
 }
 
 function mapStaffingRule(row) {
@@ -324,6 +326,7 @@ function getPayProfile(empId, rows, legacySalary) {
   if (active) {
     return {
       payType: active.pay_type || 'monthly',
+      payCycle: active.pay_cycle || 'monthly',
       monthlySalary: Number(active.monthly_salary || 0),
       dailyRate: Number(active.daily_rate || 0),
       breakHours: Number(active.break_hours || 1),
@@ -331,10 +334,11 @@ function getPayProfile(empId, rows, legacySalary) {
       commissionRate: Number(active.commission_rate || 0),
       commissionCalcType: active.commission_calc_type || 'scheduled_assigned_branch_days',
       specialAllowance: Number(active.special_allowance || 0),
+      socialSecurityEnabled: active.social_security_enabled !== false,
       effectiveFrom: active.effective_from
     };
   }
-  return { payType: 'monthly', monthlySalary: Number(legacySalary || 0), dailyRate: 0, breakHours: 1, commissionEnabled: true, commissionRate: 0, commissionCalcType: 'scheduled_assigned_branch_days', specialAllowance: 0, effectiveFrom: null };
+  return { payType: 'monthly', payCycle: 'monthly', monthlySalary: Number(legacySalary || 0), dailyRate: 0, breakHours: 1, commissionEnabled: true, commissionRate: 0, commissionCalcType: 'scheduled_assigned_branch_days', specialAllowance: 0, socialSecurityEnabled: true, effectiveFrom: null };
 }
 
 function mapSaleRow(row, salesLogs = [], attachments = []) {
