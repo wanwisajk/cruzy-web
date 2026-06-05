@@ -60,7 +60,7 @@ export function LeaveModal({ open, onClose, onSave, employees, leave, saving, le
     onClose();
   }
 
-  const isReadOnly = Boolean(leave && leave.status !== 'pending');
+  const isReadOnly = Boolean(leave && leave.status === 'approved');
 
   async function handleSubmit() {
     if (isReadOnly) return;
