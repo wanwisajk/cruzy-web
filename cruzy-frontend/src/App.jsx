@@ -27,8 +27,22 @@ export default function App() {
   const [data, setData] = useState(null);
   const [currentTab, setCurrentTab] = useState('schedule');
   const [currentBranch, setCurrentBranch] = useState('all');
-  const [from, setFrom] = useState(fmtDate(new Date()));
-  const [to, setTo] = useState(fmtDate(new Date()));
+  const [from, setFrom] = useState(() => {
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const firstDay = new Date(today);
+    firstDay.setDate(today.getDate() - ((dayOfWeek + 6) % 7));
+    return fmtDate(firstDay);
+  });
+  const [to, setTo] = useState(() => {
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const firstDay = new Date(today);
+    firstDay.setDate(today.getDate() - ((dayOfWeek + 6) % 7));
+    const lastDay = new Date(firstDay);
+    lastDay.setDate(firstDay.getDate() + 6);
+    return fmtDate(lastDay);
+  });
   const [booting, setBooting] = useState(true);
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState('');
@@ -44,8 +58,14 @@ export default function App() {
     const payload = await api.consoleData();
     const hydrated = hydrateConsoleData(payload);
     setData(hydrated);
-    setFrom(hydrated.initialDate);
-    setTo(hydrated.initialDateTo);
+    const today = new Date(hydrated.initialDate);
+    const dayOfWeek = today.getDay();
+    const firstDay = new Date(today);
+    firstDay.setDate(today.getDate() - ((dayOfWeek + 6) % 7));
+    const lastDay = new Date(firstDay);
+    lastDay.setDate(firstDay.getDate() + 6);
+    setFrom(fmtDate(firstDay));
+    setTo(fmtDate(lastDay));
     return hydrated;
   }
 

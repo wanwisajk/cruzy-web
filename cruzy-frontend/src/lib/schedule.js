@@ -62,6 +62,14 @@ export function availabilityFor(data, empId, date) {
   const day = new Date(`${date}T00:00:00`).getDay();
   const rule = data.employeeAvailabilityRules.find((item) => item.empId === empId && item.dayOfWeek === day);
   if (rule) return { type: rule.type, source: 'rule', reason: rule.note };
+
+  const employee = data.employees.find((item) => item.id === empId);
+  const weeklyOffs = employee?.weeklyOffs || employee?.weeklyOff || [];
+  const offDays = Array.isArray(weeklyOffs) ? weeklyOffs.map(String) : [String(weeklyOffs)];
+  if (offDays.includes(String(day))) {
+    return { type: 'day_off', source: 'weeklyOffs', reason: 'วันหยุดประจำสัปดาห์' };
+  }
+
   return { type: 'available', source: 'default', reason: '' };
 }
 
@@ -81,11 +89,13 @@ export function employeeWorkload(data, scopeBranches, empId, from, to) {
 
 export function scheduleCandidateScore(data, scopeBranches, employee, branchId, date, from, to) {
   const rule = branchEligibilityFor(data, employee.id, branchId);
-  const preferred = rule?.isPreferred ? 20 : 0;
+  const preferred = rule?.isPreferred ? 30 : 0;
   const priority = Number(rule?.priority || 0) * 5;
   const workloadPenalty = employeeWorkload(data, scopeBranches, employee.id, from || date, to || date) * 3;
-  const sameRegion = data.branches.find((branch) => branch.id === branchId)?.region === employee.region ? 2 : 0;
-  return preferred + priority + sameRegion - workloadPenalty;
+  const branch = data.branches.find((item) => item.id === branchId);
+  const sameBranch = employee.branch === branchId ? 15 : 0;
+  const sameRegion = branch?.region === employee.region ? 10 : 0;
+  return preferred + priority + sameBranch + sameRegion - workloadPenalty;
 }
 
 export function scheduleCandidates(data, user, branchId, date, opts = {}) {

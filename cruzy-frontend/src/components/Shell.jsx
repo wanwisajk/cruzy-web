@@ -16,7 +16,11 @@ const menus = [
 
 export function Shell({ data, user, currentTab, setCurrentTab, currentBranch, setCurrentBranch, children, onLogout, alertCount, navigate }) {
   const branches = getScopeBranches(data, user);
-  const availableMenus = menus.filter((menu) => !menu.ownerOnly || user.role === 'owner');
+  const availableMenus = menus.filter((menu) => {
+    if (menu.id === 'access') return user.scope === 'all';
+    if (menu.ownerOnly) return user.role === 'owner';
+    return true;
+  });
 
   function chooseTab(tab) {
     setCurrentTab(tab);

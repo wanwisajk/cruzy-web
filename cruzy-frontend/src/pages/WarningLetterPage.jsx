@@ -263,7 +263,7 @@ export default function WarningLetterPage({ data }) {
   }, [warningLetters, tab, searchTerm, employees]);
 
   return (
-    <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-4">
+    <div className="max-w-7xl  p-4 sm:p-6 space-y-4">
       {/* Header */}
       <div className="flex flex-col gap-2">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">

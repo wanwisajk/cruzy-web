@@ -4,5 +4,8 @@
   "workspaces": [
     "cruzy-backend",
     "cruzy-frontend"
-  ]
+  ],
+  "dependencies": {
+    "xlsx": "^0.18.5"
+  }
 }

@@ -1,7 +1,4 @@
 import { useMemo, useState } from 'react';
-import { AlertTriangle, BarChart3, CalendarCheck, Plus, Sparkles, Trash2, Users } from 'lucide-react';
-import { Avatar } from '../components/Avatar';
-import { Modal } from '../components/Modal';
 import { dateRange, fmtDate, thaiShortDate } from '../lib/date';
 import { getVisibleBranches, recommendedEmployees, requiredStaffFor, scheduleCandidates, shiftFor } from '../lib/schedule';
 import { useSchedule } from '../features/schedules/hooks/useSchedule';
@@ -15,30 +12,9 @@ export default function ScheduleDashboard({ data, setData, user, currentBranch, 
   const { schedule, loading, error, assignSchedule, removeSchedule } = useSchedule(data.schedule, setData);
   const scheduleData = useMemo(() => ({ ...data, schedule }), [data, schedule]);
   const branches = useMemo(() => getVisibleBranches(scheduleData, user, currentBranch), [scheduleData, user, currentBranch]);
-  const days = useMemo(() => dateRange(from, to).slice(0, 7), [from, to]);
+  const days = useMemo(() => dateRange(from, to).slice(0, 30), [from, to]);
   const today = fmtDate(new Date());
   const alerts = useMemo(() => buildAlerts(scheduleData, branches, from), [scheduleData, branches, from]);
-
-  const issueCounts = useMemo(() => {
-    const employeeById = Object.fromEntries(scheduleData.employees.map((employee) => [employee.id, employee]));
-    const visibleEmployeeIds = new Set(scheduleData.employees.filter((employee) => branches.some((branch) => branch.id === employee.branch)).map((employee) => employee.id));
-
-    return days.map((date) => {
-      const scheduledIds = new Set(branches.flatMap((branch) => scheduleData.schedule[`${branch.id}_${date}`] || []));
-      const leaveIds = new Set(scheduleData.leaves.filter((leave) => leave.from <= date && leave.to >= date && employeeById[leave.empId] && visibleEmployeeIds.has(leave.empId)).map((leave) => leave.empId));
-      const emptyBranches = branches.filter((branch) => {
-        const scheduled = scheduleData.schedule[`${branch.id}_${date}`] || [];
-        return scheduled.length === 0 && requiredStaffFor(scheduleData, branch.id, date) > 0;
-      }).length;
-      const availableEmployees = [...visibleEmployeeIds].filter((empId) => !scheduledIds.has(empId) && !leaveIds.has(empId)).length;
-      return {
-        date,
-        emptyBranches,
-        leaveCount: leaveIds.size,
-        availableEmployees
-      };
-    });
-  }, [scheduleData, branches, days]);
 
   function handleEmployeeDragStart(event, branchId, date, empId) {
     event.dataTransfer.effectAllowed = 'move';
@@ -55,7 +31,7 @@ export default function ScheduleDashboard({ data, setData, user, currentBranch, 
     setDragOverCell('');
     try {
       const payload = JSON.parse(event.dataTransfer.getData('application/json'));
-      if (!payload || !payload.empId) return;
+      if (!payload?.empId) return;
       const { empId, branchId: sourceBranchId, date: sourceDate } = payload;
       if (sourceBranchId === targetBranchId && sourceDate === targetDate) return;
       moveSchedule(empId, sourceBranchId, sourceDate, targetBranchId, targetDate);
@@ -108,44 +84,63 @@ export default function ScheduleDashboard({ data, setData, user, currentBranch, 
     toast(added ? `จัดอัตโนมัติแล้ว ${added} รายการ` : 'ยังไม่มีรายการที่จัดเพิ่มได้');
   }
 
+  const tabs = [
+    { id: 'planner', label: 'จัดตาราง' },
+    { id: 'overview', label: 'ภาพรวม' },
+    { id: 'branches', label: 'ตั้งค่าสาขา' },
+  ];
+
   return (
     <>
-      <div className="flex shrink-0 overflow-x-auto border-b border-slate-200 bg-[#fafafa] scrollbar-none">
-        <button className={`px-4 py-2.5 text-xs font-bold ${view === 'planner' ? 'border-b-2 border-cruzy text-cruzy' : 'text-slate-500 hover:text-cruzy'}`} onClick={() => setView('planner')}>จัดตาราง</button>
-        <button className={`px-4 py-2.5 text-xs font-bold ${view === 'overview' ? 'border-b-2 border-cruzy text-cruzy' : 'text-slate-500 hover:text-cruzy'}`} onClick={() => setView('overview')}>ภาพรวม</button>
-        <button className={`px-4 py-2.5 text-xs font-bold ${view === 'branches' ? 'border-b-2 border-cruzy text-cruzy' : 'text-slate-500 hover:text-cruzy'}`} onClick={() => setView('branches')}>ตั้งค่าสาขา</button>
+      <div className="bg-white border-b border-gray-100 px-6 shadow-sm">
+        <div className="flex overflow-x-auto scrollbar-none">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setView(tab.id)}
+              className={`px-5 py-3.5 text-xs font-bold border-b-2 transition-all ${
+                view === tab.id
+                  ? 'border-emerald-600 text-emerald-700'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="p-5">
-        {error ? <div className="alert-bar warn mb-4">{error}</div> : null}
-        {view === 'planner' ? (
-          <Planner
-            data={scheduleData}
-            branches={branches}
-            days={days}
-            today={today}
-            from={from}
-            to={to}
-            user={user}
-            alerts={alerts}
-            issueCounts={issueCounts}
-            dragOverCell={dragOverCell}
-            setDragOverCell={setDragOverCell}
-            onAssign={setAssignTarget}
-            onAutoFill={autoFill}
-            onQuickAdd={addToSchedule}
-            onRemove={removeFromSchedule}
-            onDragStart={handleEmployeeDragStart}
-            onCellDragOver={handleCellDragOver}
-            onCellDrop={handleCellDrop}
-            loading={loading}
-          />
-        ) : view === 'overview' ? (
+      {error ? <div className="mx-5 mt-5 alert-bar warn">{error}</div> : null}
+      {view === 'planner' ? (
+        <Planner
+          data={scheduleData}
+          branches={branches}
+          days={days}
+          today={today}
+          from={from}
+          to={to}
+          user={user}
+          alerts={alerts}
+          dragOverCell={dragOverCell}
+          setDragOverCell={setDragOverCell}
+          onAssign={setAssignTarget}
+          onAutoFill={autoFill}
+          onQuickAdd={addToSchedule}
+          onRemove={removeFromSchedule}
+          onDragStart={handleEmployeeDragStart}
+          onCellDragOver={handleCellDragOver}
+          onCellDrop={handleCellDrop}
+          loading={loading}
+        />
+      ) : view === 'overview' ? (
+        <div className="p-5">
           <OverviewSection data={scheduleData} branches={branches} date={from} onAssign={setAssignTarget} />
-        ) : (
+        </div>
+      ) : (
+        <div className="p-5">
           <BranchSettingsSection />
-        )}
-      </div>
+        </div>
+      )}
 
       <AssignModal
         target={assignTarget}
@@ -163,7 +158,7 @@ export default function ScheduleDashboard({ data, setData, user, currentBranch, 
   );
 }
 
-function Planner({ data, branches, days, today, from, to, user, alerts, issueCounts, dragOverCell, setDragOverCell, onAssign, onAutoFill, onQuickAdd, onRemove, onDragStart, onCellDragOver, onCellDrop, loading }) {
+function Planner({ data, branches, days, today, from, to, user, alerts, dragOverCell, setDragOverCell, onAssign, onAutoFill, onQuickAdd, onRemove, onDragStart, onCellDragOver, onCellDrop, loading }) {
   const stats = branches.reduce((acc, branch) => {
     const employees = data.schedule[`${branch.id}_${today}`] || [];
     const need = requiredStaffFor(data, branch.id, today);
@@ -173,169 +168,191 @@ function Planner({ data, branches, days, today, from, to, user, alerts, issueCou
     return acc;
   }, { total: 0, empty: 0, short: 0 });
 
+  const tableMinWidth = 72 + (days.length * 92);
+
   return (
-    <div>
-      {loading ? <div className="alert-bar mb-4">กำลังซิงก์ตารางงานล่าสุด...</div> : null}
-      <AlertStack alerts={alerts} onAssign={onAssign} />
-      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat icon={Users} value={stats.total} label="เข้างานวันนี้" tone="border-cruzy text-cruzy" />
-        <Stat icon={AlertTriangle} value={stats.empty} label="สาขาว่าง" tone={stats.empty ? 'border-danger text-danger' : 'border-cruzy text-cruzy'} />
-        <Stat icon={CalendarCheck} value={stats.short} label="คนไม่พอ" tone={stats.short ? 'border-warn text-warn' : 'border-cruzy text-cruzy'} />
-        <Stat icon={BarChart3} value={alerts.length} label="แจ้งเตือน" tone="border-info text-info" />
+    <div className="p-5 space-y-4">
+      {loading ? <div className="alert-bar">กำลังซิงก์ตารางงานล่าสุด...</div> : null}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <StatCard label="เข้างานวันนี้" value={stats.total} accent="green" />
+        <StatCard label="สาขาว่าง" value={stats.empty} accent={stats.empty ? 'red' : 'green'} />
+        <StatCard label="คนไม่พอ" value={stats.short} accent={stats.short ? 'amber' : 'green'} />
+        <StatCard label="แจ้งเตือน" value={alerts.length} accent="blue" />
       </div>
+      <AlertStack alerts={alerts} onAssign={onAssign} />
       <RecommendationBox data={data} branches={branches} days={days} from={from} to={to} user={user} onQuickAdd={onQuickAdd} onAutoFill={onAutoFill} />
-      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-slate-200">
-        <div className="grid min-w-[860px] gap-px" style={{ gridTemplateColumns: `100px repeat(${days.length}, minmax(108px, 1fr))` }}>
-          <div className="bg-[#fafafa] p-2 text-center text-[11px] font-bold text-slate-600">สาขา</div>
-          {days.map((date) => {
-            const day = new Date(`${date}T00:00:00`);
-            return (
-              <div key={date} className={`p-2 text-center text-[11px] font-bold ${date === today ? 'bg-cruzy-50 text-cruzy' : 'bg-[#fafafa] text-slate-500'}`}>
-                {day.toLocaleDateString('th-TH', { weekday: 'short' })}<br />{day.getDate()}
-              </div>
-            );
-          })}
-          <IssueRow label="สาขาว่าง" tone="red" values={issueCounts.map((item) => item.emptyBranches)} />
-          <IssueRow label="คนลา" tone="yellow" values={issueCounts.map((item) => item.leaveCount)} />
-          <IssueRow label="พนง.ว่าง" tone="gray" values={issueCounts.map((item) => item.availableEmployees)} />
-          {branches.map((branch) => (
-            <ScheduleRow
-              key={branch.id}
-              data={data}
-              branch={branch}
-              days={days}
-              dragOverCell={dragOverCell}
-              setDragOverCell={setDragOverCell}
-              onAssign={onAssign}
-              onRemove={onRemove}
-              onDragStart={onDragStart}
-              onCellDragOver={onCellDragOver}
-              onCellDrop={onCellDrop}
-            />
-          ))}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full table-fixed border-collapse" style={{ minWidth: `${tableMinWidth}px` }}>
+            <thead>
+              <tr>
+                <th className="bg-gray-50 border-b border-gray-100 border-r-2 border-r-emerald-500 px-3 py-2.5 text-left text-[10px] font-semibold text-gray-400 uppercase tracking-wide w-[72px]">
+                  สาขา
+                </th>
+                {days.map((date) => {
+                  const day = new Date(`${date}T00:00:00`);
+                  const isToday = date === today;
+                  return (
+                    <th key={date} className={`w-[92px] border-b border-gray-100 px-2 py-2.5 text-center ${isToday ? 'bg-emerald-50 border-b-emerald-200' : 'bg-gray-50'}`}>
+                      <div className={`text-[10px] font-semibold uppercase tracking-wide ${isToday ? 'text-emerald-600' : 'text-gray-400'}`}>
+                        {day.toLocaleDateString('th-TH', { weekday: 'short' })}
+                      </div>
+                      <div className={`text-[15px] font-bold mt-0.5 ${isToday ? 'text-emerald-600' : 'text-gray-700'}`}>
+                        {day.getDate()}
+                      </div>
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {branches.map((branch) => (
+                <ScheduleRow
+                  key={branch.id}
+                  data={data}
+                  branch={branch}
+                  days={days}
+                  today={today}
+                  dragOverCell={dragOverCell}
+                  setDragOverCell={setDragOverCell}
+                  onAssign={onAssign}
+                  onRemove={onRemove}
+                  onDragStart={onDragStart}
+                  onCellDragOver={onCellDragOver}
+                  onCellDrop={onCellDrop}
+                />
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
   );
 }
 
-function ScheduleRow({ data, branch, days, dragOverCell, setDragOverCell, onAssign, onRemove, onDragStart, onCellDragOver, onCellDrop }) {
+function ScheduleRow({ data, branch, days, today, dragOverCell, setDragOverCell, onAssign, onRemove, onDragStart, onCellDragOver, onCellDrop }) {
   return (
-    <>
-      <div className="flex items-center border-r-2 border-cruzy bg-white p-2 text-[11px] font-bold">{branch.code}</div>
+    <tr>
+      <td className="w-[72px] bg-white border-b border-gray-100 border-r-2 border-r-emerald-500 px-3 py-2 text-[11px] font-bold text-gray-800 align-middle whitespace-nowrap">
+        {branch.code}
+      </td>
       {days.map((date) => {
         const cellKey = `${branch.id}_${date}`;
         const employeeIds = data.schedule[cellKey] || [];
         const need = requiredStaffFor(data, branch.id, date);
-        const short = employeeIds.length < need;
-        const empty = employeeIds.length === 0;
+        const empty = employeeIds.length === 0 && need > 0;
+        const short = employeeIds.length > 0 && employeeIds.length < need;
+        const ok = employeeIds.length >= need;
         const shift = shiftFor(data, branch.id, date);
+        const bgClass = empty ? 'bg-red-50' : short ? 'bg-orange-50' : date === today ? 'bg-emerald-50/60' : 'bg-white';
+        const needBadgeClass = empty ? 'bg-red-100 text-red-700' : short ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500';
+
         return (
-          <div
+          <td
             key={cellKey}
-            className={`relative min-h-[98px] rounded-3xl border p-3 pb-5 transition ${empty && need > 0 ? 'bg-red-50 border-red-200' : short ? 'bg-orange-50 border-orange-200' : 'bg-white border-slate-200'} ${dragOverCell === cellKey ? 'ring-2 ring-cruzy/60' : ''}`}
+            className={`w-[92px] align-top border-b border-l border-gray-100 p-2 transition ${bgClass} ${dragOverCell === cellKey ? 'ring-2 ring-emerald-500/60 ring-inset' : ''}`}
             onDragOver={onCellDragOver}
             onDragEnter={() => setDragOverCell(cellKey)}
             onDragLeave={() => setDragOverCell((current) => (current === cellKey ? '' : current))}
             onDrop={(event) => onCellDrop(event, branch.id, date)}
           >
-            <div className="mb-2 flex items-center justify-between gap-2 text-[10px] text-slate-500">
-              <span className={`rounded-full px-2 py-1 font-semibold ${empty && need > 0 ? 'bg-red-100 text-red-700' : short ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-600'}`}>
-                ต้องการ {need} คน
+            <div className="flex items-center justify-between gap-1 mb-1.5 flex-wrap">
+              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${needBadgeClass}`}>
+                {need} คน
               </span>
               {shift.start ? (
-                <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] text-slate-600">
+                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">
                   {shift.start}{shift.end ? ` - ${shift.end}` : ''}
                 </span>
               ) : null}
             </div>
-            <div className="space-y-1 min-h-[42px]">
+
+            <div className="space-y-1 min-h-[22px]">
               {employeeIds.map((empId) => {
                 const employee = data.employees.find((item) => item.id === empId);
                 if (!employee) return null;
                 return (
-                  <span
+                  <div
                     key={empId}
                     draggable
                     onDragStart={(event) => onDragStart(event, branch.id, date, empId)}
                     onDragEnd={() => setDragOverCell('')}
-                    className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] shadow-sm"
+                    className="flex items-center gap-1 bg-white border border-gray-100 rounded-full px-2 py-0.5 shadow-sm"
                   >
                     <Avatar employee={employee} size="sm" />
-                    <span className="truncate">{employee.nickname || employee.name}</span>
-                    <button className="text-danger/60 hover:text-danger" onClick={() => onRemove(branch.id, date, empId)} aria-label="ลบ">
-                      <Trash2 size={11} />
+                    <span className="text-[10px] font-semibold text-gray-800 truncate flex-1">{employee.nickname || employee.name}</span>
+                    <button onClick={() => onRemove(branch.id, date, empId)} className="text-red-300 hover:text-red-500 text-[11px] leading-none" aria-label="ลบ">
+                      ×
                     </button>
-                  </span>
+                  </div>
                 );
               })}
             </div>
-            <button className="mt-2 flex w-full items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white/70 py-1.5 text-slate-500 hover:border-cruzy hover:bg-cruzy-50 hover:text-cruzy transition-colors" onClick={() => onAssign({ branchId: branch.id, date })}>
-              <Plus size={14} />
+
+            <button onClick={() => onAssign({ branchId: branch.id, date })} className="mt-1.5 w-full text-[10px] py-1 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-bold transition-colors">
+              + เพิ่ม
             </button>
-            <div className={`absolute bottom-2 right-2 rounded-full px-2 py-1 text-[10px] font-semibold ${short ? 'bg-red-500 text-white' : 'bg-cruzy text-white'}`}>
-              {employeeIds.length}/{need}
+
+            <div className="flex justify-end mt-1">
+              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${ok ? 'bg-emerald-600 text-white' : 'bg-red-500 text-white'}`}>
+                {employeeIds.length}/{need}
+              </span>
             </div>
-          </div>
+          </td>
         );
       })}
-    </>
-  );
-}
-
-function IssueRow({ label, tone, values }) {
-  const rowStyle = tone === 'red' ? 'bg-red-50 text-red-700 border-red-200' : tone === 'yellow' ? 'bg-yellow-50 text-amber-700 border-amber-200' : 'bg-slate-100 text-slate-600 border-slate-200';
-  return (
-    <>
-      <div className={`flex items-center px-3 text-[11px] font-bold uppercase tracking-wide border ${rowStyle}`}>
-        {label}
-      </div>
-      {values.map((value, index) => (
-        <div key={`${label}-${index}`} className={`p-2 text-center text-[11px] font-semibold border ${rowStyle}`}>
-          {value || '-'}
-        </div>
-      ))}
-    </>
+    </tr>
   );
 }
 
 function AlertStack({ alerts, onAssign }) {
+  if (!alerts.length) return null;
+
   return (
-    <div className="mb-3 space-y-2">
-      {alerts.slice(0, 8).map((alert) => (
-        <div key={`${alert.type}_${alert.branch.id}_${alert.date}`} className={`flex items-center gap-3 rounded-lg border-l-4 px-4 py-2 text-xs ${alert.type === 'danger' ? 'border-danger bg-red-50 text-red-700' : 'border-warn bg-orange-50 text-orange-700'}`}>
-          <span className="flex-1">{alert.message}</span>
-          <button className={`btn text-white ${alert.type === 'danger' ? 'bg-danger' : 'bg-warn'}`} onClick={() => onAssign({ branchId: alert.branch.id, date: alert.date })}>จัดคน</button>
-        </div>
-      ))}
+    <div>
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-red-500 text-sm">▲</span>
+        <h3 className="text-sm font-semibold text-gray-700">แจ้งเตือน ({alerts.length})</h3>
+      </div>
+      <div className="space-y-2">
+        {alerts.slice(0, 8).map((alert) => (
+          <div key={`${alert.type}_${alert.branch.id}_${alert.date}`} className={`flex items-center gap-3 rounded-xl border px-4 py-2.5 text-sm ${alert.type === 'danger' ? 'bg-red-50 border-red-100 text-red-700' : 'bg-orange-50 border-amber-100 text-amber-700'}`}>
+            <span className="flex-1">{alert.message}</span>
+            <button onClick={() => onAssign({ branchId: alert.branch.id, date: alert.date })} className={`text-xs px-3 py-1.5 rounded-lg font-semibold flex-shrink-0 ${alert.type === 'danger' ? 'bg-red-600 text-white' : 'bg-amber-500 text-white'}`}>
+              จัดคน
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
 function RecommendationBox({ data, branches, days, from, to, user, onQuickAdd, onAutoFill }) {
   return (
-    <div className="mb-4 rounded-lg border border-green-300 bg-[linear-gradient(135deg,#E8F5E9,#E3F2FD)] p-4">
-      <div className="mb-2 flex items-center justify-between gap-3">
+    <div className="rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-blue-50 p-4">
+      <div className="flex items-start justify-between gap-3 mb-3">
         <div>
-          <h3 className="flex items-center gap-2 text-sm font-bold text-cruzy"><Sparkles size={16} />แนะนำจัดตารางตามกติกา</h3>
-          <p className="text-[11px] text-slate-500">กรองจากสาขาที่ลงได้ วันว่าง ไม่ชนตารางเดิม และกระจายจำนวนวันทำงาน</p>
+          <h3 className="flex items-center gap-1.5 text-sm font-bold text-emerald-800">✨ แนะนำจัดตารางตามกติกา</h3>
+          <p className="text-[11px] text-gray-500 mt-0.5">กรองจากสาขาที่ลงได้ วันว่าง ไม่ชนตารางเดิม และกระจายจำนวนวันทำงาน</p>
         </div>
-        <button className="btn btn-primary shrink-0" onClick={onAutoFill}>จัดอัตโนมัติ</button>
+        <button onClick={onAutoFill} className="shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors">
+          จัดอัตโนมัติ
+        </button>
       </div>
-      <div className="space-y-1">
+      <div className="space-y-1.5">
         {branches.map((branch) => {
           const recs = days.flatMap((date) => recommendedEmployees(data, user, branch.id, date, { from, to }).map((candidate) => ({ ...candidate, date }))).slice(0, 5);
           return (
-            <div key={branch.id} className="text-xs">
-              <span className="font-bold">{branch.code}</span>
-              <span className="ml-2 text-slate-500">ช่วงวันที่เลือก</span>
-              <span className="mx-2 text-slate-400">→</span>
+            <div key={branch.id} className="flex flex-wrap items-center gap-1 text-xs">
+              <span className="font-bold text-gray-700 w-10">{branch.code}</span>
+              <span className="text-gray-400">→</span>
               {recs.length ? recs.map((rec) => (
-                <button key={`${rec.employee.id}_${rec.date}`} className="chip m-1 hover:border-cruzy hover:bg-cruzy-50" onClick={() => onQuickAdd(branch.id, rec.date, rec.employee.id)}>
+                <button key={`${rec.employee.id}_${rec.date}`} onClick={() => onQuickAdd(branch.id, rec.date, rec.employee.id)} className="flex items-center gap-1 bg-white border border-gray-200 rounded-full px-2.5 py-0.5 hover:border-emerald-400 hover:bg-emerald-50 transition-colors font-semibold text-gray-700">
                   <Avatar employee={rec.employee} size="sm" />
                   {rec.employee.nickname || rec.employee.name} · {thaiShortDate(rec.date)}
                 </button>
-              )) : <span className="text-slate-500">ยังไม่มีช่องว่างหรือไม่มีคนที่ตรงกติกา</span>}
+              )) : <span className="text-gray-400">ไม่มีช่องว่าง</span>}
             </div>
           );
         })}
@@ -346,44 +363,67 @@ function RecommendationBox({ data, branches, days, from, to, user, onQuickAdd, o
 
 function AssignModal({ target, data, user, from, to, onClose, onAdd }) {
   if (!target) return null;
-  const branch = data.branches.find((item) => item.id === target.branchId);
-  const candidates = scheduleCandidates(data, user, target.branchId, target.date, { from, to });
-  return (
-    <Modal title={`จัดคนเข้า ${branch?.code || ''} - ${thaiShortDate(target.date)}`} onClose={onClose} footer={<button className="btn btn-ghost" onClick={onClose}>ปิด</button>}>
-      <p className="mb-3 text-xs text-slate-500">เลือกพนักงานที่จะเข้าทำงาน <b>{branch?.code}</b> วันที่ <b>{thaiShortDate(target.date)}</b></p>
-      <div className="max-h-[340px] overflow-y-auto">
-        {candidates.map((candidate) => (
-          <button key={candidate.employee.id} disabled={candidate.disabled} onClick={() => onAdd(target.branchId, target.date, candidate.employee.id)} className="flex w-full items-center gap-3 rounded-lg border-b border-slate-100 px-2 py-2 text-left hover:bg-cruzy-50 disabled:opacity-40">
-            <Avatar employee={candidate.employee} />
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-xs font-bold">{candidate.employee.nickname || candidate.employee.name} ({candidate.employee.id})</div>
-              <div className="text-[10px] text-slate-500">{candidate.employee.position} · คะแนน {candidate.score}</div>
-            </div>
-            <div className="flex flex-wrap justify-end gap-1">
-              <Tag good={candidate.canBranch}>{candidate.canBranch ? 'ลงสาขานี้ได้' : 'ไม่ได้ตั้งค่า'}</Tag>
-              <Tag good={candidate.available}>{candidate.available ? 'ว่าง' : 'ไม่ว่าง'}</Tag>
-              {candidate.alreadyIn ? <Tag good>อยู่แล้ว</Tag> : null}
-              {candidate.busyAt && !candidate.alreadyIn ? <Tag>อยู่ {candidate.busyAt.code}</Tag> : null}
-            </div>
-          </button>
-        ))}
-      </div>
-    </Modal>
-  );
-}
 
-function Stat({ icon: Icon, value, label, tone }) {
+  const branch = data.branches.find((item) => item.id === target.branchId);
+  const candidates = scheduleCandidates(data, user, target.branchId, target.date, { from, to }).filter((candidate) => !candidate.disabled);
+
   return (
-    <div className={`stat ${tone.split(' ')[0]}`}>
-      <Icon className={`mx-auto mb-1 ${tone.split(' ')[1]}`} size={18} />
-      <div className={`text-2xl font-bold leading-none ${tone.split(' ')[1]}`}>{value}</div>
-      <div className="mt-1 text-[11px] text-slate-500">{label}</div>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={(event) => event.target === event.currentTarget && onClose()}>
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-sm bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-emerald-700 to-emerald-600">
+          <div>
+            <p className="font-bold text-white text-sm">จัดคนเข้า {branch?.code || ''}</p>
+            <p className="text-emerald-200 text-xs mt-0.5">
+              {new Date(`${target.date}T00:00:00`).toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' })}
+            </p>
+          </div>
+          <button onClick={onClose} className="text-white/70 hover:text-white text-2xl leading-none" aria-label="ปิด">×</button>
+        </div>
+        <div className="max-h-64 overflow-y-auto divide-y divide-gray-50">
+          {candidates.length === 0 ? <p className="text-center py-8 text-sm text-gray-400">ไม่มีพนักงานที่ว่าง</p> : null}
+          {candidates.map((candidate) => (
+            <button key={candidate.employee.id} onClick={() => onAdd(target.branchId, target.date, candidate.employee.id)} className="flex w-full items-center gap-3 px-5 py-3 hover:bg-emerald-50 transition-colors text-left">
+              <Avatar employee={candidate.employee} size="md" />
+              <div>
+                <p className="text-sm font-semibold text-gray-800">{candidate.employee.name}</p>
+                <p className="text-xs text-gray-400">{candidate.employee.nickname || candidate.employee.position}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+        <div className="px-5 py-3 bg-gray-50 border-t border-gray-100">
+          <button onClick={onClose} className="w-full text-sm font-semibold text-gray-500 hover:text-gray-700">ปิด</button>
+        </div>
+      </div>
     </div>
   );
 }
 
-function Tag({ good = false, children }) {
-  return <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${good ? 'bg-cruzy-50 text-cruzy' : 'bg-orange-50 text-orange-700'}`}>{children}</span>;
+function Avatar({ employee, size = 'sm' }) {
+  const dimensions = size === 'sm' ? 'w-[18px] h-[18px] text-[9px]' : size === 'md' ? 'w-[28px] h-[28px] text-xs' : 'w-9 h-9 text-sm';
+  const initial = employee?.nickname?.[0] || employee?.name?.[0] || '?';
+  return (
+    <div className={`${dimensions} rounded-full flex items-center justify-center font-bold text-white flex-shrink-0`} style={{ background: employee?.color || '#4CAF50' }}>
+      {initial}
+    </div>
+  );
+}
+
+function StatCard({ label, value, accent }) {
+  const border = {
+    green: 'border-l-emerald-500',
+    red: 'border-l-red-400',
+    amber: 'border-l-amber-500',
+    blue: 'border-l-blue-500',
+  }[accent] || 'border-l-emerald-500';
+
+  return (
+    <div className={`bg-white rounded-xl border border-gray-100 border-l-4 ${border} px-4 py-3 shadow-sm`}>
+      <p className="text-xs text-gray-400 mb-1">{label}</p>
+      <p className="text-2xl font-bold text-gray-800 leading-none">{value}</p>
+    </div>
+  );
 }
 
 function buildAlerts(data, branches, from) {
