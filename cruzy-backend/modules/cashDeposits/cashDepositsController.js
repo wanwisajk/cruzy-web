@@ -76,6 +76,11 @@ exports.updateCashDeposit = async (req, res) => {
   try {
     const depositId = parseInteger(req.params.id);
     if (depositId === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
+    const { data: existing, error: getError } = await supabase.from(TABLES.cashDeposits).select('*').eq('id', depositId).single();
+    if (getError) throw getError;
+    if (existing.status === 'verified') {
+      return res.status(403).json({ message: 'รายการฝากเงินนี้ได้รับการตรวจสอบแล้ว ไม่สามารถปรับแก้ไขได้' });
+    }
     
     const update = cleanCashDepositPayload(req.body);
     Object.keys(update).forEach((key) => update[key] === undefined && delete update[key]);

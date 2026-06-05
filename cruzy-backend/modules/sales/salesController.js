@@ -83,6 +83,9 @@ exports.updateSale = async (req, res) => {
     if (saleId === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
     const { data: existing, error: getError } = await supabase.from(TABLES.sales).select('*').eq('id', saleId).single();
     if (getError) throw getError;
+    if (existing.status === 'confirmed') {
+      return res.status(403).json({ message: 'ยอดขายนี้ได้รับการยืนยันแล้ว ไม่สามารถปรับแก้ไขได้' });
+    }
 
     const update = cleanSalePayload(req.body);
     Object.keys(update).forEach((key) => update[key] === undefined && delete update[key]);
