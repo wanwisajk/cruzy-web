@@ -971,7 +971,7 @@ export default function SaleDashboard({ data, user, currentBranch, from, to }) {
   );
 
   return (
-    <div className="max-w-7xl mx-auto p-4 lg:p-6 space-y-6">
+    <div className="max-w-7xl p-4 lg:p-6 space-y-6">
       <div className="flex border-b border-gray-200 overflow-x-auto gap-1">
         {tabs.map((tab) => (
           <button key={tab.id} className={`px-5 py-2.5 font-bold text-sm border-b-2 whitespace-nowrap transition-all outline-none ${activeTab === tab.id ? 'border-blue-600 text-blue-600 bg-blue-50/40 rounded-t-xl' : 'border-transparent text-gray-400 hover:text-gray-600 hover:border-gray-200'}`} onClick={() => setActiveTab(tab.id)}>

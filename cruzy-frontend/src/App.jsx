@@ -211,7 +211,7 @@ export default function App() {
                 {currentTab === 'sales' ? <SalesDashboard data={data} user={user} currentBranch={currentBranch} from={from} to={to} /> : null}
   {currentTab === 'commission' ? <CommissionDashboard data={data} user={user} currentBranch={currentBranch} from={from} to={to} /> : null}                {currentTab === 'inspection' ? <InspectionDashboard user={user} currentBranch={currentBranch} from={from} to={to} /> : null}
                 {currentTab === 'alerts' ? <AlertPage data={data} currentBranch={currentBranch} /> : null}
-                {currentTab === 'warning-letters' ? <WarningLetterPage data={data} /> : null}
+                {currentTab === 'warning-letters' ? <WarningLetterPage data={data} user={user} /> : null}
                 {currentTab === 'access' ? <AccessDashboard user={user} fallbackData={data} /> : null}
               </>
             }

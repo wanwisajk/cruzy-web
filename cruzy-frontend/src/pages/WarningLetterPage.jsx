@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { FileText, Plus } from 'lucide-react';
+import { Badge } from '../components/ui/Badge.jsx';
 import { thaiShortDate } from '../lib/date.js';
 import { useWarningLetters } from '../features/warningLetters/hooks/useWarningLetters.js';
 
@@ -94,71 +95,128 @@ function StatusBadge({ signedByEmp, status }) {
   return <span className="px-2 py-0.5 rounded text-xs bg-yellow-50 text-yellow-700 border border-yellow-200">รอเซ็น</span>;
 }
 
-function PreviewModal({ letter, employees, onClose }) {
+function templateIdFromValue(value) {
+  const match = String(value || '').match(/\d+/);
+  return match ? Number(match[0]) : null;
+}
+
+function templateValueFromId(value) {
+  if (!value) return '';
+  const text = String(value);
+  return text.startsWith('t') ? text : `t${text}`;
+}
+
+function DetailItem({ label, value }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+      <div className="text-[11px] font-semibold text-slate-400">{label}</div>
+      <div className="mt-1 text-sm font-bold text-slate-800 break-words">{value || '-'}</div>
+    </div>
+  );
+}
+
+function PreviewModal({ letter, employees, branches, onClose, onEdit, onDelete }) {
   if (!letter) return null;
   
   const emp = employees.find(e => e.id === letter.employee_id);
-  const tpl = TEMPLATES.find(t => t.id === letter.template_id);
+  const branch = branches.find((item) => String(item.id) === String(letter.branch_id));
+  const tpl = TEMPLATES.find(t => t.id === templateValueFromId(letter.template_id)) || TEMPLATES.find(t => t.level === letter.level);
   if (!emp || !tpl) return null;
 
   const body = tpl.body
     .replace(/\{ชื่อพนักงาน\}/g, `${emp.name} (${emp.id})`)
-    .replace(/\{สาขา\}/g, emp.id)
+    .replace(/\{สาขา\}/g, branch ? `${branch.code} - ${branch.name}` : 'ทั้งบริษัท')
     .replace(/\{วันที่ออก\}/g, thaiShortDate(letter.issue_date))
     .replace(/\{วันที่เกิดเหตุ\}/g, thaiShortDate(letter.issue_date))
     .replace(/\{รายละเอียดความผิด\}/g, letter.reason);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.4)' }}>
-      <div className="bg-white rounded-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto shadow-2xl">
-        <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-center justify-between rounded-t-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(15, 23, 42, 0.45)' }}>
+      <div className="w-full max-w-5xl max-h-[92vh] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+        <div className="border-b border-slate-100 bg-white px-5 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Avatar emp={emp} size={8} />
             <div>
-              <p className="font-semibold text-gray-900 text-sm">{emp.name}</p>
-              <p className="text-xs text-gray-400">{emp.id}</p>
+              <div className="flex items-center gap-2">
+                <p className="font-bold text-slate-900 text-base">รายละเอียดหนังสือเตือน</p>
+                <Badge tone={letter.status === 'issued' ? 'green' : 'blue'}>{letter.status || 'issued'}</Badge>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">{emp.name} · {emp.id}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <LevelBadge level={letter.level} />
-            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
+            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M12 4L4 12M4 4l8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
             </button>
           </div>
         </div>
 
-        <div className="p-5">
-          <div className="bg-gray-50 rounded-xl border border-gray-100 p-5 mb-4 font-mono text-sm leading-relaxed text-gray-800 whitespace-pre-wrap">
-            {body}
-          </div>
-
-          <div className="flex gap-6 mt-6 pt-4 border-t border-dashed border-gray-200">
-            {['ผู้ออกหนังสือ (นายจ้าง)', `ผู้รับหนังสือ (${emp.name})`, 'พยาน'].map(label => (
-              <div key={label} className="flex-1 text-center">
-                <div className="h-10 border-b border-dashed border-gray-300 mb-1"></div>
-                <p className="text-xs text-gray-400">{label}</p>
+        <div className="max-h-[calc(92vh-132px)] overflow-y-auto bg-slate-50/70 p-5">
+          <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
+            <div className="space-y-4">
+              <div className="card rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="text-xs font-bold uppercase tracking-wide text-slate-400">ข้อมูลทั้งหมด</div>
+                <div className="mt-3 grid gap-2">
+                  <DetailItem label="พนักงาน" value={`${emp.name} (${emp.id})`} />
+                  <DetailItem label="ตำแหน่ง" value={emp.position} />
+                  <DetailItem label="สาขา" value={branch ? `${branch.code} - ${branch.name}` : 'ทั้งบริษัท'} />
+                  <DetailItem label="ประเภทหนังสือ" value={tpl.name} />
+                  <DetailItem label="วันที่ออก" value={thaiShortDate(letter.issue_date)} />
+                  <DetailItem label="ผู้ออกหนังสือ" value={letter.issued_by} />
+                  <DetailItem label="สถานะการเซ็น" value={letter.is_signed_by_emp ? 'เซ็นแล้ว' : 'ยังไม่เซ็น'} />
+                  <DetailItem label="วันที่เซ็น" value={letter.signed_at ? thaiShortDate(String(letter.signed_at).slice(0, 10)) : '-'} />
+                </div>
               </div>
-            ))}
-          </div>
 
-          <div className="flex gap-2 mt-5">
-            <button className="flex-1 py-2 px-4 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition-colors">
-              📥 ดาวน์โหลด PDF
-            </button>
-            <button className="py-2 px-4 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors">
-              📱 ส่ง LIFF
-            </button>
-            <button onClick={onClose} className="py-2 px-4 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors">
-              ปิด
-            </button>
+              <div className="card rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="text-xs font-bold uppercase tracking-wide text-slate-400">สาเหตุ</div>
+                <p className="mt-2 text-sm leading-relaxed text-slate-700">{letter.reason || '-'}</p>
+              </div>
+            </div>
+
+            <div className="card rounded-2xl border border-slate-200 bg-white p-5">
+              <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                <div>
+                  <div className="text-sm font-bold text-slate-900">{tpl.name}</div>
+                  <div className="mt-0.5 text-xs text-slate-500">ตัวอย่างเนื้อหาหนังสือจากข้อมูลล่าสุด</div>
+                </div>
+                <StatusBadge signedByEmp={letter.is_signed_by_emp} status={letter.status} />
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-5 font-serif text-sm leading-7 text-slate-800 whitespace-pre-wrap">
+                {body}
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-3 mt-6 pt-4 border-t border-dashed border-slate-200">
+                {['ผู้ออกหนังสือ (นายจ้าง)', `ผู้รับหนังสือ (${emp.name})`, 'พยาน'].map(label => (
+                  <div key={label} className="text-center">
+                    <div className="h-10 border-b border-dashed border-slate-300 mb-1"></div>
+                    <p className="text-xs text-slate-400">{label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
+        </div>
+
+        <div className="border-t border-slate-100 bg-white px-5 py-4 flex flex-wrap justify-end gap-2">
+          <button type="button" onClick={() => onEdit(letter)} className="btn btn-primary">
+            แก้ไข
+          </button>
+          <button type="button" onClick={() => onDelete(letter)} className="rounded-lg border border-red-100 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100">
+            ลบ
+          </button>
+          <button onClick={onClose} className="btn btn-ghost">
+            ปิด
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-function LetterCard({ letter, employees, onPreview }) {
+function LetterCard({ letter, employees, onPreview, onEdit, onDelete }) {
   const emp = employees.find(e => e.id === letter.employee_id);
   const cfg = levelConfig[letter.level] || levelConfig.verbal;
   return (
@@ -193,15 +251,37 @@ function LetterCard({ letter, employees, onPreview }) {
         </div>
       </div>
 
-      <div className="mt-3 pt-3 border-t border-gray-50 flex justify-end">
+      <div className="mt-3 pt-3 border-t border-gray-50 flex justify-between items-center">
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onEdit(letter);
+            }}
+            className="px-2 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-bold"
+          >
+            แก้ไข
+          </button>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onDelete(letter);
+            }}
+            className="px-2 py-1 rounded-md bg-red-50 text-red-700 text-xs font-bold"
+          >
+            ลบ
+          </button>
+        </div>
         <span className="text-xs text-gray-400 group-hover:text-gray-600 transition-colors">คลิกเพื่อดูรายละเอียด →</span>
       </div>
     </div>
   );
 }
 
-export default function WarningLetterPage({ data }) {
-  const { warningLetters, loading, saving, error, createWarningLetter, deleteWarningLetter } = useWarningLetters();
+export default function WarningLetterPage({ data, user }) {
+  const { warningLetters, loading, saving, error, createWarningLetter, updateWarningLetter, deleteWarningLetter } = useWarningLetters();
   const [tab, setTab] = useState('issued');
   const [previewLetter, setPreviewLetter] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -209,33 +289,73 @@ export default function WarningLetterPage({ data }) {
   const [selectedEmp, setSelectedEmp] = useState('');
   const [selectedTpl, setSelectedTpl] = useState('');
   const [formData, setFormData] = useState({ reason: '', issue_date: new Date().toISOString().split('T')[0], branch_id: '' });
+  const [editingLetter, setEditingLetter] = useState(null);
 
   const employees = data?.employees ?? [];
   const branches = data?.branches ?? [];
 
-  const handleCreateLetter = async () => {
+  const issuer = user?.username || user?.name || user?.id || 'system';
+
+  const resetForm = () => {
+    setStepCreating(0);
+    setSelectedEmp('');
+    setSelectedTpl('');
+    setEditingLetter(null);
+    setFormData({ reason: '', issue_date: new Date().toISOString().split('T')[0], branch_id: '' });
+  };
+
+  const handleSaveLetter = async () => {
     if (!selectedEmp || !selectedTpl) return;
     const template = TEMPLATES.find(t => t.id === selectedTpl);
-    await createWarningLetter({
+    const payload = {
       employee_id: selectedEmp,
-      template_id: selectedTpl,
+      template_id: templateIdFromValue(selectedTpl),
       level: template?.level || 'verbal',
       issue_date: formData.issue_date,
       reason: formData.reason,
       branch_id: formData.branch_id && formData.branch_id !== '' ? parseInt(formData.branch_id, 10) : null,
-      status: 'draft'
+      issued_by: issuer,
+      status: 'issued'
+    };
+    if (editingLetter) {
+      await updateWarningLetter(editingLetter.id, payload);
+    } else {
+      await createWarningLetter(payload);
+    }
+    resetForm();
+    setTab('issued');
+  };
+
+  const startEditLetter = (letter) => {
+    setEditingLetter(letter);
+    setSelectedEmp(letter.employee_id || '');
+    setSelectedTpl(templateValueFromId(letter.template_id) || TEMPLATES.find((tpl) => tpl.level === letter.level)?.id || '');
+    setFormData({
+      reason: letter.reason || '',
+      issue_date: letter.issue_date || new Date().toISOString().split('T')[0],
+      branch_id: letter.branch_id ? String(letter.branch_id) : ''
     });
-    setStepCreating(0);
-    setSelectedEmp('');
-    setSelectedTpl('');
-    setFormData({ reason: '', issue_date: new Date().toISOString().split('T')[0], branch_id: '' });
+    setStepCreating(1);
+    setTab('create');
+  };
+
+  const handleDeleteLetter = async (letter) => {
+    if (!window.confirm(`ลบหนังสือเตือนของ ${employees.find((emp) => emp.id === letter.employee_id)?.name || letter.employee_id} ใช่ไหม?`)) return;
+    await deleteWarningLetter(letter.id);
   };
 
   const currentTemplate = TEMPLATES.find(t => t.id === selectedTpl);
   const previewEmp = employees.find(e => e.id === selectedEmp);
+  const selectedEmployeeWarningLetters = useMemo(() => {
+    if (!selectedEmp) return [];
+    return warningLetters
+      .filter((letter) => letter.employee_id === selectedEmp)
+      .sort((a, b) => String(b.issue_date || '').localeCompare(String(a.issue_date || '')));
+  }, [warningLetters, selectedEmp]);
+  const selectedEmployeeHasWarning = selectedEmployeeWarningLetters.length > 0;
   const previewBody = currentTemplate && previewEmp ? currentTemplate.body
     .replace(/\{ชื่อพนักงาน\}/g, `${previewEmp.name} (${previewEmp.id})`)
-    .replace(/\{สาขา\}/g, previewEmp.id)
+    .replace(/\{สาขา\}/g, branches.find((branch) => String(branch.id) === String(formData.branch_id))?.name || 'ทั้งบริษัท')
     .replace(/\{วันที่ออก\}/g, thaiShortDate(formData.issue_date))
     .replace(/\{วันที่เกิดเหตุ\}/g, thaiShortDate(formData.issue_date))
     .replace(/\{รายละเอียดความผิด\}/g, formData.reason) : '';
@@ -250,7 +370,7 @@ export default function WarningLetterPage({ data }) {
   const filteredLetters = useMemo(() => {
     return warningLetters
       .filter(letter => {
-        if (tab === 'issued') return letter.status === 'issued';
+        if (tab === 'issued') return true;
         if (tab === 'create') return false;
         return true;
       })
@@ -298,7 +418,7 @@ export default function WarningLetterPage({ data }) {
         ].map(t => (
           <button
             key={t.id}
-            onClick={() => { setTab(t.id); setStepCreating(0); }}
+            onClick={() => { setTab(t.id); resetForm(); }}
             className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
               tab === t.id 
                 ? 'bg-gray-900 text-white' 
@@ -338,6 +458,8 @@ export default function WarningLetterPage({ data }) {
                   letter={letter}
                   employees={employees}
                   onPreview={setPreviewLetter}
+                  onEdit={startEditLetter}
+                  onDelete={handleDeleteLetter}
                 />
               ))}
             </div>
@@ -375,17 +497,26 @@ export default function WarningLetterPage({ data }) {
       {tab === 'create' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Form Panel */}
-          <div className="bg-white rounded-lg border border-gray-100 p-6">
-            <h3 className="font-bold text-gray-900 mb-4 text-lg">ขั้นตอนที่ {stepCreating + 1}: {stepCreating === 0 ? 'เลือกพนักงาน' : 'เลือกเทมเพลต'}</h3>
+          <div className="card rounded-2xl border border-slate-200 bg-white p-5">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h3 className="font-bold text-slate-900 text-lg">{editingLetter ? 'แก้ไขหนังสือเตือน' : 'ออกหนังสือเตือนใหม่'}</h3>
+                <p className="mt-1 text-xs text-slate-500">เลือกพนักงานก่อน แล้วระบบจะแสดงประวัติเตือนก่อนเลือกเทมเพลต</p>
+              </div>
+              <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1 text-xs font-bold">
+                <span className={`rounded-lg px-2.5 py-1 ${stepCreating === 0 ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400'}`}>1 พนักงาน</span>
+                <span className={`rounded-lg px-2.5 py-1 ${stepCreating === 1 ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400'}`}>2 เทมเพลต</span>
+              </div>
+            </div>
 
             {stepCreating === 0 ? (
               <div className="space-y-4">
                 <label className="block">
-                  <span className="text-sm font-medium text-gray-900 block mb-1.5">เลือกพนักงาน</span>
+                  <span className="text-sm font-bold text-slate-900 block mb-1.5">เลือกพนักงาน</span>
                   <select
                     value={selectedEmp}
                     onChange={(e) => setSelectedEmp(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                    className="input"
                   >
                     <option value="">-- เลือก --</option>
                     {employees.map(emp => (
@@ -394,78 +525,132 @@ export default function WarningLetterPage({ data }) {
                   </select>
                 </label>
 
+                {previewEmp ? (
+                  <div className={`rounded-2xl border p-4 ${selectedEmployeeHasWarning ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <Avatar emp={previewEmp} size={10} />
+                        <div>
+                          <div className="text-sm font-bold text-slate-900">{previewEmp.name}</div>
+                          <div className="text-xs text-slate-500">{previewEmp.id} · {previewEmp.position || 'พนักงาน'}</div>
+                        </div>
+                      </div>
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${selectedEmployeeHasWarning ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                        {selectedEmployeeHasWarning ? `เคยโดนเตือนแล้ว ${selectedEmployeeWarningLetters.length} ครั้ง` : 'ยังไม่มีประวัติเตือน'}
+                      </span>
+                    </div>
+                  </div>
+                ) : null}
+
                 <button
                   onClick={() => selectedEmp && setStepCreating(1)}
                   disabled={!selectedEmp}
-                  className="w-full py-2 px-4 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-700 disabled:opacity-50 transition-colors"
+                  className="btn btn-primary w-full justify-center disabled:opacity-50"
                 >
-                  ถัดไป →
+                  ถัดไป: เลือกเทมเพลต
                 </button>
               </div>
             ) : (
               <div className="space-y-4">
-                <label className="block">
-                  <span className="text-sm font-medium text-gray-900 block mb-1.5">เทมเพลต</span>
-                  <select
-                    value={selectedTpl}
-                    onChange={(e) => setSelectedTpl(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
-                  >
-                    <option value="">-- เลือก --</option>
-                    {TEMPLATES.map(tpl => (
-                      <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
+                {previewEmp ? (
+                  <div className={`rounded-2xl border p-4 ${selectedEmployeeHasWarning ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-bold text-slate-900">{previewEmp.name} ({previewEmp.id})</div>
+                        <div className="mt-0.5 text-xs text-slate-500">{previewEmp.position || 'พนักงาน'} · {branches.find((branch) => String(branch.id) === String(previewEmp.branch))?.code || 'ไม่ระบุสาขา'}</div>
+                      </div>
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${selectedEmployeeHasWarning ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                        {selectedEmployeeHasWarning ? `เคยโดนเตือนแล้ว ${selectedEmployeeWarningLetters.length} ครั้ง` : 'ยังไม่มีประวัติเตือน'}
+                      </span>
+                    </div>
+                    {selectedEmployeeHasWarning ? (
+                      <div className="mt-3 space-y-2">
+                        {selectedEmployeeWarningLetters.slice(0, 3).map((letter) => (
+                          <div key={letter.id} className="rounded-xl border border-amber-100 bg-white px-3 py-2 text-xs">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-bold text-slate-800">{levelConfig[letter.level]?.label || letter.level}</span>
+                              <span className="text-slate-400">{thaiShortDate(letter.issue_date)}</span>
+                            </div>
+                            <div className="mt-1 text-slate-600 line-clamp-2">{letter.reason || '-'}</div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                <div>
+                  <span className="text-sm font-bold text-slate-900 block mb-2">เลือกเทมเพลต</span>
+                  <div className="grid gap-2">
+                    {TEMPLATES.map((tpl) => (
+                      <button
+                        key={tpl.id}
+                        type="button"
+                        onClick={() => setSelectedTpl(tpl.id)}
+                        className={`rounded-2xl border p-3 text-left transition-all ${selectedTpl === tpl.id ? 'border-slate-900 bg-slate-50 shadow-sm' : 'border-slate-200 bg-white hover:bg-slate-50'}`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="text-sm font-bold text-slate-900">{tpl.name}</div>
+                            <div className="mt-1 text-xs text-slate-500">{tpl.desc}</div>
+                          </div>
+                          <LevelBadge level={tpl.level} />
+                        </div>
+                      </button>
                     ))}
-                  </select>
-                </label>
+                  </div>
+                </div>
 
                 <label className="block">
-                  <span className="text-sm font-medium text-gray-900 block mb-1.5">สาเหตุ</span>
+                  <span className="text-sm font-bold text-slate-900 block mb-1.5">สาเหตุ</span>
                   <textarea
                     rows="3"
                     value={formData.reason}
                     onChange={(e) => setFormData(prev => ({ ...prev, reason: e.target.value }))}
                     placeholder="อธิบายเหตุผลที่ออกหนังสือเตือน"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 resize-none"
+                    className="input min-h-24 resize-none"
                   />
                 </label>
 
-                <label className="block">
-                  <span className="text-sm font-medium text-gray-900 block mb-1.5">วันที่</span>
-                  <input
-                    type="date"
-                    value={formData.issue_date}
-                    onChange={(e) => setFormData(prev => ({ ...prev, issue_date: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
-                  />
-                </label>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="text-sm font-bold text-slate-900 block mb-1.5">วันที่</span>
+                    <input
+                      type="date"
+                      value={formData.issue_date}
+                      onChange={(e) => setFormData(prev => ({ ...prev, issue_date: e.target.value }))}
+                      className="input"
+                    />
+                  </label>
 
-                <label className="block">
-                  <span className="text-sm font-medium text-gray-900 block mb-1.5">สาขา (ไม่บังคับ)</span>
-                  <select
-                    value={formData.branch_id}
-                    onChange={(e) => setFormData(prev => ({ ...prev, branch_id: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
-                  >
-                    <option value="">ทั้งบริษัท</option>
-                    {branches.map(branch => (
-                      <option key={branch.id} value={branch.id}>{branch.code} - {branch.name}</option>
-                    ))}
-                  </select>
-                </label>
+                  <label className="block">
+                    <span className="text-sm font-bold text-slate-900 block mb-1.5">สาขา (ไม่บังคับ)</span>
+                    <select
+                      value={formData.branch_id}
+                      onChange={(e) => setFormData(prev => ({ ...prev, branch_id: e.target.value }))}
+                      className="input"
+                    >
+                      <option value="">ทั้งบริษัท</option>
+                      {branches.map(branch => (
+                        <option key={branch.id} value={branch.id}>{branch.code} - {branch.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
 
                 <div className="flex gap-2 pt-2">
                   <button
-                    onClick={() => setStepCreating(0)}
-                    className="flex-1 py-2 px-4 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+                    onClick={() => editingLetter ? resetForm() : setStepCreating(0)}
+                    className="btn btn-ghost flex-1 justify-center"
                   >
-                    ← ย้อนกลับ
+                    {editingLetter ? 'ยกเลิก' : '← ย้อนกลับ'}
                   </button>
                   <button
-                    onClick={handleCreateLetter}
+                    onClick={handleSaveLetter}
                     disabled={!selectedTpl || !formData.reason || saving}
-                    className="flex-1 py-2 px-4 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-700 disabled:opacity-50 transition-colors"
+                    className="btn btn-primary flex-1 justify-center disabled:opacity-50"
                   >
-                    {saving ? 'กำลัง...' : 'ออกหนังสือ'}
+                    {saving ? 'กำลัง...' : editingLetter ? 'บันทึกแก้ไข' : 'ออกหนังสือ'}
                   </button>
                 </div>
               </div>
@@ -473,34 +658,76 @@ export default function WarningLetterPage({ data }) {
           </div>
 
           {/* Preview Panel */}
-          {stepCreating === 1 && currentTemplate && previewEmp && (
-            <div className="bg-gray-50 rounded-lg border border-gray-100 p-6 h-fit">
-              <h3 className="font-bold text-gray-900 mb-4 text-lg">ตัวอย่าง</h3>
-              <div className="bg-white rounded border border-gray-200 p-4 text-xs leading-relaxed text-gray-800 whitespace-pre-wrap font-serif max-h-96 overflow-y-auto">
-                {previewBody}
-              </div>
-              <div className="flex gap-4 mt-6 pt-4 border-t border-dashed border-gray-300">
-                {['ผู้ออก', 'ผู้รับ', 'พยาน'].map(label => (
-                  <div key={label} className="flex-1 text-center">
-                    <div className="h-8 border-b border-dashed border-gray-400 mb-1"></div>
-                    <p className="text-xs text-gray-400">{label}</p>
+          <div className="card rounded-2xl border border-slate-200 bg-white p-5 h-fit">
+            {stepCreating === 0 ? (
+              <div>
+                <h3 className="font-bold text-slate-900 mb-2 text-lg">ลำดับการออกหนังสือ</h3>
+                <div className="space-y-3 text-sm text-slate-600">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="font-bold text-slate-900">1. เลือกพนักงาน</div>
+                    <div className="mt-1 text-xs text-slate-500">ระบบจะแสดงทันทีว่าคนนี้เคยโดนเตือนหรือไม่</div>
                   </div>
-                ))}
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="font-bold text-slate-900">2. เลือกเทมเพลตและกรอกสาเหตุ</div>
+                    <div className="mt-1 text-xs text-slate-500">ดูตัวอย่างหนังสือก่อนบันทึกได้ทางด้านนี้</div>
+                  </div>
+                </div>
               </div>
-            </div>
-          )}
+            ) : currentTemplate && previewEmp ? (
+              <div>
+                <h3 className="font-bold text-slate-900 mb-4 text-lg">ตัวอย่างหนังสือ</h3>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs leading-relaxed text-slate-800 whitespace-pre-wrap font-serif max-h-96 overflow-y-auto">
+                  {previewBody}
+                </div>
+                <div className="flex gap-4 mt-6 pt-4 border-t border-dashed border-slate-300">
+                  {['ผู้ออก', 'ผู้รับ', 'พยาน'].map(label => (
+                    <div key={label} className="flex-1 text-center">
+                      <div className="h-8 border-b border-dashed border-slate-400 mb-1"></div>
+                      <p className="text-xs text-slate-400">{label}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : previewEmp ? (
+              <div>
+                <h3 className="font-bold text-slate-900 mb-4 text-lg">ประวัติของ {previewEmp.name}</h3>
+                {selectedEmployeeHasWarning ? (
+                  <div className="space-y-2">
+                    {selectedEmployeeWarningLetters.map((letter) => (
+                      <div key={letter.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-bold text-slate-900">{levelConfig[letter.level]?.label || letter.level}</span>
+                          <span className="text-xs text-slate-400">{thaiShortDate(letter.issue_date)}</span>
+                        </div>
+                        <div className="mt-1 text-xs text-slate-600">{letter.reason || '-'}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">ยังไม่มีประวัติหนังสือเตือน</div>
+                )}
+              </div>
+            ) : null}
+          </div>
         </div>
       )}
 
       {/* Preview Modal */}
       {previewLetter && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }}>
-          <PreviewModal
-            letter={previewLetter}
-            employee={employees.find(e => e.id === previewLetter.employee_id)}
-            onClose={() => setPreviewLetter(null)}
-          />
-        </div>
+        <PreviewModal
+          letter={previewLetter}
+          employees={employees}
+          branches={branches}
+          onEdit={(letter) => {
+            setPreviewLetter(null);
+            startEditLetter(letter);
+          }}
+          onDelete={async (letter) => {
+            setPreviewLetter(null);
+            await handleDeleteLetter(letter);
+          }}
+          onClose={() => setPreviewLetter(null)}
+        />
       )}
     </div>
   );
