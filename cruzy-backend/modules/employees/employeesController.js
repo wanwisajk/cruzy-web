@@ -31,10 +31,11 @@ function cleanBranchEligibilityPayload(employeeId, row) {
 }
 
 function cleanAvailabilityRulePayload(employeeId, row) {
+  const availabilityType = row.availabilityType || row.availability_type || 'available';
   return {
     employee_id: employeeId,
     day_of_week: toNumber(row.dayOfWeek ?? row.day_of_week),
-    availability_type: row.availabilityType || row.availability_type || 'available',
+    availability_type: availabilityType === 'off' ? 'day_off' : availabilityType,
     start_time: row.startTime || row.start_time || null,
     end_time: row.endTime || row.end_time || null,
     note: row.note || null
@@ -42,10 +43,11 @@ function cleanAvailabilityRulePayload(employeeId, row) {
 }
 
 function cleanAvailabilityOverridePayload(employeeId, row) {
+  const availabilityType = row.availabilityType || row.availability_type || 'day_off';
   return {
     employee_id: employeeId,
     work_date: row.workDate || row.work_date,
-    availability_type: row.availabilityType || row.availability_type || 'day_off',
+    availability_type: availabilityType === 'off' ? 'day_off' : availabilityType,
     start_time: row.startTime || row.start_time || null,
     end_time: row.endTime || row.end_time || null,
     reason: row.reason || null

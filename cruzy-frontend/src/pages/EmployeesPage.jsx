@@ -371,7 +371,7 @@ export default function EmployeesPage(props) {
     return warningLetters.filter((letter) => filteredEmployees.some((employee) => employee.id === letter.empId));
   }, [warningLetters, filteredEmployees]);
   const contracts = props.data.contracts || [];
-  const payrollAnchorDate = props.to || props.from || props.data.initialDateTo || props.data.initialDate || fmtDate(new Date());
+  const payrollAnchorDate = fmtDate(new Date());
   const payrollPeriod = useMemo(
     () => payrollPeriodFor(payCycleFilter, payrollAnchorDate),
     [payCycleFilter, payrollAnchorDate],
@@ -383,15 +383,18 @@ export default function EmployeesPage(props) {
   const payrollRows = useMemo(() => {
     const periodDaySet = new Set(payrollPeriodDays);
     return filteredEmployees
-      .filter((employee) => (employee.payCycle || 'monthly') === payCycleFilter)
       .map((employee) => {
         const scheduledDays = new Set();
+        const scheduledWorkDates = new Set();
         Object.entries(props.data.schedule || {}).forEach(([key, empIds]) => {
           const date = key.slice(-10);
           const branchId = key.slice(0, -11);
           if (!periodDaySet.has(date)) return;
           if (selectedBranch !== 'all' && String(branchId) !== String(selectedBranch)) return;
-          if ((empIds || []).includes(employee.id)) scheduledDays.add(`${date}_${branchId}`);
+          if ((empIds || []).includes(employee.id)) {
+            scheduledDays.add(`${date}_${branchId}`);
+            scheduledWorkDates.add(date);
+          }
         });
 
         const empAttendanceRows = attendanceRows.filter((row) => (
@@ -401,7 +404,7 @@ export default function EmployeesPage(props) {
         ));
         empAttendanceRows.forEach((row) => scheduledDays.add(`${row.date}_${row.branch}`));
 
-        const workDays = scheduledDays.size;
+        const workDays = employee.payType === 'monthly' ? scheduledDays.size : scheduledWorkDates.size;
         const baseWage = employee.payType === 'monthly'
           ? prorateMonthlyAmount(employee.monthlySalary || employee.salary || 0, payrollPeriodDays, payCycleFilter, payrollAnchorDate)
           : Number(employee.dailyRate || 0) * workDays;
@@ -752,7 +755,7 @@ export default function EmployeesPage(props) {
                             <div className="flex flex-wrap gap-1.5">
                               <button
                                 type="button"
-                                onClick={() => setSelectedEmp(employee)}
+                                onClick={() => employees.openView(employee)}
                                 className="text-xs px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-semibold transition-all"
                               >
                                 ดูข้อมูล
@@ -1115,7 +1118,7 @@ export default function EmployeesPage(props) {
         <EmployeeFormModal
           mode={employees.modalMode}
           employee={employees.activeEmployee}
-          branches={employees.branches}
+          branches={employees.formBranches}
           onSubmit={employees.handleFormSubmit}
           onClose={employees.closeModal}
         />

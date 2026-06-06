@@ -48,6 +48,10 @@ const INITIAL = {
   absFixed: "",
 };
 
+function sameId(a, b) {
+  return String(a) === String(b);
+}
+
 function getInitialFormState(employee = {}, branches = []) {
   if (!employee || Object.keys(employee).length === 0) {
     return {
@@ -58,14 +62,14 @@ function getInitialFormState(employee = {}, branches = []) {
   }
 
   const branchEligibility = employee.branchEligibility || [];
-  const branchIds = branchEligibility.map((row) => row.branchId || row.branch_id).filter(Boolean);
+  const branchIds = branchEligibility.map((row) => String(row.branchId || row.branch_id)).filter(Boolean);
   const selectedBranches = branchIds.length ? branchIds : employee.branch ? [employee.branch] : (branches[0] ? [branches[0].id] : []);
   const commissionBranchIds = branchEligibility
     .filter((row) => row.commissionEligible !== false && row.commission_eligible !== false)
     .map((row) => row.branchId || row.branch_id)
     .filter(Boolean);
   const commissionBranches = employee.commissionBranches?.length
-    ? employee.commissionBranches
+    ? employee.commissionBranches.map(String)
     : commissionBranchIds.length
       ? commissionBranchIds
       : selectedBranches;
@@ -100,7 +104,7 @@ function getInitialFormState(employee = {}, branches = []) {
   let weeklyOffs = ["0"];
   if (Array.isArray(employee.availabilityRules) && employee.availabilityRules.length) {
     weeklyOffs = employee.availabilityRules
-      .filter(r => r.availabilityType === "off")
+      .filter(r => ["off", "day_off"].includes(r.availabilityType || r.type))
       .map(r => String(r.dayOfWeek));
   } else if (Array.isArray(employee.weeklyOffs)) {
     weeklyOffs = employee.weeklyOffs;
@@ -170,16 +174,17 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
   }, []);
 
   const toggleBranchSelection = (branchId) => () => {
+    const normalizedBranchId = String(branchId);
     setForm((f) => {
-      const selected = f.selectedBranches.includes(branchId);
+      const selected = f.selectedBranches.some((id) => sameId(id, normalizedBranchId));
       const updatedBranches = selected
-        ? f.selectedBranches.filter((id) => id !== branchId)
-        : [...f.selectedBranches, branchId];
+        ? f.selectedBranches.filter((id) => !sameId(id, normalizedBranchId))
+        : [...f.selectedBranches, normalizedBranchId];
       const updatedCommissionBranches = selected
-        ? f.commissionBranches.filter((id) => id !== branchId)
-        : f.commissionBranches.includes(branchId)
+        ? f.commissionBranches.filter((id) => !sameId(id, normalizedBranchId))
+        : f.commissionBranches.some((id) => sameId(id, normalizedBranchId))
           ? f.commissionBranches
-          : [...f.commissionBranches, branchId];
+          : [...f.commissionBranches, normalizedBranchId];
       
       if (updatedBranches.length && errors.selectedBranches) {
         setErrors((errs) => ({ ...errs, selectedBranches: false }));
@@ -189,17 +194,32 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
   };
 
   const toggleCommissionBranchSelection = (branchId) => () => {
+    const normalizedBranchId = String(branchId);
     setForm((f) => {
-      const selected = f.commissionBranches.includes(branchId);
+      const selected = f.commissionBranches.some((id) => sameId(id, normalizedBranchId));
       const updatedBranches = selected
-        ? f.commissionBranches.filter((id) => id !== branchId)
-        : [...f.commissionBranches, branchId];
+        ? f.commissionBranches.filter((id) => !sameId(id, normalizedBranchId))
+        : [...f.commissionBranches, normalizedBranchId];
 
       if (updatedBranches.length && errors.commissionBranches) {
         setErrors((errs) => ({ ...errs, commissionBranches: false }));
       }
       return { ...f, commissionBranches: updatedBranches };
     });
+  };
+
+  const selectAllBranches = () => {
+    const branchIds = branches.map((branch) => String(branch.id));
+    setForm((f) => ({
+      ...f,
+      selectedBranches: branchIds,
+      commissionBranches: Array.from(new Set([...f.commissionBranches.map(String), ...branchIds])),
+    }));
+    setErrors((errs) => ({ ...errs, selectedBranches: false }));
+  };
+
+  const clearBranchSelection = () => {
+    setForm((f) => ({ ...f, selectedBranches: [], commissionBranches: [] }));
   };
 
   const toggleWeeklyOff = (dayValue) => () => {
@@ -242,11 +262,11 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
 
     try {
       const payTypeMap = { monthly: "monthly", daily: "daily", daily_shift: "daily", daily_full: "daily" };
-      const selectedBranchIds = form.selectedBranches.length ? form.selectedBranches : [];
+      const selectedBranchIds = form.selectedBranches.length ? form.selectedBranches.map(String) : [];
       const commissionBranchIds = form.comType === "actual_work_days_all_branches"
         ? selectedBranchIds
-        : form.commissionBranches.filter((branchId) => selectedBranchIds.includes(branchId));
-      const selectedBranchObj = branches.find(b => b.id === selectedBranchIds[0]);
+        : form.commissionBranches.map(String).filter((branchId) => selectedBranchIds.some((id) => sameId(id, branchId)));
+      const selectedBranchObj = branches.find(b => sameId(b.id, selectedBranchIds[0]));
       const calculatedRegion = selectedBranchObj?.region_id || selectedBranchObj?.region || "default";
       const employeeId = isEdit ? form.id : "";
 
@@ -337,14 +357,14 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
           canWork: true,
           isPreferred: index === 0,
           priority: index === 0 ? 1 : 0,
-          commissionEligible: commissionBranchIds.includes(branchId)
+          commissionEligible: commissionBranchIds.some((id) => sameId(id, branchId))
         })),
         availabilityRules: (function() {
           const mapping = { 'จันทร์': 1, 'อังคาร': 2, 'พุธ': 3, 'พฤหัส': 4, 'ศุกร์': 5, 'เสาร์': 6, 'อาทิตย์': 0 };
           const selected = Array.isArray(form.weeklyOffs) && form.weeklyOffs.length ? form.weeklyOffs : ["0"];
           return selected.map((d) => {
             const day = Number.isFinite(Number(d)) ? Number(d) : (mapping[d] ?? 0);
-            return { dayOfWeek: day, availabilityType: "off", note: "วันหยุดประจำสัปดาห์คงที่" };
+            return { dayOfWeek: day, availabilityType: "day_off", note: "วันหยุดประจำสัปดาห์คงที่" };
           });
         })(),
         availabilityOverrides: [],
@@ -462,9 +482,22 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
             <label className={`${labelBaseStyle} text-slate-700 font-bold`}>
               สาขาที่พนักงานประจำการ / สลับไปช่วยงานได้ <span className="text-red-500">*</span>
             </label>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[10px] text-slate-500">
+                เลือกได้หลายสาขา ระบบจะอนุญาตให้ลงตารางทุกสาขาที่เลือกไว้
+              </p>
+              <div className="flex gap-1.5">
+                <button type="button" onClick={selectAllBranches} className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-100 hover:bg-emerald-100">
+                  เลือกทุกสาขา
+                </button>
+                <button type="button" onClick={clearBranchSelection} className="px-2.5 py-1 rounded-lg bg-slate-50 text-slate-600 text-[10px] font-bold border border-slate-100 hover:bg-slate-100">
+                  ล้าง
+                </button>
+              </div>
+            </div>
             <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 p-3 rounded-lg bg-white border ${errors.selectedBranches ? "border-red-300" : "border-slate-100"}`}>
               {branches.map((b) => {
-                const isChecked = form.selectedBranches.includes(b.id);
+                const isChecked = form.selectedBranches.some((id) => sameId(id, b.id));
                 return (
                   <label key={b.id} className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition-all hover:bg-slate-50 ${isChecked ? "bg-emerald-50/40 border-emerald-200 text-emerald-900" : "border-slate-100 text-slate-600"}`}>
                     <input
@@ -588,8 +621,8 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
                 {form.comType === "period_days_responsible_branches" ? "สาขาที่รับผิดชอบดูแลและได้ค่าคอม" : "สาขาที่ได้ค่าคอม"} <span className="text-red-500">*</span>
               </label>
               <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 p-3 rounded-lg bg-white border ${errors.commissionBranches ? "border-red-300" : "border-slate-100"}`}>
-                {branches.filter((branch) => form.selectedBranches.includes(branch.id)).map((b) => {
-                  const isChecked = form.commissionBranches.includes(b.id);
+                {branches.filter((branch) => form.selectedBranches.some((id) => sameId(id, branch.id))).map((b) => {
+                  const isChecked = form.commissionBranches.some((id) => sameId(id, b.id));
                   return (
                     <label key={b.id} className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition-all hover:bg-slate-50 ${isChecked ? "bg-emerald-50/40 border-emerald-200 text-emerald-900" : "border-slate-100 text-slate-600"}`}>
                       <input

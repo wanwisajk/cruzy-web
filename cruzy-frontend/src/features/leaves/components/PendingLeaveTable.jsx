@@ -41,7 +41,7 @@ export function PendingLeaveTable({
             ) : (
               leaves.map((leave) => {
                 const employee = employees.find(
-                  (emp) => emp.id === leave.employee_id,
+                  (emp) => String(emp.id) === String(leave.employee_id),
                 );
                 return (
                   <tr key={leave.id} className="hover:bg-slate-50">

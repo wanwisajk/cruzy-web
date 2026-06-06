@@ -8,7 +8,11 @@ import { ApprovedLeaveHistoryModal } from "../features/leaves/components/Approve
 import { LeaveModal } from "../features/leaves/components/LeaveModal.jsx";
 import { useLeaves } from "../features/leaves/hooks/useLeaves.js";
 
-const DEFAULT_LEAVE_TYPES = ["ลาป่วย", "ลากิจ", "ลาพักร้อน", "ลาอื่นๆ"];
+const DEFAULT_LEAVE_TYPES = ["ลาประจำปี", "ลาป่วย", "ลากิจ", "ลาพักร้อน", "ลาอื่นๆ"];
+
+function sameId(a, b) {
+  return String(a) === String(b);
+}
 
 export default function LeaveDashboard({ data, currentBranch }) {
   const {
@@ -37,12 +41,12 @@ export default function LeaveDashboard({ data, currentBranch }) {
     if (!data) return [];
     return data.employees.filter(
       (employee) =>
-        currentBranch === "all" || employee.branch === currentBranch,
+        currentBranch === "all" || sameId(employee.branch, currentBranch),
     );
   }, [data, currentBranch]);
 
   const visibleEmployeeIds = useMemo(
-    () => visibleEmployees.map((employee) => employee.id),
+    () => new Set(visibleEmployees.map((employee) => String(employee.id))),
     [visibleEmployees],
   );
 
@@ -64,7 +68,7 @@ export default function LeaveDashboard({ data, currentBranch }) {
 
   const filteredLeaves = useMemo(() => {
     return leaves
-      .filter((leave) => visibleEmployeeIds.includes(leave.employee_id))
+      .filter((leave) => visibleEmployeeIds.has(String(leave.employee_id)))
       .filter((leave) =>
         filters.leaveType ? leave.leave_type === filters.leaveType : true,
       )
@@ -99,7 +103,7 @@ export default function LeaveDashboard({ data, currentBranch }) {
     return visibleEmployees
       .map((employee) => {
         const employeeLeaves = approvedLeaves.filter(
-          (leave) => leave.employee_id === employee.id,
+          (leave) => sameId(leave.employee_id, employee.id),
         );
         if (!employeeLeaves.length) return null;
 
@@ -175,17 +179,17 @@ export default function LeaveDashboard({ data, currentBranch }) {
     pending: leaves.filter(
       (leave) =>
         leave.status === "pending" &&
-        visibleEmployeeIds.includes(leave.employee_id),
+        visibleEmployeeIds.has(String(leave.employee_id)),
     ).length,
     approved: leaves.filter(
       (leave) =>
         leave.status === "approved" &&
-        visibleEmployeeIds.includes(leave.employee_id),
+        visibleEmployeeIds.has(String(leave.employee_id)),
     ).length,
     rejected: leaves.filter(
       (leave) =>
         leave.status === "rejected" &&
-        visibleEmployeeIds.includes(leave.employee_id),
+        visibleEmployeeIds.has(String(leave.employee_id)),
     ).length,
   };
 

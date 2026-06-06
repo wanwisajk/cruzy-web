@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-const defaultTypes = ['ลาป่วย', 'ลากิจ', 'ลาพักร้อน', 'ลาอื่นๆ'];
+const defaultTypes = ['ลาประจำปี', 'ลาป่วย', 'ลากิจ', 'ลาพักร้อน', 'ลาอื่นๆ'];
 
 function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {

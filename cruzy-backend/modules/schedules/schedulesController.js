@@ -17,6 +17,10 @@ function cleanSchedulePayload(body) {
   };
 }
 
+function isUnavailableType(type) {
+  return ['unavailable', 'day_off', 'off'].includes(String(type || '').toLowerCase());
+}
+
 exports.listSchedules = async (_req, res) => {
   try {
     res.json(await fetchTable(TABLES.schedules));
@@ -44,7 +48,8 @@ exports.getScheduleMap = async (_req, res) => {
     schedules.forEach((row) => {
       const key = `${row.branch_id}_${row.work_date}`;
       if (!map[key]) map[key] = [];
-      map[key].push(row.employee_id);
+      const employeeId = String(row.employee_id);
+      if (!map[key].includes(employeeId)) map[key].push(employeeId);
     });
     res.json(map);
   } catch (error) {
@@ -111,12 +116,22 @@ exports.assignSchedule = async (req, res) => {
       if (!allowedError && !(allowed || []).length) {
         const { data: anyEligibility, error: anyEligibilityError } = await supabase
           .from(TABLES.employeeBranchEligibility)
-          .select('id')
+          .select('id, branch_id')
           .eq('employee_id', eid)
           .limit(1);
         if (anyEligibilityError && !MISSING_TABLE_CODES.includes(anyEligibilityError.code)) throw anyEligibilityError;
         if (!anyEligibilityError && (anyEligibility || []).length) {
-          return res.status(409).json({ message: 'พนักงานคนนี้ไม่ได้ถูกตั้งค่าให้ลงสาขานี้' });
+          const { data: allowedBranches, error: allowedBranchesError } = await supabase
+            .from(TABLES.employeeBranchEligibility)
+            .select('branch_id')
+            .eq('employee_id', eid)
+            .eq('can_work', true);
+          if (allowedBranchesError && !MISSING_TABLE_CODES.includes(allowedBranchesError.code)) throw allowedBranchesError;
+          const allowedBranchIds = (allowedBranches || anyEligibility || []).map((row) => row.branch_id).filter((id) => id !== null && id !== undefined);
+          return res.status(409).json({
+            message: `พนักงานคนนี้ไม่ได้ถูกตั้งค่าให้ลงสาขานี้ (DB อนุญาตสาขา: ${allowedBranchIds.join(', ') || '-'})`,
+            allowedBranchIds
+          });
         }
       }
 
@@ -128,8 +143,21 @@ exports.assignSchedule = async (req, res) => {
         .limit(1);
       if (overrideError && !MISSING_TABLE_CODES.includes(overrideError.code)) throw overrideError;
       const overrideType = !overrideError ? overrideRows?.[0]?.availability_type : null;
-      if (['unavailable', 'day_off'].includes(overrideType)) {
+      if (isUnavailableType(overrideType)) {
         return res.status(409).json({ message: 'พนักงานคนนี้ถูกตั้งค่าไม่ว่าง/หยุดในวันนี้' });
+      }
+
+      const dayOfWeek = new Date(`${date}T00:00:00`).getDay();
+      const { data: weeklyRules, error: weeklyError } = await supabase
+        .from(TABLES.employeeAvailabilityRules)
+        .select('id, availability_type')
+        .eq('employee_id', eid)
+        .eq('day_of_week', dayOfWeek)
+        .limit(1);
+      if (weeklyError && !MISSING_TABLE_CODES.includes(weeklyError.code)) throw weeklyError;
+      const weeklyType = !weeklyError ? weeklyRules?.[0]?.availability_type : null;
+      if (isUnavailableType(weeklyType)) {
+        return res.status(409).json({ message: 'พนักงานคนนี้เป็นวันหยุดประจำสัปดาห์' });
       }
     }
 

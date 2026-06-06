@@ -66,10 +66,10 @@ export function hydrateConsoleData(data = {}) {
       if (rule.dayOfWeek === 0 || rule.dayOfWeek === 6) minWeekend = Math.max(minWeekend, Number(rule.requiredStaff || 1));
     });
     return {
-      id: b.id,
+      id: String(b.id),
       name: b.name,
       code: b.code,
-      region: b.region_id || b.region || 'default',
+      region: String(b.region_id || b.region || 'default'),
       hours,
       hoursEnd,
       minWeekday,
@@ -90,19 +90,22 @@ export function hydrateConsoleData(data = {}) {
   const primaryBranches = derivePrimaryEmployeeBranches(branchRules, scheduleRows);
   state.employees = empRows.map((employee) => {
     const employeeId = String(employee.id);
-    const fallbackBranch = branchRows.find((b) => b.region_id === (employee.region_id || state.branches[0]?.region))?.id || state.branches[0]?.id || '';
+    const fallbackBranch = branchRows.find((b) => String(b.region_id) === String(employee.region_id || state.branches[0]?.region))?.id || state.branches[0]?.id || '';
     const pay = getPayProfile(employeeId, data.employeePayProfiles || data.employee_pay_profiles || [], employee.salary);
     return {
       id: employeeId,
       name: employee.name,
       nickname: employee.nickname,
+      phone: employee.phone || '',
+      line_user_id: employee.line_user_id || '',
+      lineUserId: employee.line_user_id || '',
       code: employeeId,
       color: employee.color || '#4CAF50',
-      branch: primaryBranches[employeeId] || employee.branch_id || fallbackBranch,
+      branch: String(primaryBranches[employeeId] || employee.branch_id || fallbackBranch),
       position: employee.position || 'พนักงานขาย',
       empType: employee.emp_type || employee.empType || 'fulltime',
       salary: Number(employee.salary || pay.monthlySalary || 0),
-      region: employee.region_id || '',
+      region: String(employee.region_id || ''),
       payType: pay.payType,
       payCycle: pay.payCycle,
       dailyRate: pay.dailyRate,
@@ -151,7 +154,8 @@ export function hydrateConsoleData(data = {}) {
   scheduleRows.forEach((row) => {
     const key = `${row.branch_id}_${row.work_date}`;
     if (!state.schedule[key]) state.schedule[key] = [];
-    state.schedule[key].push(String(row.employee_id));
+    const employeeId = String(row.employee_id);
+    if (!state.schedule[key].includes(employeeId)) state.schedule[key].push(employeeId);
   });
 
   state.branchQuota = deriveBranchQuota(state.branches, state.schedule, staffingRules);
@@ -262,11 +266,11 @@ export function hydrateConsoleData(data = {}) {
 function derivePrimaryEmployeeBranches(branchRules, scheduleRows) {
   const byEmployee = {};
   branchRules.filter((rule) => rule.canWork).sort((a, b) => Number(b.isPreferred) - Number(a.isPreferred) || b.priority - a.priority).forEach((rule) => {
-    if (!byEmployee[rule.empId]) byEmployee[rule.empId] = rule.branchId;
+    if (!byEmployee[rule.empId]) byEmployee[rule.empId] = String(rule.branchId);
   });
   scheduleRows.slice().sort((a, b) => String(b.work_date).localeCompare(String(a.work_date))).forEach((schedule) => {
     const employeeId = String(schedule.employee_id);
-    if (!byEmployee[employeeId]) byEmployee[employeeId] = schedule.branch_id;
+    if (!byEmployee[employeeId]) byEmployee[employeeId] = String(schedule.branch_id);
   });
   return byEmployee;
 }
@@ -309,7 +313,7 @@ function deriveEmployeeBranches(employees, branchRules, schedule) {
 }
 
 function mapEmployeeBranchRule(row) {
-  return { id: String(row.id || ''), empId: String(row.employee_id), branchId: row.branch_id, canWork: row.can_work !== false, isPreferred: Boolean(row.is_preferred), priority: Number(row.priority || 0), commissionEligible: row.commission_eligible !== false, note: row.note || '' };
+  return { id: String(row.id || ''), empId: String(row.employee_id), branchId: String(row.branch_id), canWork: row.can_work !== false, isPreferred: Boolean(row.is_preferred), priority: Number(row.priority || 0), commissionEligible: row.commission_eligible !== false, note: row.note || '' };
 }
 
 function mapAvailabilityRule(row) {
@@ -325,7 +329,7 @@ function mapPayProfile(row) {
 }
 
 function mapStaffingRule(row) {
-  return { id: String(row.id || ''), branchId: row.branch_id, dayOfWeek: Number(row.day_of_week), requiredStaff: Number(row.required_staff || 1), shiftStart: formatDbTime(row.shift_start), shiftEnd: formatDbTime(row.shift_end), active: row.is_active !== false };
+  return { id: String(row.id || ''), branchId: String(row.branch_id), dayOfWeek: Number(row.day_of_week), requiredStaff: Number(row.required_staff || 1), shiftStart: formatDbTime(row.shift_start), shiftEnd: formatDbTime(row.shift_end), active: row.is_active !== false };
 }
 
 function getPayProfile(empId, rows, legacySalary) {

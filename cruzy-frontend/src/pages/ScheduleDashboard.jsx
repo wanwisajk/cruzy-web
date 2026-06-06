@@ -21,6 +21,7 @@ export default function ScheduleDashboard({
   from,
   to,
   toast,
+  onRefreshData,
 }) {
   const [view, setView] = useState("planner");
   const [assignTarget, setAssignTarget] = useState(null);
@@ -82,27 +83,35 @@ export default function ScheduleDashboard({
     targetBranchId,
     targetDate,
   ) {
-    await removeFromSchedule(sourceBranchId, sourceDate, empId);
-    await addToSchedule(targetBranchId, targetDate, empId);
+    const removed = await removeFromSchedule(sourceBranchId, sourceDate, empId);
+    if (!removed) return;
+    const added = await addToSchedule(targetBranchId, targetDate, empId);
+    if (!added) {
+      await addToSchedule(sourceBranchId, sourceDate, empId);
+      toast("ย้ายไม่สำเร็จ จึงคืนตารางเดิมให้แล้ว", "error");
+    }
   }
 
   async function addToSchedule(branchId, date, empId) {
-    const employee = scheduleData.employees.find((item) => item.id === empId);
-    const branch = scheduleData.branches.find((item) => item.id === branchId);
+    const normalizedEmpId = String(empId);
+    const employee = scheduleData.employees.find((item) => String(item.id) === normalizedEmpId);
+    const branch = scheduleData.branches.find((item) => String(item.id) === String(branchId));
     try {
       const shift = shiftFor(scheduleData, branchId, date);
       await assignSchedule({
         branchId,
         date,
-        employeeId: empId,
+        employeeId: normalizedEmpId,
         shiftStart: shift.start,
         shiftEnd: shift.end,
       });
       toast(
         `เพิ่ม ${employee?.name || "พนักงาน"} → ${branch?.code || ""} ${thaiShortDate(date)}`,
       );
+      return true;
     } catch (error) {
       toast(error.message || "เพิ่มตารางงานไม่สำเร็จ", "error");
+      return false;
     }
   }
 
@@ -110,29 +119,55 @@ export default function ScheduleDashboard({
     try {
       await removeSchedule({ branchId, date, employeeId: empId });
       toast("ลบออกจากตารางแล้ว");
+      return true;
     } catch (error) {
       toast(error.message || "ลบตารางงานไม่สำเร็จ", "error");
+      return false;
     }
   }
 
   async function autoFill() {
     let added = 0;
-    for (const date of days) {
-      for (const branch of branches) {
-        let existing = scheduleData.schedule[`${branch.id}_${date}`] || [];
-        const need = requiredStaffFor(scheduleData, branch.id, date);
+    let workingSchedule = scheduleData.schedule;
+    for (const [dayIndex, date] of days.entries()) {
+      let workingData = { ...scheduleData, schedule: workingSchedule };
+      const branchesByNeed = [...branches]
+        .sort((a, b) => {
+          const aExisting = workingData.schedule[`${a.id}_${date}`] || [];
+          const bExisting = workingData.schedule[`${b.id}_${date}`] || [];
+          const aShortage = Math.max(0, requiredStaffFor(workingData, a.id, date) - aExisting.length);
+          const bShortage = Math.max(0, requiredStaffFor(workingData, b.id, date) - bExisting.length);
+          if (bShortage !== aShortage) return bShortage - aShortage;
+          const aCandidates = recommendedEmployees(workingData, user, a.id, date, { from, to }).length;
+          const bCandidates = recommendedEmployees(workingData, user, b.id, date, { from, to }).length;
+          if (aCandidates !== bCandidates) return aCandidates - bCandidates;
+          return 0;
+        });
+      const rotatedBranches = branchesByNeed.length
+        ? [...branchesByNeed.slice(dayIndex % branchesByNeed.length), ...branchesByNeed.slice(0, dayIndex % branchesByNeed.length)]
+        : branchesByNeed;
+
+      for (const branch of rotatedBranches) {
+        const workingData = { ...scheduleData, schedule: workingSchedule };
+        let existing = workingData.schedule[`${branch.id}_${date}`] || [];
+        const need = requiredStaffFor(workingData, branch.id, date);
         while (existing.length < need) {
           const rec = recommendedEmployees(
-            scheduleData,
+            { ...scheduleData, schedule: workingSchedule },
             user,
             branch.id,
             date,
             { from, to },
           )[0];
           if (!rec) break;
-          await addToSchedule(branch.id, date, rec.employee.id);
+          const saved = await addToSchedule(branch.id, date, rec.employee.id);
+          if (!saved) break;
           added += 1;
-          existing = [...existing, rec.employee.id];
+          existing = [...existing.map(String), String(rec.employee.id)];
+          workingSchedule = {
+            ...workingSchedule,
+            [`${branch.id}_${date}`]: existing,
+          };
         }
       }
     }
@@ -202,7 +237,7 @@ export default function ScheduleDashboard({
         </div>
       ) : (
         <div className="p-5">
-          <BranchSettingsSection />
+          <BranchSettingsSection onRefreshData={onRefreshData} />
         </div>
       )}
 
@@ -616,7 +651,7 @@ function AssignModal({ target, data, user, from, to, onClose, onAdd }) {
     target.branchId,
     target.date,
     { from, to },
-  ).filter((candidate) => !candidate.disabled);
+  );
 
   return (
     <div
@@ -652,16 +687,23 @@ function AssignModal({ target, data, user, from, to, onClose, onAdd }) {
         <div className="max-h-64 overflow-y-auto divide-y divide-gray-50">
           {candidates.length === 0 ? (
             <p className="text-center py-8 text-sm text-gray-400">
-              ไม่มีพนักงานที่ว่าง
+              ไม่มีพนักงานในขอบเขตสาขานี้
             </p>
           ) : null}
           {candidates.map((candidate) => (
             <button
               key={candidate.employee.id}
+              type="button"
+              disabled={candidate.disabled}
               onClick={() =>
+                !candidate.disabled &&
                 onAdd(target.branchId, target.date, candidate.employee.id)
               }
-              className="flex w-full items-center gap-3 px-5 py-3 hover:bg-emerald-50 transition-colors text-left"
+              className={`flex w-full items-center gap-3 px-5 py-3 transition-colors text-left ${
+                candidate.disabled
+                  ? "cursor-not-allowed bg-gray-50 text-gray-400"
+                  : "hover:bg-emerald-50"
+              }`}
             >
               <Avatar employee={candidate.employee} size="md" />
               <div>
@@ -669,7 +711,9 @@ function AssignModal({ target, data, user, from, to, onClose, onAdd }) {
                   {candidate.employee.name}
                 </p>
                 <p className="text-xs text-gray-400">
-                  {candidate.employee.nickname || candidate.employee.position}
+                  {candidate.disabled
+                    ? candidateReason(candidate)
+                    : candidate.employee.nickname || candidate.employee.position}
                 </p>
               </div>
             </button>
@@ -686,6 +730,14 @@ function AssignModal({ target, data, user, from, to, onClose, onAdd }) {
       </div>
     </div>
   );
+}
+
+function candidateReason(candidate) {
+  if (candidate.alreadyIn) return "อยู่ในตารางนี้แล้ว";
+  if (candidate.busyAt) return `มีตารางที่ ${candidate.busyAt.code || "สาขาอื่น"} แล้ว`;
+  if (!candidate.canBranch) return "ไม่ได้ตั้งค่าให้ลงสาขานี้";
+  if (!candidate.available) return "วันหยุด/ไม่ว่าง";
+  return "ไม่พร้อมลงตาราง";
 }
 
 function Avatar({ employee, size = "sm" }) {

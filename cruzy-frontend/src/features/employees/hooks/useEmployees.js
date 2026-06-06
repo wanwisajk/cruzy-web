@@ -1,6 +1,10 @@
 import { useMemo, useState } from 'react';
-import { getVisibleBranches } from '../../../lib/schedule';
+import { getScopeBranches, getVisibleBranches } from '../../../lib/schedule';
 import { employeesApi } from '../services/employeesApi';
+
+function sameId(a, b) {
+  return String(a) === String(b);
+}
 
 export function useEmployees({ data, user, currentBranch, setData, toast }) {
   const [showModal, setShowModal] = useState(false);
@@ -8,11 +12,12 @@ export function useEmployees({ data, user, currentBranch, setData, toast }) {
   const [activeEmployee, setActiveEmployee] = useState(null);
 
   const branches = useMemo(() => getVisibleBranches(data, user, currentBranch), [data, user, currentBranch]);
+  const formBranches = useMemo(() => getScopeBranches(data, user), [data, user]);
   const branchIds = useMemo(() => branches.map((branch) => branch.id), [branches]);
 
   const employees = useMemo(() => data.employees.filter((employee) => (
-    branchIds.includes(employee.branch) ||
-    (data.employeeBranches[employee.id] || []).some((id) => branchIds.includes(id))
+    branchIds.some((branchId) => sameId(branchId, employee.branch)) ||
+    (data.employeeBranches[employee.id] || []).some((id) => branchIds.some((branchId) => sameId(branchId, id)))
   )), [data.employees, data.employeeBranches, branchIds]);
 
   const employmentTypeCounts = useMemo(() => data.employees.reduce((acc, employee) => {
@@ -30,7 +35,7 @@ export function useEmployees({ data, user, currentBranch, setData, toast }) {
 
   function buildFormEmployee(employee) {
     const branchEligibility = (data.employeeBranchRules || [])
-      .filter((rule) => rule.empId === employee.id)
+      .filter((rule) => sameId(rule.empId, employee.id))
       .map((rule) => ({
         branchId: rule.branchId,
         branch_id: rule.branchId,
@@ -40,10 +45,10 @@ export function useEmployees({ data, user, currentBranch, setData, toast }) {
         commissionEligible: rule.commissionEligible !== false
       }));
     const payProfile = (data.employeePayProfiles || [])
-      .filter((profile) => (profile.empId || profile.employee_id) === employee.id && profile.active !== false && profile.is_active !== false)
+      .filter((profile) => sameId(profile.empId || profile.employee_id, employee.id) && profile.active !== false && profile.is_active !== false)
       .sort((a, b) => String(b.effectiveFrom || b.effective_from || '').localeCompare(String(a.effectiveFrom || a.effective_from || '')))[0];
     const availabilityRules = (data.employeeAvailabilityRules || [])
-      .filter((rule) => rule.empId === employee.id)
+      .filter((rule) => sameId(rule.empId, employee.id))
       .map((rule) => ({
         dayOfWeek: rule.dayOfWeek,
         availabilityType: rule.type || rule.availabilityType,
@@ -149,12 +154,20 @@ export function useEmployees({ data, user, currentBranch, setData, toast }) {
     const employeeBranchRules = (savedPayload.branchEligibility || []).map((branch, index) => ({
       id: `${id}_${branch.branchId || branch.branch_id}`,
       empId: id,
-      branchId: branch.branchId || branch.branch_id,
+      branchId: String(branch.branchId || branch.branch_id),
       canWork: branch.canWork !== false && branch.can_work !== false,
       isPreferred: branch.isPreferred === undefined ? Boolean(branch.is_preferred) : Boolean(branch.isPreferred),
       priority: Number(branch.priority || (index === 0 ? 1 : 0)),
       commissionEligible: branch.commissionEligible === undefined ? branch.commission_eligible !== false : Boolean(branch.commissionEligible),
       note: branch.note || ''
+    }));
+    const employeeAvailabilityRules = (savedPayload.availabilityRules || []).map((rule) => ({
+      id: `${id}_weekly_${rule.dayOfWeek ?? rule.day_of_week}`,
+      empId: id,
+      dayOfWeek: Number(rule.dayOfWeek ?? rule.day_of_week),
+      type: rule.availabilityType || rule.availability_type || 'day_off',
+      availabilityType: rule.availabilityType || rule.availability_type || 'day_off',
+      note: rule.note || ''
     }));
     const updatedEmployee = {
       id,
@@ -164,7 +177,7 @@ export function useEmployees({ data, user, currentBranch, setData, toast }) {
       position: savedPayload.position,
       line_user_id: savedPayload.line_user_id,
       empType: savedPayload.empType || activeEmployee?.empType || 'fulltime',
-      branch: savedPayload.branchEligibility?.[0]?.branchId || activeEmployee?.branch || 'b1',
+      branch: String(savedPayload.branchEligibility?.[0]?.branchId || activeEmployee?.branch || 'b1'),
       salary: savedPayload.payProfile?.salary || 0,
       payType: savedPayload.payProfile?.payType || 'monthly',
       payCycle: savedPayload.payProfile?.payCycle || 'monthly',
@@ -181,13 +194,13 @@ export function useEmployees({ data, user, currentBranch, setData, toast }) {
       absenceDeductValue: savedPayload.payProfile?.absence_deduct_value ?? savedPayload.payProfile?.absenceDeductValue,
       absenceSystemCalc: savedPayload.payProfile?.absence_system_calc ?? savedPayload.payProfile?.absenceSystemCalc,
       startDate: savedPayload.payProfile?.effectiveFrom || activeEmployee?.startDate || new Date().toISOString().split('T')[0],
-      region: savedPayload.regionId || activeEmployee?.region || '',
+      region: String(savedPayload.regionId || activeEmployee?.region || ''),
       phone: savedPayload.phone || ''
     };
 
     setData((current) => {
       const existingIndex = current.employees.findIndex((employee) => employee.id === id);
-      const existingPayProfile = (current.employeePayProfiles || []).find((profile) => (profile.empId || profile.employee_id) === id);
+      const existingPayProfile = (current.employeePayProfiles || []).find((profile) => sameId(profile.empId || profile.employee_id, id));
       const savedPayProfile = {
         id: existingPayProfile?.id || `profile_${Date.now()}`,
         empId: id,
@@ -234,14 +247,28 @@ export function useEmployees({ data, user, currentBranch, setData, toast }) {
         employees,
         employeeBranches: {
           ...current.employeeBranches,
-          [id]: employeeBranchIds
+          [id]: employeeBranchIds.map(String)
         },
         employeeBranchRules: [
-          ...(current.employeeBranchRules || []).filter((rule) => rule.empId !== id),
+          ...(current.employeeBranchRules || []).filter((rule) => !sameId(rule.empId, id)),
           ...employeeBranchRules
         ],
+        employeeAvailabilityRules: [
+          ...(current.employeeAvailabilityRules || []).filter((rule) => !sameId(rule.empId, id)),
+          ...employeeAvailabilityRules
+        ],
+        employeeAvailabilityOverrides: [
+          ...(current.employeeAvailabilityOverrides || []).filter((rule) => !sameId(rule.empId, id)),
+          ...(savedPayload.availabilityOverrides || []).map((rule) => ({
+            id: `${id}_override_${rule.workDate || rule.work_date}`,
+            empId: id,
+            date: rule.workDate || rule.work_date,
+            type: rule.availabilityType || rule.availability_type || 'day_off',
+            reason: rule.reason || ''
+          }))
+        ],
         employeePayProfiles: [
-          ...(current.employeePayProfiles || []).filter((profile) => (profile.empId || profile.employee_id) !== id),
+          ...(current.employeePayProfiles || []).filter((profile) => !sameId(profile.empId || profile.employee_id, id)),
           savedPayProfile
         ]
       };
@@ -268,16 +295,16 @@ export function useEmployees({ data, user, currentBranch, setData, toast }) {
         ...current,
         employees: (current.employees || []).filter((item) => item.id !== employeeId),
         employeeBranches,
-        employeeBranchRules: (current.employeeBranchRules || []).filter((rule) => rule.empId !== employeeId),
-        employeeAvailabilityRules: (current.employeeAvailabilityRules || []).filter((rule) => rule.empId !== employeeId),
-        employeeAvailabilityOverrides: (current.employeeAvailabilityOverrides || []).filter((rule) => rule.empId !== employeeId),
-        employeePayProfiles: (current.employeePayProfiles || []).filter((profile) => (profile.empId || profile.employee_id) !== employeeId),
-        schedule: Object.fromEntries(Object.entries(current.schedule || {}).map(([key, list]) => [key, list.filter((id) => id !== employeeId)])),
-        attendance: (current.attendance || []).filter((row) => row.empId !== employeeId),
-        attendanceAlerts: (current.attendanceAlerts || []).filter((alert) => alert.empId !== employeeId),
-        warningLetters: (current.warningLetters || []).filter((letter) => letter.empId !== employeeId),
-        leaves: (current.leaves || []).filter((leave) => leave.empId !== employeeId),
-        contracts: (current.contracts || []).filter((contract) => contract.empId !== employeeId),
+        employeeBranchRules: (current.employeeBranchRules || []).filter((rule) => !sameId(rule.empId, employeeId)),
+        employeeAvailabilityRules: (current.employeeAvailabilityRules || []).filter((rule) => !sameId(rule.empId, employeeId)),
+        employeeAvailabilityOverrides: (current.employeeAvailabilityOverrides || []).filter((rule) => !sameId(rule.empId, employeeId)),
+        employeePayProfiles: (current.employeePayProfiles || []).filter((profile) => !sameId(profile.empId || profile.employee_id, employeeId)),
+        schedule: Object.fromEntries(Object.entries(current.schedule || {}).map(([key, list]) => [key, list.filter((id) => !sameId(id, employeeId))])),
+        attendance: (current.attendance || []).filter((row) => !sameId(row.empId, employeeId)),
+        attendanceAlerts: (current.attendanceAlerts || []).filter((alert) => !sameId(alert.empId, employeeId)),
+        warningLetters: (current.warningLetters || []).filter((letter) => !sameId(letter.empId, employeeId)),
+        leaves: (current.leaves || []).filter((leave) => !sameId(leave.empId, employeeId)),
+        contracts: (current.contracts || []).filter((contract) => !sameId(contract.empId, employeeId)),
         leaveBalances
       };
     });
@@ -290,6 +317,7 @@ export function useEmployees({ data, user, currentBranch, setData, toast }) {
   return {
     activeEmployee,
     branches,
+    formBranches,
     employees,
     modalMode,
     showModal,

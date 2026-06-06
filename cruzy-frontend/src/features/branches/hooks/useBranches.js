@@ -23,7 +23,7 @@ export const regionColor = {
   default: 'bg-slate-100 text-slate-700'
 };
 
-export function useBranches() {
+export function useBranches({ onRefreshData } = {}) {
   const [branches, setBranches] = useState([]);
   const [regions, setRegions] = useState([]);
   const [modal, setModal] = useState(null);
@@ -93,9 +93,8 @@ export function useBranches() {
         push(`✅ เพิ่มสาขา ${form.code} สำเร็จ`);
       }
       
-      // Reload branches to ensure data consistency
-      const branchesRes = await branchesApi.getBranches();
-      setBranches(Array.isArray(branchesRes) ? branchesRes : []);
+      await loadData();
+      await onRefreshData?.();
       setModal(null);
     } catch (error) {
       push(error.message || 'เกิดข้อผิดพลาด', 'err');

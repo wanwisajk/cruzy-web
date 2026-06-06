@@ -8,7 +8,9 @@ const EMP_TYPE_LABELS = {
 
 const PAY_TYPE_LABELS = {
   monthly: 'รายเดือน',
-  daily: 'รายวัน'
+  daily: 'รายวัน',
+  daily_shift: 'รายวัน (คิดเงินต่อกะงาน)',
+  daily_full: 'รายวัน (เหมาเต็มวัน)'
 };
 
 const PAY_CYCLE_LABELS = {
@@ -52,7 +54,8 @@ function getPayProfile(employee) {
 
 function getWage(employee) {
   const pay = getPayProfile(employee);
-  if ((pay.payType || pay.pay_type || employee.payType) === 'daily') {
+  const payType = pay.payType || pay.pay_type || employee.payType;
+  if (payType === 'daily' || payType === 'daily_shift' || payType === 'daily_full') {
     return pay.daily_rate ?? pay.dailyRate ?? employee.dailyRate ?? employee.salary ?? 0;
   }
   return pay.monthly_salary ?? pay.monthlySalary ?? employee.monthlySalary ?? employee.salary ?? 0;

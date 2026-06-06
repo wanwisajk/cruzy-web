@@ -1,15 +1,23 @@
 import { useCallback, useEffect, useState } from 'react';
 import { scheduleService } from '../services/scheduleService.js';
 
+function normalizeScheduleMap(scheduleMap = {}) {
+  return Object.entries(scheduleMap || {}).reduce((acc, [key, employeeIds]) => {
+    acc[key] = [...new Set((employeeIds || []).map(String))];
+    return acc;
+  }, {});
+}
+
 export function useSchedule(initialSchedule = {}, setData) {
-  const [schedule, setSchedule] = useState(initialSchedule || {});
+  const [schedule, setSchedule] = useState(() => normalizeScheduleMap(initialSchedule));
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   const syncSchedule = useCallback((nextSchedule) => {
-    setSchedule(nextSchedule);
-    setData?.((current) => current ? ({ ...current, schedule: nextSchedule }) : current);
+    const normalized = normalizeScheduleMap(nextSchedule);
+    setSchedule(normalized);
+    setData?.((current) => current ? ({ ...current, schedule: normalized }) : current);
   }, [setData]);
 
   const fetchSchedule = useCallback(async () => {
@@ -33,13 +41,15 @@ export function useSchedule(initialSchedule = {}, setData) {
     setSaving(true);
     setError('');
     try {
-      await scheduleService.assignSchedule({ bid: branchId, date, eid: employeeId, shiftStart, shiftEnd });
+      const normalizedEmployeeId = String(employeeId);
+      await scheduleService.assignSchedule({ bid: branchId, date, eid: normalizedEmployeeId, shiftStart, shiftEnd });
       const key = `${branchId}_${date}`;
       let nextSchedule;
       setSchedule((current) => {
+        const currentEmployeeIds = (current[key] || []).map(String);
         nextSchedule = {
           ...current,
-          [key]: current[key]?.includes(employeeId) ? current[key] : [...(current[key] || []), employeeId]
+          [key]: currentEmployeeIds.includes(normalizedEmployeeId) ? currentEmployeeIds : [...currentEmployeeIds, normalizedEmployeeId]
         };
         setData?.((data) => data ? ({ ...data, schedule: nextSchedule }) : data);
         return nextSchedule;
@@ -57,13 +67,14 @@ export function useSchedule(initialSchedule = {}, setData) {
     setSaving(true);
     setError('');
     try {
-      await scheduleService.removeSchedule({ bid: branchId, date, eid: employeeId });
+      const normalizedEmployeeId = String(employeeId);
+      await scheduleService.removeSchedule({ bid: branchId, date, eid: normalizedEmployeeId });
       const key = `${branchId}_${date}`;
       let nextSchedule;
       setSchedule((current) => {
         nextSchedule = {
           ...current,
-          [key]: (current[key] || []).filter((id) => id !== employeeId)
+          [key]: (current[key] || []).map(String).filter((id) => id !== normalizedEmployeeId)
         };
         setData?.((data) => data ? ({ ...data, schedule: nextSchedule }) : data);
         return nextSchedule;
