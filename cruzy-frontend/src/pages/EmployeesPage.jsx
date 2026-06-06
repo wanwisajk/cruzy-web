@@ -71,6 +71,26 @@ function emptyAttendanceForm(date) {
   };
 }
 
+function emptyContractForm(startDate) {
+  return {
+    employeeId: '',
+    contractType: 'fulltime',
+    startDate,
+    endDate: startDate,
+    file: null
+  };
+}
+
+function contractToForm(contract, startDate) {
+  return {
+    employeeId: contract?.empId || '',
+    contractType: contract?.type || 'fulltime',
+    startDate: contract?.start || startDate,
+    endDate: contract?.end || contract?.start || startDate,
+    file: null
+  };
+}
+
 function mapAttendanceResponse(row) {
   return {
     id: String(row.id),
@@ -85,6 +105,42 @@ function mapAttendanceResponse(row) {
     breakOver: Boolean(row.is_break_over),
     branch: row.branch_id
   };
+}
+
+function mapContractResponse(row) {
+  return {
+    id: String(row.id),
+    empId: String(row.employee_id),
+    type: row.contract_type || row.type || 'fulltime',
+    label: row.label || row.contract_type || 'สัญญาจ้าง',
+    start: row.start_date || row.start,
+    end: row.end_date || row.end,
+    file: row.file_url || ''
+  };
+}
+
+function mapAttachmentResponse(row) {
+  return {
+    id: String(row.id),
+    entityType: row.entity_type || row.entityType,
+    entityId: String(row.entity_id || row.entityId),
+    fileUrl: row.file_url || row.fileUrl,
+    storageBucket: row.storage_bucket || row.storageBucket || null,
+    storagePath: row.storage_path || row.storagePath || null,
+    fileName: row.file_name || row.fileName || null,
+    fileType: row.file_type || row.fileType || null,
+    fileSize: row.file_size === null || row.file_size === undefined ? row.fileSize || null : Number(row.file_size),
+    createdAt: row.created_at || row.createdAt || null
+  };
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 function timeToMinutes(value) {
@@ -355,6 +411,11 @@ export default function EmployeesPage(props) {
   const [filterStatus, setFilterStatus] = useState('all');
   const [payCycleFilter, setPayCycleFilter] = useState('weekly');
   const [contractFilter, setContractFilter] = useState('all');
+  const [showContractForm, setShowContractForm] = useState(false);
+  const [contractForm, setContractForm] = useState(() => emptyContractForm(props.data.initialDate || fmtDate(new Date())));
+  const [editingContractId, setEditingContractId] = useState(null);
+  const [selectedContractId, setSelectedContractId] = useState(null);
+  const [contractSaving, setContractSaving] = useState(false);
   const [attendanceDate, setAttendanceDate] = useState(() => props.data.initialDate || fmtDate(new Date()));
   const [attendanceForm, setAttendanceForm] = useState(() => emptyAttendanceForm(props.data.initialDate || fmtDate(new Date())));
   const [attendanceSaving, setAttendanceSaving] = useState(false);
@@ -469,6 +530,9 @@ export default function EmployeesPage(props) {
       return matchEmployee && matchFilter;
     });
   }, [contracts, filteredEmployees, contractFilter]);
+  const selectedContract = useMemo(() => (
+    selectedContractId ? contracts.find((contract) => String(contract.id) === String(selectedContractId)) : null
+  ), [contracts, selectedContractId]);
 
   const attendanceSummary = useMemo(() => {
     return filteredEmployees.map((employee) => {
@@ -678,6 +742,130 @@ export default function EmployeesPage(props) {
     if (attendanceForm.id === row.id) resetAttendanceForm();
     props.toast?.('ลบข้อมูลเข้างานแล้ว');
   }
+
+  function setContractField(field) {
+    return (event) => setContractForm((current) => ({ ...current, [field]: event.target.value }));
+  }
+
+  function setContractFile(event) {
+    const file = event.target.files?.[0] || null;
+    if (file && file.type !== 'application/pdf') {
+      props.toast?.('รองรับเฉพาะไฟล์ PDF เท่านั้น');
+      event.target.value = '';
+      return;
+    }
+    setContractForm((current) => ({ ...current, file }));
+  }
+
+  function openContractForm() {
+    setContractForm(emptyContractForm(props.data.initialDate || fmtDate(new Date())));
+    setEditingContractId(null);
+    setShowContractForm(true);
+  }
+
+  function contractFiles(contract) {
+    if (!contract) return [];
+    const attachedFiles = (props.data.attachments || []).filter((file) => (
+      file.entityType === 'contract' && String(file.entityId) === String(contract.id)
+    ));
+    if (contract.file && !attachedFiles.some((file) => file.fileUrl === contract.file)) {
+      return [{ id: `contract_${contract.id}_file`, fileUrl: contract.file, entityType: 'contract', entityId: String(contract.id) }, ...attachedFiles];
+    }
+    return attachedFiles;
+  }
+
+  function primaryContractFile(contract) {
+    const files = contractFiles(contract);
+    return files[files.length - 1] || null;
+  }
+
+  function employeeForContract(contract) {
+    return filteredEmployees.find((emp) => emp.id === contract?.empId) || allEmployees.find((emp) => emp.id === contract?.empId);
+  }
+
+  function editContract(contract) {
+    setEditingContractId(contract.id);
+    setContractForm(contractToForm(contract, props.data.initialDate || fmtDate(new Date())));
+    setShowContractForm(true);
+    setSelectedContractId(null);
+  }
+
+  async function saveContract(event) {
+    event.preventDefault();
+    if (!contractForm.employeeId || !contractForm.contractType || !contractForm.startDate || !contractForm.endDate) {
+      props.toast?.('กรุณากรอกข้อมูลสัญญาจ้างให้ครบ');
+      return;
+    }
+
+    setContractSaving(true);
+    try {
+      const payload = {
+        employeeId: contractForm.employeeId,
+        contractType: contractForm.contractType,
+        startDate: contractForm.startDate,
+        endDate: contractForm.endDate
+      };
+      const result = editingContractId
+        ? await api.updateContract(editingContractId, payload)
+        : await api.createContract(payload);
+      const saved = mapContractResponse(result.data);
+      let savedAttachment = null;
+      if (contractForm.file) {
+        try {
+          const fileData = await fileToDataUrl(contractForm.file);
+          const upload = await api.uploadAttachment({
+            entityType: 'contract',
+            entityId: saved.id,
+            fileName: contractForm.file.name,
+            fileData
+          });
+          savedAttachment = mapAttachmentResponse(upload.data);
+          saved.file = savedAttachment.fileUrl;
+        } catch (uploadError) {
+          props.toast?.(uploadError.message || 'เพิ่มสัญญาแล้ว แต่อัปโหลดไฟล์ไม่สำเร็จ');
+        }
+      }
+      props.setData?.((current) => ({
+        ...current,
+        contracts: editingContractId
+          ? (current.contracts || []).map((contract) => String(contract.id) === String(saved.id) ? { ...contract, ...saved } : contract)
+          : [...(current.contracts || []), saved],
+        attachments: savedAttachment ? [...(current.attachments || []), savedAttachment] : (current.attachments || [])
+      }));
+      setShowContractForm(false);
+      setEditingContractId(null);
+      props.toast?.(savedAttachment || !contractForm.file ? (editingContractId ? 'อัปเดตสัญญาจ้างแล้ว' : 'เพิ่มสัญญาจ้างแล้ว') : 'บันทึกสัญญาจ้างแล้ว แต่ยังไม่มีไฟล์ PDF');
+    } catch (error) {
+      props.toast?.(error.message || 'บันทึกสัญญาจ้างไม่สำเร็จ');
+    } finally {
+      setContractSaving(false);
+    }
+  }
+
+  async function deleteContract(contract) {
+    const employee = employeeForContract(contract);
+    const ok = window.confirm(`ลบสัญญาจ้างของ ${employee?.name || contract.empId} ใช่ไหม?`);
+    if (!ok) return;
+    try {
+      const files = contractFiles(contract).filter((file) => !String(file.id).startsWith('contract_'));
+      await Promise.all(files.map((file) => api.deleteAttachment(file.id)));
+      await api.deleteContract(contract.id);
+      props.setData?.((current) => ({
+        ...current,
+        contracts: (current.contracts || []).filter((item) => String(item.id) !== String(contract.id)),
+        attachments: (current.attachments || []).filter((file) => !(file.entityType === 'contract' && String(file.entityId) === String(contract.id)))
+      }));
+      setSelectedContractId(null);
+      props.toast?.('ลบสัญญาจ้างแล้ว');
+    } catch (error) {
+      props.toast?.(error.message || 'ลบสัญญาจ้างไม่สำเร็จ');
+    }
+  }
+
+  const selectedContractEmployee = employeeForContract(selectedContract);
+  const selectedContractFiles = contractFiles(selectedContract);
+  const selectedContractFile = selectedContractFiles[selectedContractFiles.length - 1] || null;
+  const selectedContractFileUrl = selectedContractFile?.fileUrl || selectedContract?.file;
 
   return (
     <div className="min-h-screen bg-gray-50/50 font-sans antialiased text-gray-600">
@@ -901,31 +1089,111 @@ export default function EmployeesPage(props) {
 
         {activeTab === 'contracts' && (
           <div className="space-y-4">
-            <div className="flex gap-2 border-b border-gray-100 pb-2">
-              {['all', 'fulltime', 'parttime', 'freelance'].map((type) => (
-                <button
-                  key={type}
-                  type="button"
-                  onClick={() => setContractFilter(type)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${contractFilter === type ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-                >
-                  {type === 'all' ? 'ทั้งหมด' : statusLabel(type)}
-                </button>
-              ))}
+            <div className="flex flex-col gap-3 border-b border-gray-100 pb-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex gap-2 overflow-x-auto">
+                {['all', 'fulltime', 'parttime', 'freelance'].map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => setContractFilter(type)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap ${contractFilter === type ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                  >
+                    {type === 'all' ? 'ทั้งหมด' : statusLabel(type)}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={openContractForm}
+                className="px-3 py-2 rounded-lg bg-emerald-700 text-white text-xs font-bold hover:bg-emerald-800"
+              >
+                เพิ่มสัญญาจ้าง
+              </button>
             </div>
+
+            {showContractForm && (
+              <form onSubmit={saveContract} className="bg-white rounded-xl border border-emerald-100 shadow-sm p-4">
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-900">{editingContractId ? 'แก้ไขสัญญาจ้าง' : 'เพิ่มสัญญาจ้างใหม่'}</h3>
+                    <p className="text-2xs text-gray-400 mt-0.5">บันทึกข้อมูลสัญญาและแนบไฟล์ PDF ไปยัง Supabase Storage</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <label className="text-xs font-bold text-gray-500">
+                    พนักงาน
+                    <select value={contractForm.employeeId} onChange={setContractField('employeeId')} className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-xs outline-none focus:border-emerald-500">
+                      <option value="">เลือกพนักงาน</option>
+                      {filteredEmployees.map((employee) => (
+                        <option key={employee.id} value={employee.id}>{employee.name} ({employee.nickname || employee.id})</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-xs font-bold text-gray-500">
+                    ประเภทสัญญา
+                    <select value={contractForm.contractType} onChange={setContractField('contractType')} className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-xs outline-none focus:border-emerald-500">
+                      <option value="fulltime">Full time ประจำ</option>
+                      <option value="parttime">Part time</option>
+                      <option value="freelance">Freelance</option>
+                    </select>
+                  </label>
+                  <label className="text-xs font-bold text-gray-500">
+                    วันที่เริ่ม
+                    <input type="date" value={contractForm.startDate} onChange={setContractField('startDate')} className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-xs outline-none focus:border-emerald-500" />
+                  </label>
+                  <label className="text-xs font-bold text-gray-500">
+                    วันที่สิ้นสุด
+                    <input type="date" value={contractForm.endDate} onChange={setContractField('endDate')} className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-xs outline-none focus:border-emerald-500" />
+                  </label>
+                  <label className="text-xs font-bold text-gray-500 md:col-span-4">
+                    ไฟล์สัญญา PDF
+                    <input type="file" accept="application/pdf" onChange={setContractFile} className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-xs outline-none file:mr-3 file:rounded-md file:border-0 file:bg-emerald-50 file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-emerald-700" />
+                  </label>
+                </div>
+                <div className="mt-4 flex justify-end gap-2">
+                  <button type="button" onClick={() => { setShowContractForm(false); setEditingContractId(null); }} className="px-4 py-2 rounded-lg bg-gray-100 text-gray-600 text-xs font-bold">
+                    ยกเลิก
+                  </button>
+                  <button type="submit" disabled={contractSaving} className="px-4 py-2 rounded-lg bg-emerald-700 text-white text-xs font-bold disabled:bg-emerald-300">
+                    {contractSaving ? 'กำลังบันทึก...' : editingContractId ? 'อัปเดตสัญญา' : 'บันทึกสัญญา'}
+                  </button>
+                </div>
+              </form>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {contractRows.map((contract) => {
-                const employee = filteredEmployees.find((emp) => emp.id === contract.empId);
+                const employee = employeeForContract(contract);
+                const contractFile = primaryContractFile(contract);
+                const fileUrl = contractFile?.fileUrl || contract.file;
                 return (
-                  <div key={contract.id} className="bg-white border border-gray-100 rounded-xl p-4 shadow-2xs flex items-center justify-between">
-                    <div>
-                      <h4 className="font-bold text-sm text-gray-800">{contract.label || 'สัญญาจ้าง'}</h4>
-                      <p className="text-2xs text-gray-400">พนักงาน: {employee?.name || '—'} · ประเภท: {contract.type}</p>
-                      <p className="text-xs text-gray-500 mt-1">ระยะเวลา: {thDate(contract.start)} ถึง {thDate(contract.end)}</p>
+                  <div key={contract.id} className="bg-white border border-gray-100 rounded-xl p-4 shadow-2xs space-y-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <h4 className="font-bold text-sm text-gray-800">{contract.label || 'สัญญาจ้าง'}</h4>
+                        <p className="text-2xs text-gray-400">พนักงาน: {employee?.name || '—'} · ประเภท: {statusLabel(contract.type)}</p>
+                        <p className="text-xs text-gray-500 mt-1">ระยะเวลา: {thDate(contract.start)} ถึง {thDate(contract.end)}</p>
+                      </div>
+                      <span className={`text-2xs px-2 py-1 rounded-full font-bold ${fileUrl ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                        {fileUrl ? 'มีไฟล์ PDF' : 'ยังไม่มีไฟล์'}
+                      </span>
                     </div>
-                    <div className="text-xs bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-lg font-bold border border-emerald-100">
-                      📂 {contract.file ? 'เปิดไฟล์' : 'ไม่มีไฟล์'}
+                    <div className="h-28 rounded-lg border border-gray-100 bg-gray-50 overflow-hidden flex items-center justify-center">
+                      {fileUrl ? (
+                        <iframe title={`contract-${contract.id}`} src={`${fileUrl}#toolbar=0&navpanes=0`} className="h-40 w-full pointer-events-none bg-white" />
+                      ) : (
+                        <div className="text-xs text-gray-400 font-semibold">ไม่มีไฟล์ PDF สำหรับ preview</div>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      {fileUrl ? (
+                        <a href={fileUrl} target="_blank" rel="noreferrer" className="px-3 py-1.5 rounded-lg bg-gray-900 text-white text-xs font-bold hover:bg-gray-800">
+                          เปิดไฟล์
+                        </a>
+                      ) : null}
+                      <button type="button" onClick={() => setSelectedContractId(contract.id)} className="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-100 hover:bg-emerald-100">
+                        ดูรายละเอียด
+                      </button>
                     </div>
                   </div>
                 );
@@ -1143,6 +1411,86 @@ export default function EmployeesPage(props) {
           </div>
         )}
       </div>
+
+      {selectedContract ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
+          <div className="bg-white w-full max-w-5xl rounded-xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
+            <div className="p-5 border-b border-gray-100 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <div className="text-2xs font-bold text-emerald-700 uppercase tracking-wide">รายละเอียดสัญญาจ้าง</div>
+                <h2 className="text-base font-bold text-gray-900 mt-1">{selectedContract.label || 'สัญญาจ้าง'}</h2>
+                <p className="text-xs text-gray-400 mt-1">
+                  {selectedContractEmployee?.name || selectedContract.empId} · {statusLabel(selectedContract.type)} · {thDate(selectedContract.start)} ถึง {thDate(selectedContract.end)}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {selectedContractFileUrl ? (
+                  <a href={selectedContractFileUrl} target="_blank" rel="noreferrer" className="px-3 py-1.5 rounded-lg bg-gray-900 text-white text-xs font-bold hover:bg-gray-800">
+                    เปิดไฟล์อีกหน้า
+                  </a>
+                ) : null}
+                <button type="button" onClick={() => editContract(selectedContract)} className="px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-xs font-bold hover:bg-blue-100">
+                  แก้ไข
+                </button>
+                <button type="button" onClick={() => deleteContract(selectedContract)} className="px-3 py-1.5 rounded-lg bg-red-50 text-red-700 text-xs font-bold hover:bg-red-100">
+                  ลบ
+                </button>
+                <button type="button" onClick={() => setSelectedContractId(null)} className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 text-xs font-bold hover:bg-gray-200">
+                  ปิด
+                </button>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] min-h-0 overflow-y-auto">
+              <div className="border-b lg:border-b-0 lg:border-r border-gray-100 p-5 space-y-3 bg-gray-50/60">
+                <div className="bg-white border border-gray-100 rounded-lg p-3">
+                  <div className="text-2xs text-gray-400 font-bold mb-1">พนักงาน</div>
+                  <div className="text-sm font-bold text-gray-900">{selectedContractEmployee?.name || selectedContract.empId}</div>
+                  <div className="text-xs text-gray-400">{selectedContractEmployee?.nickname || selectedContractEmployee?.position || '-'}</div>
+                </div>
+                <div className="bg-white border border-gray-100 rounded-lg p-3">
+                  <div className="text-2xs text-gray-400 font-bold mb-1">ประเภท</div>
+                  <div className="text-sm font-bold text-gray-900">{statusLabel(selectedContract.type)}</div>
+                </div>
+                <div className="bg-white border border-gray-100 rounded-lg p-3">
+                  <div className="text-2xs text-gray-400 font-bold mb-1">ช่วงสัญญา</div>
+                  <div className="text-sm font-bold text-gray-900">{thDate(selectedContract.start)} - {thDate(selectedContract.end)}</div>
+                </div>
+                <div className="bg-white border border-gray-100 rounded-lg p-3">
+                  <div className="text-2xs text-gray-400 font-bold mb-2">ไฟล์แนบ</div>
+                  {selectedContractFiles.length ? (
+                    <div className="space-y-2">
+                      {selectedContractFiles.map((file, index) => (
+                        <a
+                          key={file.id || `${file.fileUrl}_${index}`}
+                          href={file.fileUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="block rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100"
+                        >
+                          {file.fileName || `ไฟล์สัญญา ${index + 1}`}
+                        </a>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-gray-400">ยังไม่มีไฟล์ PDF</div>
+                  )}
+                </div>
+              </div>
+              <div className="p-5 bg-gray-100 min-h-[520px]">
+                <div className="h-full min-h-[500px] rounded-xl border border-gray-200 bg-white overflow-hidden shadow-inner">
+                  {selectedContractFileUrl ? (
+                    <iframe title={`contract-detail-${selectedContract.id}`} src={selectedContractFileUrl} className="w-full h-full min-h-[500px] bg-white" />
+                  ) : (
+                    <div className="h-full min-h-[500px] flex items-center justify-center text-sm font-semibold text-gray-400">
+                      ไม่มีไฟล์ PDF ให้ preview
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {employees.showModal && employees.modalMode !== 'view' ? (
         <EmployeeFormModal

@@ -5,6 +5,7 @@ const router = express.Router();
 
 router.get('/', controller.listAttachments);
 router.post('/', controller.createAttachment);
+router.post('/upload', controller.uploadAttachment);
 router.post('/bulk', controller.createAttachments);
 router.delete('/:id', controller.deleteAttachment);
 

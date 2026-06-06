@@ -405,6 +405,11 @@ function mapAttachmentRow(row) {
     entityType: row.entity_type,
     entityId: String(row.entity_id),
     fileUrl: row.file_url,
+    storageBucket: row.storage_bucket || null,
+    storagePath: row.storage_path || null,
+    fileName: row.file_name || null,
+    fileType: row.file_type || null,
+    fileSize: row.file_size === null || row.file_size === undefined ? null : Number(row.file_size),
     createdAt: row.created_at || null
   };
 }

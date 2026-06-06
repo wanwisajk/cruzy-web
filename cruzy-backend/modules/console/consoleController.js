@@ -11,7 +11,8 @@ const OPTIONAL_KEYS = [
   'branchStaffingRules',
   'leaveBalances',
   'salesLogs',
-  'attachments'
+  'attachments',
+  'systemAuditLogs'
 ];
 
 exports.getConsoleData = async (_req, res) => {

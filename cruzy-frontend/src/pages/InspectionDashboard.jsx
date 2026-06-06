@@ -10,9 +10,47 @@ function formatBadge(status) {
   return 'bg-slate-100 text-slate-700';
 }
 
-function formatLateLabel(isLate) {
-  if (isLate) return { label: 'เปิดสาย', tone: 'bg-orange-50 text-orange-700' };
-  return { label: 'ตรงเวลา', tone: 'bg-emerald-50 text-emerald-700' };
+const DAY_NUMBER_TO_KEY = { 1: 'จ', 2: 'อ', 3: 'พ', 4: 'พฤ', 5: 'ศ', 6: 'ส', 0: 'อา' };
+
+function timeToMinutes(value) {
+  if (!value) return null;
+  const [hours, minutes] = String(value).slice(0, 5).split(':').map(Number);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+  return (hours * 60) + minutes;
+}
+
+function branchOpeningTime(branch, date) {
+  const day = new Date(`${date}T00:00:00`).getDay();
+  const dayKey = DAY_NUMBER_TO_KEY[day];
+  return branch?.hours?.[dayKey] || '10:00';
+}
+
+function openingStatusFor(item, branch, date) {
+  if (!item) {
+    return {
+      label: 'ยังไม่เปิด',
+      detail: '-',
+      targetTime: branchOpeningTime(branch, date),
+      lateMinutes: 0,
+      tone: 'bg-slate-100 text-slate-500 border-slate-200',
+      dot: 'bg-slate-300'
+    };
+  }
+
+  const targetTime = branchOpeningTime(branch, date);
+  const submitMinutes = timeToMinutes(item.submit_time);
+  const targetMinutes = timeToMinutes(targetTime);
+  const computedLateMinutes = submitMinutes === null || targetMinutes === null ? Number(item.late_minutes || 0) : Math.max(0, submitMinutes - targetMinutes);
+  const isLate = computedLateMinutes > 0;
+
+  return {
+    label: isLate ? 'เปิดสาย' : 'เปิดแล้ว',
+    detail: item.submit_time || '-',
+    targetTime,
+    lateMinutes: computedLateMinutes,
+    tone: isLate ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    dot: isLate ? 'bg-orange-500' : 'bg-emerald-500'
+  };
 }
 
 function formatInspectionItem(item) {
@@ -40,6 +78,20 @@ function rangeDays(from, to) {
     current.setDate(current.getDate() + 1);
   }
   return dates;
+}
+
+function filesToDataUrls(fileList) {
+  const files = Array.from(fileList || []).filter((file) => file.type.startsWith('image/'));
+  return Promise.all(files.map((file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  })));
+}
+
+function attachmentUrl(attachment) {
+  return attachment?.file_url || attachment?.fileUrl || '';
 }
 
 function SearchInput({ value, onChange }) {
@@ -77,6 +129,15 @@ export default function InspectionDashboard({ user, from, to }) {
   const [activeTab, setActiveTab] = useState('opening');
   const [branchFilter, setBranchFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [openingForm, setOpeningForm] = useState(() => ({
+    branchId: '',
+    workDate: from || new Date().toISOString().slice(0, 10),
+    submitTime: new Date().toTimeString().slice(0, 5),
+    submittedBy: '',
+    note: '',
+    images: []
+  }));
+  const [imagePreview, setImagePreview] = useState(null);
   const {
     branches,
     employees,
@@ -96,6 +157,7 @@ export default function InspectionDashboard({ user, from, to }) {
     loadAllData,
     openInspectionDetail,
     saveReview,
+    saveOpeningInspection,
     saveSettings,
     setDetailOpen,
     setSettingsEdit
@@ -151,13 +213,17 @@ export default function InspectionDashboard({ user, from, to }) {
 
   const summaryCounts = useMemo(() => {
     const trimmed = enrichedInspections.filter((item) => visibleBranches.some((branch) => branch.id === item.branch_id) && rangeDates.includes(item.work_date));
+    const late = trimmed.filter((item) => {
+      const branch = branchMap[item.branch_id];
+      return openingStatusFor(item, branch, item.work_date).lateMinutes > 0;
+    }).length;
     return {
       opened: trimmed.length,
-      late: trimmed.filter((item) => item.is_late).length,
-      onTime: trimmed.filter((item) => !item.is_late).length,
+      late,
+      onTime: trimmed.length - late,
       missing: missingCount,
     };
-  }, [enrichedInspections, visibleBranches, rangeDates, missingCount]);
+  }, [enrichedInspections, visibleBranches, rangeDates, missingCount, branchMap]);
 
   const branchSummary = useMemo(
     () =>
@@ -177,13 +243,99 @@ export default function InspectionDashboard({ user, from, to }) {
     [enrichedInspections, visibleBranches, rangeDates]
   );
 
+  const openingBranches = useMemo(() => {
+    if (!searchValue) return visibleBranches;
+    return visibleBranches.filter((branch) => {
+      const branchName = branch.name?.toLowerCase() || '';
+      const branchCode = branch.code?.toLowerCase() || '';
+      return branchName.includes(searchValue) || branchCode.includes(searchValue);
+    });
+  }, [visibleBranches, searchValue]);
+
+  const openingInspectionMap = useMemo(() => {
+    const map = {};
+    enrichedInspections
+      .filter((item) => rangeDates.includes(item.work_date))
+      .slice()
+      .sort((a, b) => String(a.submit_time || '').localeCompare(String(b.submit_time || '')))
+      .forEach((item) => {
+        const key = `${item.branch_id}|${item.work_date}`;
+        if (!map[key]) map[key] = item;
+      });
+    return map;
+  }, [enrichedInspections, rangeDates]);
+
   const detailBranch = branchMap[detailInspection?.branch_id] || {};
   const detailEmployee = employeeMap[detailInspection?.submitted_by] || { name: detailInspection?.submitted_by || '-' };
+  const detailOpeningMeta = detailInspection ? openingStatusFor(detailInspection, detailBranch, detailInspection.work_date) : null;
+  const detailAttachments = detailInspection?.attachments || [];
+  const filteredLogs = useMemo(() => {
+    if (!searchValue) return logs;
+    return logs.filter((log) => {
+      const values = [
+        log.page,
+        log.tableName,
+        log.action,
+        log.description,
+        log.actor,
+        log.subject,
+        log.branch,
+        log.source,
+      ];
+      return values.some((value) => String(value || '').toLowerCase().includes(searchValue));
+    });
+  }, [logs, searchValue]);
 
   const currentSettingsMap = useMemo(
     () => Object.fromEntries(settings.map((setting) => [setting.branch_id, setting])),
     [settings]
   );
+
+  const openingFormBranch = branchMap[openingForm.branchId];
+  const openingFormTargetTime = openingFormBranch ? branchOpeningTime(openingFormBranch, openingForm.workDate) : '10:00';
+  const openingFormLateMinutes = useMemo(() => {
+    const submitMinutes = timeToMinutes(openingForm.submitTime);
+    const targetMinutes = timeToMinutes(openingFormTargetTime);
+    if (submitMinutes === null || targetMinutes === null) return 0;
+    return Math.max(0, submitMinutes - targetMinutes);
+  }, [openingForm.submitTime, openingFormTargetTime]);
+
+  function setOpeningField(field) {
+    return (event) => setOpeningForm((current) => ({ ...current, [field]: event.target.value }));
+  }
+
+  async function setOpeningImages(event) {
+    const images = await filesToDataUrls(event.target.files);
+    setOpeningForm((current) => ({ ...current, images }));
+  }
+
+  async function submitOpeningForm(event) {
+    event.preventDefault();
+    const formElement = event.currentTarget;
+    if (!openingForm.branchId || !openingForm.workDate || !openingForm.submitTime) {
+      return;
+    }
+    const payload = {
+      branch_id: openingForm.branchId,
+      work_date: openingForm.workDate,
+      submit_time: openingForm.submitTime,
+      submitted_by: openingForm.submittedBy || null,
+      status: 'pending',
+      inspection_items: [{ label: 'เปิดร้าน', passed: true, value: openingForm.note || 'บันทึกเปิดร้าน' }],
+      manager_note: openingForm.note || null,
+      is_late: openingFormLateMinutes > 0,
+      late_minutes: openingFormLateMinutes,
+      score: 0,
+      photo_count: openingForm.images.length
+    };
+    await saveOpeningInspection(payload, openingForm.images);
+    setOpeningForm((current) => ({
+      ...current,
+      note: '',
+      images: []
+    }));
+    formElement.reset();
+  }
 
   return (
     <div className="space-y-4 p-4 sm:p-6">
@@ -249,11 +401,11 @@ export default function InspectionDashboard({ user, from, to }) {
       <div className="overflow-x-auto rounded-3xl bg-white p-3 shadow-sm">
         <div className="flex flex-wrap gap-2">
           {[
-            { id: 'opening', label: '🏪 เปิดร้าน' },
-            { id: 'summary', label: '📊 ภาพรวมสาขา' },
-            { id: 'detail', label: '📋 รายละเอียด' },
-            { id: 'config', label: '⚙️ ตั้งค่าตรวจ' },
-            { id: 'log', label: '📝 ประวัติ Log' },
+            { id: 'opening', label: 'เปิดร้าน' },
+            { id: 'summary', label: 'ภาพรวมสาขา' },
+            { id: 'detail', label: 'รายละเอียด' },
+            { id: 'config', label: 'ตั้งค่าตรวจ' },
+            { id: 'log', label: 'Log' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -281,47 +433,139 @@ export default function InspectionDashboard({ user, from, to }) {
         <div className="space-y-4">
           {activeTab === 'opening' && (
             <div className="space-y-4">
+              <form onSubmit={submitOpeningForm} className="rounded-3xl border border-emerald-100 bg-white p-4 shadow-sm">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <div className="text-sm font-bold text-slate-900">บันทึกเปิดร้าน</div>
+                    <div className="mt-1 text-xs text-slate-500">กรอกเวลาเปิดร้าน แนบรูปได้หลายรูป แล้วระบบจะเทียบเวลาเปิดตามสาขาและวันให้อัตโนมัติ</div>
+                  </div>
+                  <div className={`rounded-2xl border px-3 py-2 text-xs font-bold ${openingFormLateMinutes > 0 ? 'border-orange-200 bg-orange-50 text-orange-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
+                    เวลาเปิดสาขา {openingFormTargetTime} · {openingFormLateMinutes > 0 ? `สาย ${openingFormLateMinutes} นาที` : 'ตรงเวลา'}
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-5">
+                  <label className="text-xs font-bold text-slate-500">
+                    สาขา
+                    <select value={openingForm.branchId} onChange={setOpeningField('branchId')} className="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-emerald-500">
+                      <option value="">เลือกสาขา</option>
+                      {branches.map((branch) => (
+                        <option key={branch.id} value={branch.id}>{branch.code} - {branch.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-xs font-bold text-slate-500">
+                    วันที่
+                    <input type="date" value={openingForm.workDate} onChange={setOpeningField('workDate')} className="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-emerald-500" />
+                  </label>
+                  <label className="text-xs font-bold text-slate-500">
+                    เวลาเปิดจริง
+                    <input type="time" value={openingForm.submitTime} onChange={setOpeningField('submitTime')} className="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-emerald-500" />
+                  </label>
+                  <label className="text-xs font-bold text-slate-500">
+                    ผู้เปิดร้าน
+                    <select value={openingForm.submittedBy} onChange={setOpeningField('submittedBy')} className="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-emerald-500">
+                      <option value="">ไม่ระบุ</option>
+                      {employees.map((employee) => (
+                        <option key={employee.id} value={employee.id}>{employee.name}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-xs font-bold text-slate-500">
+                    รูปเปิดร้าน
+                    <input type="file" accept="image/*" multiple onChange={setOpeningImages} className="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none file:mr-2 file:rounded-lg file:border-0 file:bg-emerald-50 file:px-2 file:py-1 file:text-xs file:font-bold file:text-emerald-700" />
+                  </label>
+                </div>
+
+                <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_auto]">
+                  <label className="text-xs font-bold text-slate-500">
+                    หมายเหตุ
+                    <input type="text" value={openingForm.note} onChange={setOpeningField('note')} placeholder="เช่น เปิดร้านเรียบร้อย ถ่ายรูปหน้าร้าน/เคาน์เตอร์แล้ว" className="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-emerald-500" />
+                  </label>
+                  <div className="flex items-end">
+                    <button type="submit" disabled={savingReview || !openingForm.branchId || !openingForm.workDate || !openingForm.submitTime} className="w-full rounded-2xl bg-[#1B5E20] px-4 py-2 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 lg:w-auto">
+                      {savingReview ? 'กำลังบันทึก...' : 'บันทึกเปิดร้าน'}
+                    </button>
+                  </div>
+                </div>
+
+                {openingForm.images.length ? (
+                  <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+                    {openingForm.images.map((image, index) => (
+                      <div key={`${image.slice(0, 24)}_${index}`} className="aspect-square overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+                        <img src={image} alt={`opening-${index + 1}`} className="h-full w-full object-cover" />
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </form>
+
               {summaryCounts.missing ? (
                 <div className="rounded-3xl bg-[#FFF4E5] p-4 text-sm text-[#B45309] shadow-sm">📭 มี {summaryCounts.missing} สาขา×วัน ที่ยังไม่มีรายการตรวจร้าน</div>
               ) : null}
-              <div className="overflow-hidden rounded-3xl border border-slate-200 shadow-sm">
-                <table className="min-w-full border-collapse text-sm">
-                  <thead className="bg-slate-50 text-slate-500">
-                    <tr>
-                      <th className="whitespace-nowrap px-4 py-3 text-left">วันที่</th>
-                      <th className="whitespace-nowrap px-4 py-3 text-left">สาขา</th>
-                      <th className="whitespace-nowrap px-4 py-3 text-left">ผู้ส่ง</th>
-                      <th className="whitespace-nowrap px-4 py-3 text-left">เวลาเปิด</th>
-                      <th className="whitespace-nowrap px-4 py-3 text-left">สถานะ</th>
-                      <th className="whitespace-nowrap px-4 py-3 text-left">เปิดสาย</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredInspections.length ? (
-                      filteredInspections.map((item) => {
-                        const lateMeta = formatLateLabel(item.is_late);
-                        return (
-                          <tr key={item.id} className="border-b last:border-b-0 hover:bg-slate-50">
-                            <td className="px-4 py-3">{thaiShortDate(item.work_date)}</td>
-                            <td className="px-4 py-3 font-semibold text-slate-900">{item.branch.code}</td>
-                            <td className="px-4 py-3">{item.employee.name}</td>
-                            <td className="px-4 py-3">{item.submit_time || '-'}</td>
-                            <td className="px-4 py-3">
-                              <span className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold ${formatBadge(item.status)}`}>{item.status || 'pending'}</span>
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold ${lateMeta.tone}`}>{lateMeta.label}</span>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    ) : (
+              <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+                <div className="border-b border-slate-100 px-4 py-3">
+                  <div className="text-sm font-bold text-slate-900">📅 สถานะเปิดร้าน × สาขา</div>
+                  <div className="mt-1 text-xs text-slate-500">ข้อมูลจาก DB ตาราง store_inspections: เวลาเปิด, เปิดสาย, หรือยังไม่เปิด</div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full border-collapse text-sm">
+                    <thead className="bg-slate-50 text-slate-500">
                       <tr>
-                        <td colSpan="6" className="px-4 py-8 text-center text-slate-500">ยังไม่มีข้อมูลการตรวจร้าน</td>
+                        <th className="sticky left-0 z-10 min-w-[180px] border-r border-slate-200 bg-slate-50 px-4 py-3 text-left">สาขา</th>
+                        {rangeDates.map((date) => (
+                          <th key={date} className="min-w-[150px] whitespace-nowrap px-3 py-3 text-center">
+                            <div className="font-bold text-slate-700">{thaiShortDate(date)}</div>
+                            <div className="mt-0.5 text-[10px] font-medium text-slate-400">{date}</div>
+                          </th>
+                        ))}
                       </tr>
-                    )}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {openingBranches.length && rangeDates.length ? (
+                        openingBranches.map((branch) => (
+                          <tr key={branch.id} className="border-t border-slate-100 hover:bg-slate-50/60">
+                            <td className="sticky left-0 z-10 border-r border-slate-200 bg-white px-4 py-3">
+                              <div className="font-bold text-slate-900">{branch.code}</div>
+                              <div className="mt-0.5 max-w-[150px] truncate text-xs text-slate-500">{branch.name}</div>
+                            </td>
+                            {rangeDates.map((date) => {
+                              const item = openingInspectionMap[`${branch.id}|${date}`];
+                              const meta = openingStatusFor(item, branch, date);
+                              return (
+                                <td key={`${branch.id}_${date}`} className="px-3 py-3 align-top">
+                                  <button
+                                    type="button"
+                                    onClick={() => item ? openInspectionDetail(item.id) : undefined}
+                                    className={`w-full rounded-2xl border px-3 py-2 text-left transition ${meta.tone} ${item ? 'hover:shadow-sm' : 'cursor-default'}`}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <span className={`h-2 w-2 rounded-full ${meta.dot}`} />
+                                      <span className="text-xs font-bold">{meta.label}</span>
+                                    </div>
+                                    <div className="mt-1 text-lg font-black leading-none">{meta.detail}</div>
+                                    <div className="mt-1 text-[10px] font-semibold opacity-80">เวลาเปิดสาขา {meta.targetTime}</div>
+                                    {meta.lateMinutes ? (
+                                      <div className="mt-0.5 text-[10px] font-semibold opacity-80">สาย {meta.lateMinutes} นาที</div>
+                                    ) : item?.employee?.name ? (
+                                      <div className="mt-0.5 truncate text-[10px] font-semibold opacity-80">{item.employee.name}</div>
+                                    ) : (
+                                      <div className="mt-0.5 text-[10px] font-semibold opacity-70">ไม่มีข้อมูลเปิดร้าน</div>
+                                    )}
+                                  </button>
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={Math.max(1, rangeDates.length + 1)} className="px-4 py-8 text-center text-slate-500">ยังไม่มีข้อมูลสาขาหรือช่วงวันที่สำหรับแสดงตารางเปิดร้าน</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
@@ -474,31 +718,49 @@ export default function InspectionDashboard({ user, from, to }) {
 
           {activeTab === 'log' && (
             <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex flex-col gap-2 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="text-sm font-bold text-slate-900">Activity Log รวมทุกหน้า</div>
+                  <div className="mt-1 text-xs text-slate-500">ดึงจาก DB จริง: พนักงาน, ค่าคอม, แจ้งเตือน, วันลา, ยอดขาย, หนังสือเตือน และตรวจร้าน</div>
+                </div>
+                <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">{filteredLogs.length.toLocaleString('th-TH')} รายการ</div>
+              </div>
               <div className="overflow-x-auto">
                 <table className="min-w-full border-collapse text-sm">
                   <thead className="bg-slate-50 text-slate-500">
                     <tr>
                       <th className="whitespace-nowrap px-4 py-3 text-left">วันเวลา</th>
-                      <th className="whitespace-nowrap px-4 py-3 text-left">ผู้ใช้งาน</th>
+                      <th className="whitespace-nowrap px-4 py-3 text-left">หน้า</th>
+                      <th className="whitespace-nowrap px-4 py-3 text-left">ตาราง</th>
                       <th className="whitespace-nowrap px-4 py-3 text-left">Action</th>
-                      <th className="whitespace-nowrap px-4 py-3 text-left">Description</th>
+                      <th className="whitespace-nowrap px-4 py-3 text-left">รายละเอียด</th>
+                      <th className="whitespace-nowrap px-4 py-3 text-left">ผู้เกี่ยวข้อง</th>
+                      <th className="whitespace-nowrap px-4 py-3 text-left">สาขา</th>
                       <th className="whitespace-nowrap px-4 py-3 text-left">Source</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {logs.length ? (
-                      logs.map((log) => (
+                    {filteredLogs.length ? (
+                      filteredLogs.map((log) => (
                         <tr key={log.id} className="border-b last:border-b-0 hover:bg-slate-50">
-                          <td className="px-4 py-3">{log.created_at ? new Date(log.created_at).toLocaleString('th-TH') : '-'}</td>
-                          <td className="px-4 py-3">{log.user_name || '-'}</td>
-                          <td className="px-4 py-3 capitalize">{log.action}</td>
-                          <td className="px-4 py-3">{log.description || '-'}</td>
-                          <td className="px-4 py-3">{log.source || '-'}</td>
+                          <td className="whitespace-nowrap px-4 py-3 text-slate-600">{log.created_at ? new Date(log.created_at).toLocaleString('th-TH') : '-'}</td>
+                          <td className="px-4 py-3">
+                            <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">{log.page || '-'}</span>
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-slate-500">{log.tableName || '-'}</td>
+                          <td className="whitespace-nowrap px-4 py-3 font-semibold text-slate-900">{log.action || '-'}</td>
+                          <td className="min-w-[260px] px-4 py-3 text-slate-700">{log.description || '-'}</td>
+                          <td className="min-w-[160px] px-4 py-3">
+                            <div className="font-semibold text-slate-800">{log.subject || '-'}</div>
+                            <div className="mt-1 text-xs text-slate-400">โดย {log.actor || '-'}</div>
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-3 text-slate-600">{log.branch || '-'}</td>
+                          <td className="whitespace-nowrap px-4 py-3 text-xs font-semibold text-slate-500">{log.source || '-'}</td>
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan="5" className="px-4 py-8 text-center text-slate-500">ยังไม่มีข้อมูลการตรวจร้าน</td>
+                        <td colSpan="8" className="px-4 py-8 text-center text-slate-500">ยังไม่มีข้อมูล Log จากฐานข้อมูลในช่วงนี้</td>
                       </tr>
                     )}
                   </tbody>
@@ -533,6 +795,35 @@ export default function InspectionDashboard({ user, from, to }) {
                 </div>
               ) : detailInspection ? (
                 <div className="space-y-4">
+                  <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <div className="text-xs uppercase tracking-[0.12em] text-slate-500">สถานะเปิดร้าน</div>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${detailOpeningMeta?.tone || 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                            {detailOpeningMeta?.label || '-'}
+                          </span>
+                          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${formatBadge(detailInspection.status)}`}>
+                            Review: {detailInspection.status || 'pending'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-right text-xs sm:grid-cols-3">
+                        <div className="rounded-2xl bg-slate-50 px-3 py-2">
+                          <div className="text-slate-400">เวลาเปิดสาขา</div>
+                          <div className="mt-1 font-black text-slate-900">{detailOpeningMeta?.targetTime || '-'}</div>
+                        </div>
+                        <div className="rounded-2xl bg-slate-50 px-3 py-2">
+                          <div className="text-slate-400">เปิดจริง</div>
+                          <div className="mt-1 font-black text-slate-900">{detailInspection.submit_time || '-'}</div>
+                        </div>
+                        <div className="rounded-2xl bg-slate-50 px-3 py-2">
+                          <div className="text-slate-400">สาย</div>
+                          <div className={`mt-1 font-black ${detailOpeningMeta?.lateMinutes ? 'text-orange-600' : 'text-emerald-600'}`}>{detailOpeningMeta?.lateMinutes || 0} นาที</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
                       <div className="text-xs uppercase tracking-[0.12em] text-slate-500">สาขา</div>
@@ -544,7 +835,7 @@ export default function InspectionDashboard({ user, from, to }) {
                       <div className="mt-2 text-base font-semibold text-slate-900">{thaiLongDate(detailInspection.work_date)}</div>
                     </div>
                   </div>
-                  <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="grid gap-4 sm:grid-cols-4">
                     <div className="rounded-3xl border border-slate-200 bg-white p-4">
                       <div className="text-xs text-slate-500">ผู้ส่ง</div>
                       <div className="mt-2 font-semibold text-slate-900">{detailEmployee.name}</div>
@@ -557,9 +848,23 @@ export default function InspectionDashboard({ user, from, to }) {
                       <div className="text-xs text-slate-500">คะแนน</div>
                       <div className="mt-2 font-semibold text-slate-900">{detailInspection.score ?? '-'}</div>
                     </div>
+                    <div className="rounded-3xl border border-slate-200 bg-white p-4">
+                      <div className="text-xs text-slate-500">จำนวนรูป</div>
+                      <div className="mt-2 font-semibold text-slate-900">{detailInspection.photo_count ?? detailAttachments.length ?? 0}</div>
+                    </div>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="rounded-3xl border border-slate-200 bg-white p-4">
+                      <div className="text-xs text-slate-500">ผู้ตรวจ/อนุมัติ</div>
+                      <div className="mt-2 font-semibold text-slate-900">{detailInspection.reviewed_by || '-'}</div>
+                    </div>
+                    <div className="rounded-3xl border border-slate-200 bg-white p-4">
+                      <div className="text-xs text-slate-500">เวลาอนุมัติ</div>
+                      <div className="mt-2 font-semibold text-slate-900">{detailInspection.review_time || '-'}</div>
+                    </div>
                   </div>
                   <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="text-xs uppercase tracking-[0.12em] text-slate-500">หมายเหตุผู้จัดการ</div>
+                    <div className="text-xs uppercase tracking-[0.12em] text-slate-500">หมายเหตุ</div>
                     <div className="mt-2 text-sm text-slate-700">{detailInspection.manager_note || '-'}</div>
                   </div>
                   <div className="grid gap-4 lg:grid-cols-2">
@@ -591,24 +896,37 @@ export default function InspectionDashboard({ user, from, to }) {
                     <div className="rounded-3xl border border-slate-200 bg-white p-4">
                       <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900"><Image size={16} /> รูปภาพ</div>
                       <div className="grid gap-3 sm:grid-cols-2">
-                        {detailInspection.attachments?.length ? (
-                          detailInspection.attachments.map((attachment) => (
-                            <a
-                              key={attachment.id}
-                              href={attachment.file_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="overflow-hidden rounded-3xl border border-slate-200 bg-slate-50 p-3 transition hover:border-slate-300"
-                            >
-                              <img src={attachment.file_url} alt="inspection" className="h-36 w-full rounded-2xl object-cover" />
-                            </a>
-                          ))
+                        {detailAttachments.length ? (
+                          detailAttachments.map((attachment, index) => {
+                            const url = attachmentUrl(attachment);
+                            return (
+                            <div key={attachment.id || `${url}_${index}`} className="overflow-hidden rounded-3xl border border-slate-200 bg-slate-50 p-3">
+                              <button
+                                type="button"
+                                onClick={() => setImagePreview({ url, title: attachment.file_name || `รูปที่ ${index + 1}` })}
+                                className="block w-full overflow-hidden rounded-2xl bg-white text-left"
+                              >
+                                <img src={url} alt={`inspection-${index + 1}`} className="h-36 w-full object-cover transition hover:scale-[1.02]" />
+                              </button>
+                              <div className="mt-2 flex items-center justify-between gap-2">
+                                <div className="truncate text-[11px] font-semibold text-slate-500">{attachment.file_name || `รูปที่ ${index + 1}`}</div>
+                                <a href={url} target="_blank" rel="noreferrer" className="shrink-0 rounded-full bg-slate-900 px-2.5 py-1 text-[10px] font-bold text-white hover:bg-slate-700">
+                                  เปิดไฟล์
+                                </a>
+                              </div>
+                            </div>
+                            );
+                          })
                         ) : (
                           <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">ไม่มีรูปภาพ</div>
                         )}
                       </div>
                     </div>
                   </div>
+                  <details className="rounded-3xl border border-slate-200 bg-white p-4">
+                    <summary className="cursor-pointer text-sm font-bold text-slate-900">ข้อมูลดิบจาก DB</summary>
+                    <pre className="mt-3 max-h-72 overflow-auto rounded-2xl bg-slate-950 p-4 text-xs text-slate-100">{JSON.stringify(detailInspection, null, 2)}</pre>
+                  </details>
                 </div>
               ) : (
                 <div className="rounded-3xl border border-slate-200 bg-slate-50 p-8 text-center text-slate-500">เลือกการตรวจร้านเพื่อดูรายละเอียด</div>
@@ -634,6 +952,27 @@ export default function InspectionDashboard({ user, from, to }) {
               >
                 อนุมัติ
               </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {imagePreview ? (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4" onClick={() => setImagePreview(null)}>
+          <div className="max-h-[92vh] w-full max-w-6xl" onClick={(event) => event.stopPropagation()}>
+            <div className="mb-3 flex items-center justify-between gap-3 text-white">
+              <div className="truncate text-sm font-bold">{imagePreview.title || 'รูปภาพ'}</div>
+              <div className="flex items-center gap-2">
+                <a href={imagePreview.url} target="_blank" rel="noreferrer" className="rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold hover:bg-white/25">
+                  เปิดไฟล์
+                </a>
+                <button type="button" onClick={() => setImagePreview(null)} className="rounded-full bg-white/15 p-2 hover:bg-white/25" aria-label="ปิดรูปภาพ">
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+            <div className="flex max-h-[86vh] items-center justify-center overflow-hidden rounded-3xl bg-black">
+              <img src={imagePreview.url} alt={imagePreview.title || 'preview'} className="max-h-[86vh] w-auto max-w-full object-contain" />
             </div>
           </div>
         </div>

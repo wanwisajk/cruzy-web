@@ -75,6 +75,10 @@ export const api = {
   
   // Inspection
   getInspectionDetail: (id) => request(`/store-inspections/${id}`),
+  createInspection: (body) => request('/store-inspections', {
+    method: 'POST',
+    body: JSON.stringify(body)
+  }),
   updateInspection: (id, body) => request(`/store-inspections/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(body)
@@ -98,6 +102,20 @@ export const api = {
   updateEmployee: (id, body) => request(`/employees/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(body)
+  }),
+
+  // Contracts
+  getContracts: () => request('/contracts'),
+  createContract: (body) => request('/contracts', {
+    method: 'POST',
+    body: JSON.stringify(body)
+  }),
+  updateContract: (id, body) => request(`/contracts/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body)
+  }),
+  deleteContract: (id) => request(`/contracts/${id}`, {
+    method: 'DELETE'
   }),
   
   // Branches
@@ -167,6 +185,10 @@ export const api = {
   createAttachments: (attachments) => request('/attachments/bulk', {
     method: 'POST',
     body: JSON.stringify({ attachments })
+  }),
+  uploadAttachment: (body) => request('/attachments/upload', {
+    method: 'POST',
+    body: JSON.stringify(body)
   }),
   deleteAttachment: (id) => request(`/attachments/${id}`, {
     method: 'DELETE'

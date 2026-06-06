@@ -9,8 +9,16 @@ export const inspectionService = {
     return api.getInspectionDetail(id);
   },
 
+  createInspection: async (payload) => {
+    return api.createInspection(payload);
+  },
+
   updateInspection: async (id, payload) => {
     return api.updateInspection(id, payload);
+  },
+
+  createAttachments: async (attachments) => {
+    return api.createAttachments(attachments);
   },
 
   getAttachments: async () => {
