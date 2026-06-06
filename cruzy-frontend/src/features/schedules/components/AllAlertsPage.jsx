@@ -11,8 +11,8 @@ export default function AllAlertsPage({ alerts, onAssign, onClose }) {
   return (
     <div className="flex flex-col h-full w-full">
       {/* Nav */}
-      <div className="sticky top-0 z-10 bg-green-900 text-white h-12 flex items-center justify-between px-4 shadow flex-shrink-0">
-        <div className="flex items-center gap-2">
+      {/* <div className="sticky top-0 z-10 bg-green-900 text-white h-12 flex items-center justify-between px-4 shadow flex-shrink-0"> */}
+        {/* <div className="flex items-center gap-2">
           <button
             onClick={onClose}
             className="flex items-center gap-1 text-xs font-semibold bg-white/15 hover:bg-white/25 px-3 py-1.5 rounded-md"
@@ -32,13 +32,13 @@ export default function AllAlertsPage({ alerts, onAssign, onClose }) {
             กลับ
           </button>
           <span className="text-sm font-semibold">การแจ้งเตือนทั้งหมด</span>
-        </div>
+        </div> */}
         {/* <div className="flex items-center gap-2">
           <span className="text-[10px] bg-white/15 px-2 py-1 rounded-full">
             {alerts.length} รายการ
           </span>
         </div> */}
-      </div>
+      {/* </div> */}
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -48,24 +48,24 @@ export default function AllAlertsPage({ alerts, onAssign, onClose }) {
             {
               label: "การแจ้งเตือน",
               count: alerts.length,
-              color: "border-t-blue-500 text-blue-500",
+              color: "border-l-blue-500 text-blue-500",
             },
             {
               label: "สาขาว่าง",
               count: dangerCount,
-              color: "border-t-red-500 text-red-600",
+              color: "border-l-red-500 text-red-600",
             },
             {
               label: "คนไม่พอ",
               count: warnCount,
-              color: "border-t-amber-500 text-amber-600",
+              color: "border-l-amber-500 text-amber-600",
             },
           ].map(({ label, count, color }) => (
             <div
               key={label}
-              className={`bg-white rounded-xl shadow-sm border-t-4 ${color} p-3 text-center`}
+              className={`bg-white rounded-xl shadow-sm border-l-4 ${color} p-3 text-center`}
             >
-              <div className={`text-2xl font-bold ${color.split(" ")[1]}`}>
+              <div className={`text-xl font-bold ${color.split(" ")[1]}`}>
                 {count}
               </div>
               <div className="text-[11px] text-gray-400 mt-1">{label}</div>
@@ -184,10 +184,10 @@ export default function AllAlertsPage({ alerts, onAssign, onClose }) {
                               date: alert.date,
                             })
                           }
-                          className={`text-[10px] font-semibold px-3 py-1.5 rounded-lg flex-shrink-0 ${
+                          className={`text-xs font-semibold px-3 py-1.5 rounded-lg flex-shrink-0 transition-colors ${
                             alert.type === "danger"
-                              ? "bg-red-600 text-white"
-                              : "bg-amber-500 text-white"
+                              ? "bg-red-600 hover:bg-red-700 text-white"
+                              : "bg-amber-500 hover:bg-amber-600 text-white"
                           }`}
                         >
                           จัดคน

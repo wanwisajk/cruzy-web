@@ -10,7 +10,7 @@ export function BranchFilters({ search, onSearch, regions, filterRegion, onFilte
           className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 transition bg-white"
         />
       </div>
-      <div className="flex gap-1.5">
+      <div className="flex gap-1.5 overflow-x-auto pb-1">
         {[{ id: 'all', label: 'ทั้งหมด' }, ...regions.map((region) => ({ id: region.id, label: region.name }))].map((region) => (
           <button
             key={region.id}

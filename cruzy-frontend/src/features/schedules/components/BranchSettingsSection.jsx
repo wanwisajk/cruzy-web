@@ -15,7 +15,6 @@ export default function BranchSettingsSection() {
       <BranchHeader onAdd={() => branches.setModal('add')} />
 
       <div className="px-6 py-5 max-w-6xl mx-auto">
-        <BranchStats stats={branches.stats} />
 
         <BranchFilters
           search={branches.search}

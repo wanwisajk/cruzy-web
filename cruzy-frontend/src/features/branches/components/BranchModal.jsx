@@ -3,8 +3,8 @@ import { DAYS, DAY_LABELS, EMPTY_BRANCH } from '../hooks/useBranches';
 
 const steps = ['ข้อมูลสาขา', 'จำนวนพนักงาน', 'เวลาทำการ'];
 const presets = [
-  { label: '10:00–21:00', open: '10:00', close: '21:00' },
   { label: '09:00–21:00', open: '09:00', close: '21:00' },
+  { label: '10:00–21:00', open: '10:00', close: '21:00' },
   { label: '10:00–22:00', open: '10:00', close: '22:00' }
 ];
 
@@ -28,11 +28,11 @@ export function BranchModal({ branch, regions, onClose, onSave }) {
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[80vh]">
         <div className="px-6 pt-6 pb-4 border-b border-slate-100 flex-shrink-0">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-slate-800">
-              {isNew ? '➕ เพิ่มสาขาใหม่' : `✏️ แก้ไข ${form.code}`}
+              {isNew ? 'เพิ่มสาขาใหม่' : `แก้ไข ${form.code}`}
             </h2>
             <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -61,7 +61,7 @@ export function BranchModal({ branch, regions, onClose, onSave }) {
           <div>
             {step > 0 ? (
               <button onClick={() => setStep((current) => current - 1)} className="px-4 py-2 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition-colors font-medium">
-                ← ก่อนหน้า
+                ก่อนหน้า
               </button>
             ) : null}
           </div>
@@ -71,11 +71,11 @@ export function BranchModal({ branch, regions, onClose, onSave }) {
             </button>
             {step < 2 ? (
               <button onClick={() => setStep((current) => current + 1)} disabled={step === 0 && !valid} className="px-5 py-2 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-                ถัดไป →
+                ถัดไป
               </button>
             ) : (
               <button onClick={() => onSave(form)} disabled={!valid} className="px-5 py-2 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-                💾 บันทึก
+                บันทึก
               </button>
             )}
           </div>
@@ -123,8 +123,8 @@ function BranchIdentityStep({ form, regions, set }) {
 function BranchStaffStep({ form, set }) {
   return (
     <div className="space-y-4">
-      <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 text-xs text-blue-700">
-        💡 กำหนดจำนวนพนักงานขั้นต่ำที่ต้องมีในแต่ละประเภทวัน
+      <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 text-xs text-blue-700">
+        กำหนดจำนวนพนักงานขั้นต่ำที่ต้องมีในแต่ละประเภทวัน
       </div>
       <div className="grid grid-cols-2 gap-3">
         <StaffInput label="วันธรรมดา" keyName="minWeekday" sub="จันทร์–ศุกร์" tone="emerald" value={form.minWeekday} set={set} />
@@ -155,8 +155,8 @@ function StaffInput({ label, keyName, sub, tone, value, set }) {
 function BranchHoursStep({ form, setHour, applyPreset }) {
   return (
     <div className="space-y-3">
-      <div className="p-3 bg-blue-50 rounded-2xl border border-blue-100 text-xs text-blue-700">
-        ⏰ กำหนดเวลาเปิด–ปิดแต่ละวันในสัปดาห์
+      <div className="p-3 bg-blue-50 rounded-xl border border-blue-100 text-xs text-blue-700">
+        กำหนดเวลาเปิด–ปิดแต่ละวันในสัปดาห์
       </div>
       <div className="flex gap-2 flex-wrap">
         {presets.map((preset) => (

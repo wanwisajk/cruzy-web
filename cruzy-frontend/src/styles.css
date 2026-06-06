@@ -23,14 +23,14 @@ button, input, select, textarea { font: inherit; }
 .card { border-radius: .5rem; background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,.06); }
 .chip { display: inline-flex; align-items: center; border-radius: 999px; border: 1px solid #e2e8f0; background: #fff; padding: .25rem .625rem; font-size: 11px; font-weight: 500; }
 .icon-btn { display: inline-flex; height: 2rem; width: 2rem; align-items: center; justify-content: center; border-radius: .375rem; border: 1px solid #e2e8f0; background: #fff; color: #64748b; transition: .15s; }
-.icon-btn:hover { border-color: #1b5e20; background: #e8f5e9; color: #1b5e20; }
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: .375rem; border-radius: .375rem; padding: .375rem .75rem; font-size: .75rem; font-weight: 700; transition: .15s; }
+.icon-btn:hover { border-color: var(--color-emerald-600); background: #e8f5e9; color: var(--color-emerald-600); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: .375rem; border-radius: .5rem; padding: .375rem .75rem; font-size: 0.875rem; font-weight: 700; transition: .15s; }
 .btn:disabled { cursor: not-allowed; opacity: .5; }
-.btn-primary { background: #1b5e20; color: #fff; }
-.btn-primary:hover { background: #145118; }
+.btn-primary { background: var(--color-emerald-600); color: #fff; }
+.btn-primary:hover { background: #1b5e20; }
 .btn-ghost { border: 1px solid #e2e8f0; background: #fff; color: #334155; }
-.btn-ghost:hover { border-color: #1b5e20; color: #1b5e20; }
-.stat { border-top-width: 3px; border-radius: .5rem; background: #fff; padding: .75rem; text-align: center; box-shadow: 0 2px 12px rgba(0,0,0,.06); }
+.btn-ghost:hover { border-color: var(--color-emerald-600); color: var(--color-emerald-600); }
+.stat { border-left-width: 4px; border-radius: .5rem; background: #fff; padding: .75rem; text-align: center; box-shadow: 0 2px 12px rgba(0,0,0,.06); }
 .scrollbar-none { scrollbar-width: none; }
 .scrollbar-none::-webkit-scrollbar { display: none; }
 
@@ -71,7 +71,7 @@ button, input, select, textarea { font: inherit; }
 .content-header h2 { font-size: 20px; color: var(--color-cruzy); }
 
 .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 20px; }
-.stat-card { background: #fff; border-radius: 12px; padding: 16px; box-shadow: 0 2px 12px rgba(0,0,0,.06); text-align: center; border-left: 5px solid var(--color-cruzy); }
+.stat-card { background: #fff; border-radius: 12px; padding: 16px; box-shadow: 0 2px 12px rgba(0,0,0,.06); text-align: center; border-left: 4px solid var(--color-cruzy); }
 .stat-card.orange { border-left-color: #ff9800; }
 .stat-card.green { border-left-color: #4caf50; }
 .stat-card.red { border-left-color: #f44336; }
@@ -115,13 +115,13 @@ tr:hover { background: #fafafa; }
 .sale-content { display: flex; flex-direction: column; gap: 14px; }
 .sale-stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
 .sale-mini-stats { grid-template-columns: repeat(2, minmax(140px, 1fr)); max-width: 520px; }
-.sale-stat { background: #fff; border-radius: 12px; padding: 14px; box-shadow: 0 2px 12px rgba(0,0,0,.06); text-align: center; border-top: 3px solid var(--color-cruzy); }
-.sale-stat-green { border-top-color: var(--color-cruzy); }
-.sale-stat-blue { border-top-color: #2196f3; }
-.sale-stat-purple { border-top-color: #9c27b0; }
-.sale-stat-orange { border-top-color: #ff9800; }
-.sale-stat-teal { border-top-color: #00897b; }
-.sale-stat-red { border-top-color: #f44336; }
+.sale-stat { background: #fff; border-radius: 12px; padding: 14px; box-shadow: 0 2px 12px rgba(0,0,0,.06); text-align: center; border-left: 4px solid var(--color-cruzy); }
+.sale-stat-green { border-left-color: var(--color-cruzy); }
+.sale-stat-blue { border-left-color: #2196f3; }
+.sale-stat-purple { border-left-color: #9c27b0; }
+.sale-stat-orange { border-left-color: #ff9800; }
+.sale-stat-teal { border-left-color: #00897b; }
+.sale-stat-red { border-left-color: #f44336; }
 .sale-stat-num { font-size: 26px; font-weight: 700; line-height: 1; color: var(--color-cruzy); }
 .sale-stat-blue .sale-stat-num { color: #2196f3; }
 .sale-stat-purple .sale-stat-num { color: #9c27b0; }

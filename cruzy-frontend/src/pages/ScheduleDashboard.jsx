@@ -11,7 +11,7 @@ import { useSchedule } from "../features/schedules/hooks/useSchedule";
 import BranchSettingsSection from "../features/schedules/components/BranchSettingsSection";
 import OverviewSection from "../features/schedules/components/OverviewSection";
 import AllAlertsPage from "../features/schedules/components/AllAlertsPage";
-import { createPortal } from "react-dom";
+import { X } from "lucide-react";
 
 export default function ScheduleDashboard({
   data,
@@ -180,6 +180,7 @@ export default function ScheduleDashboard({
 
   const tabs = [
     { id: "planner", label: "จัดตาราง" },
+    { id: "alerts", label: "แจ้งเตือนทั้งหมด" },
     { id: "overview", label: "ภาพรวม" },
     { id: "branches", label: "ตั้งค่าสาขา" },
   ];
@@ -192,11 +193,10 @@ export default function ScheduleDashboard({
             <button
               key={tab.id}
               onClick={() => setView(tab.id)}
-              className={`px-5 py-3.5 text-xs font-bold border-b-2 transition-all ${
-                view === tab.id
-                  ? "border-emerald-600 text-emerald-700"
-                  : "border-transparent text-gray-500 hover:text-gray-700"
-              }`}
+              className={`px-5 py-3.5 text-xs font-bold border-b-2 transition-all ${view === tab.id
+                ? "border-emerald-600 text-emerald-700"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+                }`}
             >
               {tab.label}
             </button>
@@ -224,6 +224,7 @@ export default function ScheduleDashboard({
           onDragStart={handleEmployeeDragStart}
           onCellDragOver={handleCellDragOver}
           onCellDrop={handleCellDrop}
+          onViewAllAlerts={() => setView("alerts")}
           loading={loading}
         />
       ) : view === "overview" ? (
@@ -234,6 +235,10 @@ export default function ScheduleDashboard({
             date={from}
             onAssign={setAssignTarget}
           />
+        </div>
+      ) : view === "alerts" ? (
+        <div className="flex flex-col h-full">
+          <AllAlertsPage alerts={alerts} onAssign={setAssignTarget} onClose={() => setView("planner")} />
         </div>
       ) : (
         <div className="p-5">
@@ -275,6 +280,7 @@ function Planner({
   onDragStart,
   onCellDragOver,
   onCellDrop,
+  onViewAllAlerts,
   loading,
 }) {
   const stats = branches.reduce(
@@ -310,7 +316,7 @@ function Planner({
           accent={stats.short ? "amber" : "green"}
         />
       </div>
-      <AlertStack alerts={alerts} onAssign={onAssign} />
+      <AlertStack alerts={alerts} onAssign={onAssign} onViewAllAlerts={onViewAllAlerts} />
       <RecommendationBox
         data={data}
         branches={branches}
@@ -497,38 +503,16 @@ function ScheduleRow({
   );
 }
 
-function AlertStack({ alerts, onAssign }) {
-  const [showAllAlerts, setShowAllAlerts] = useState(false);
+function AlertStack({ alerts, onAssign, onViewAllAlerts }) {
 
   if (!alerts.length) return null;
 
   return (
     <div>
-      {showAllAlerts &&
-        createPortal(
-          <div
-            className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center"
-            onClick={() => setShowAllAlerts(false)}
-          >
-            <div
-              className="bg-gray-50 w-full max-w-5xl h-[80vh] rounded-2xl overflow-hidden flex flex-col shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <AllAlertsPage
-                alerts={alerts}
-                onAssign={onAssign}
-                onClose={() => setShowAllAlerts(false)}
-              />
-            </div>
-          </div>,
-          document.body,
-        )}
-
       <div className="flex items-center gap-2 mb-2">
-        <span className="text-red-500 text-sm">▲</span>
-        <h3 className="text-md font-semibold text-gray-700">แจ้งเตือน</h3>
+        <h3 className="text-lg font-semibold text-gray-700">แจ้งเตือน</h3>
         <button
-          onClick={() => setShowAllAlerts(true)}
+          onClick={onViewAllAlerts}
           className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg text-green-800 hover:bg-gray-200 flex-shrink-0"
         >
           ดูทั้งหมด
@@ -558,7 +542,7 @@ function AlertStack({ alerts, onAssign }) {
               onClick={() =>
                 onAssign({ branchId: alert.branch.id, date: alert.date })
               }
-              className={`text-xs px-3 py-1.5 rounded-lg font-semibold flex-shrink-0 ${alert.type === "danger" ? "bg-red-600 text-white" : "bg-amber-500 text-white"}`}
+              className={`text-xs px-3 py-1.5 rounded-lg font-semibold flex-shrink-0 transition-colors ${alert.type === "danger" ? "bg-red-600 hover:bg-red-700 text-white" : "bg-amber-500 hover:bg-amber-600 text-white"}`}
             >
               จัดคน
             </button>
@@ -592,7 +576,7 @@ function RecommendationBox({
         </div>
         <button
           onClick={onAutoFill}
-          className="shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+          className="btn btn-primary"
         >
           จัดอัตโนมัติ
         </button>
@@ -678,16 +662,16 @@ function AssignModal({ target, data, user, from, to, onClose, onAdd }) {
           </div>
           <button
             onClick={onClose}
-            className="text-white/70 hover:text-white text-2xl leading-none"
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-white/80 hover:bg-white/25 hover:text-white transition-colors"
             aria-label="ปิด"
           >
-            ×
+            <X size={16} />
           </button>
         </div>
         <div className="max-h-64 overflow-y-auto divide-y divide-gray-50">
           {candidates.length === 0 ? (
             <p className="text-center py-8 text-sm text-gray-400">
-              ไม่มีพนักงานในขอบเขตสาขานี้
+              ไม่มีพนักงานที่ว่าง
             </p>
           ) : null}
           {candidates.map((candidate) => (
@@ -699,11 +683,10 @@ function AssignModal({ target, data, user, from, to, onClose, onAdd }) {
                 !candidate.disabled &&
                 onAdd(target.branchId, target.date, candidate.employee.id)
               }
-              className={`flex w-full items-center gap-3 px-5 py-3 transition-colors text-left ${
-                candidate.disabled
-                  ? "cursor-not-allowed bg-gray-50 text-gray-400"
-                  : "hover:bg-emerald-50"
-              }`}
+              className={`flex w-full items-center gap-3 px-5 py-3 transition-colors text-left ${candidate.disabled
+                ? "cursor-not-allowed bg-gray-50 text-gray-400"
+                : "hover:bg-emerald-50"
+                }`}
             >
               <Avatar employee={candidate.employee} size="md" />
               <div>
@@ -719,14 +702,7 @@ function AssignModal({ target, data, user, from, to, onClose, onAdd }) {
             </button>
           ))}
         </div>
-        <div className="px-5 py-3 bg-gray-50 border-t border-gray-100">
-          <button
-            onClick={onClose}
-            className="w-full text-sm font-semibold text-gray-500 hover:text-gray-700"
-          >
-            ปิด
-          </button>
-        </div>
+
       </div>
     </div>
   );
@@ -772,7 +748,7 @@ function StatCard({ label, value, accent }) {
       className={`bg-white rounded-xl border border-gray-100 border-l-4 ${border} px-4 py-3 shadow-sm`}
     >
       <p className="text-xs text-gray-400 mb-1">{label}</p>
-      <p className="text-2xl font-bold text-gray-800 leading-none">{value}</p>
+      <p className="text-xl font-bold text-gray-800 leading-none">{value}</p>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Loader2, Plus, CalendarDays } from "lucide-react";
+import { Loader2, Plus, ClipboardList } from "lucide-react";
 import { LeaveStats } from "../features/leaves/components/LeaveStats.jsx";
 import { LeaveFilters } from "../features/leaves/components/LeaveFilters.jsx";
 import { PendingLeaveTable } from "../features/leaves/components/PendingLeaveTable.jsx";
@@ -253,7 +253,7 @@ export default function LeaveDashboard({ data, currentBranch }) {
     <div className="content p-6">
       <div className="text-xl font-semibold flex items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-3">
-          <CalendarDays size={16} className="text-slate-400" />
+          <ClipboardList size={16} className="text-slate-400" />
           <h2>ระบบลาของพนักงาน</h2>
         </div>
         <button
