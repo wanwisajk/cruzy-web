@@ -43,6 +43,7 @@ const INITIAL = {
   breakHours: "1",
   allowance: "",
   socialSecurityEnabled: true,
+  socialSecurityAmount: "0",
   absDeduct: "system_hourly_avg",
   absFixed: "",
 };
@@ -70,6 +71,7 @@ function getInitialFormState(employee = {}, branches = []) {
       : selectedBranches;
   const payProfile = employee.payProfile || {};
   const rawAbsenceMode = payProfile.absence_deduct_mode || payProfile.absDeduct || payProfile.absenceDeductMode;
+  const rawAbsenceUnit = payProfile.absence_deduct_unit || payProfile.absenceDeductUnit;
   let absDeduct = "system_hourly_avg";
   let absFixed = "";
 
@@ -77,11 +79,17 @@ function getInitialFormState(employee = {}, branches = []) {
     const calc = payProfile.absence_system_calc || payProfile.absenceSystemCalc;
     if (calc === "hourly_fixed") absDeduct = "system_hourly_fixed";
   } else if (rawAbsenceMode === "fixed") {
-    absDeduct = "fixed_per_day";
+    if (rawAbsenceUnit === "minute") absDeduct = "fixed_per_minute";
+    else if (rawAbsenceUnit === "occurrence") absDeduct = "fixed_per_occurrence";
+    else absDeduct = "fixed_per_day";
   } else if (rawAbsenceMode === "system_hourly_fixed") {
     absDeduct = "system_hourly_fixed";
   } else if (rawAbsenceMode === "fixed_per_day") {
     absDeduct = "fixed_per_day";
+  } else if (rawAbsenceMode === "fixed_per_minute") {
+    absDeduct = "fixed_per_minute";
+  } else if (rawAbsenceMode === "fixed_per_occurrence") {
+    absDeduct = "fixed_per_occurrence";
   }
 
   if (absDeduct !== "system_hourly_avg") {
@@ -126,6 +134,7 @@ function getInitialFormState(employee = {}, branches = []) {
     breakHours: String(payProfile.breakHours ?? payProfile.break_hours ?? "1"),
     allowance: String(payProfile.special_allowance ?? ""),
     socialSecurityEnabled: payProfile.socialSecurityEnabled ?? payProfile.social_security_enabled ?? employee.socialSecurityEnabled ?? employee.social_security_enabled ?? true,
+    socialSecurityAmount: String(payProfile.social_security_amount ?? payProfile.socialSecurityAmount ?? employee.socialSecurityAmount ?? employee.social_security_amount ?? 0),
     absDeduct,
     absFixed
   };
@@ -205,7 +214,6 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
 
   function validate() {
     const e = {};
-    if (!form.id.trim()) e.id = true;
     if (!form.name.trim()) e.name = true;
     if (!form.nickname.trim()) e.nickname = true;
     if (!form.wage || Number(form.wage) <= 0) e.wage = true;
@@ -222,11 +230,7 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
     setErrors(e);
 
     if (Object.keys(e).length) {
-      if (e.id) {
-        showToast("⚠️ กรุณากรอก ID พนักงาน", true);
-      } else {
-        showToast("⚠️ กรุณากรอกข้อมูลในช่องที่จำเป็นให้ครบถ้วน", true);
-      }
+      showToast("⚠️ กรุณากรอกข้อมูลในช่องที่จำเป็นให้ครบถ้วน", true);
       return false;
     }
     return true;
@@ -244,10 +248,11 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
         : form.commissionBranches.filter((branchId) => selectedBranchIds.includes(branchId));
       const selectedBranchObj = branches.find(b => b.id === selectedBranchIds[0]);
       const calculatedRegion = selectedBranchObj?.region_id || selectedBranchObj?.region || "default";
-      const employeeId = form.id.trim();
+      const employeeId = isEdit ? form.id : "";
 
       let absenceDeductMode = "system";
       let absenceSystemCalc = "hourly_avg";
+      let absenceDeductUnit = null;
       let absenceDeductValue = null;
 
       if (form.absDeduct === "system_hourly_avg") {
@@ -257,15 +262,26 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
       } else if (form.absDeduct === "system_hourly_fixed") {
         absenceDeductMode = "system";
         absenceSystemCalc = "hourly_fixed";
+        absenceDeductUnit = "hour";
         absenceDeductValue = Number(form.absFixed) || 0;
       } else if (form.absDeduct === "fixed_per_day") {
         absenceDeductMode = "fixed";
         absenceSystemCalc = null;
+        absenceDeductUnit = "day";
+        absenceDeductValue = Number(form.absFixed) || 0;
+      } else if (form.absDeduct === "fixed_per_minute") {
+        absenceDeductMode = "fixed";
+        absenceSystemCalc = null;
+        absenceDeductUnit = "minute";
+        absenceDeductValue = Number(form.absFixed) || 0;
+      } else if (form.absDeduct === "fixed_per_occurrence") {
+        absenceDeductMode = "fixed";
+        absenceSystemCalc = null;
+        absenceDeductUnit = "occurrence";
         absenceDeductValue = Number(form.absFixed) || 0;
       }
 
       const payload = {
-        id: employeeId,
         name: form.name.trim(),
         color: form.color,
         position: form.pos,
@@ -295,6 +311,8 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
           special_allowance: Number(form.allowance) || 0,
           socialSecurityEnabled: Boolean(form.socialSecurityEnabled),
           social_security_enabled: Boolean(form.socialSecurityEnabled),
+          socialSecurityAmount: Number(form.socialSecurityAmount) || 0,
+          social_security_amount: Number(form.socialSecurityAmount) || 0,
           breakHours: Number(form.breakHours) || 1,
           break_hours: Number(form.breakHours) || 1,
           effectiveFrom: form.start,
@@ -303,9 +321,13 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
           is_active: true,
 
           absence_deduct_mode: absenceDeductMode,
+          absence_system_calc: absenceSystemCalc,
+          absence_deduct_unit: absenceDeductUnit,
           absence_deduct_value: absenceDeductValue,
-          absDeduct: absenceDeductMode,
+          absDeduct: form.absDeduct,
           absenceDeductMode,
+          absenceSystemCalc,
+          absenceDeductUnit,
           absenceDeductValue
         },
 
@@ -356,6 +378,13 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
   }
 
   const absFixedDisabled = form.absDeduct === "system_hourly_avg";
+  const lateDeductUnitLabel = {
+    system_hourly_avg: "ระบบคำนวณจากเงินเดือนและชั่วโมงงาน",
+    system_hourly_fixed: "บาทต่อชั่วโมง",
+    fixed_per_minute: "บาทต่อนาที",
+    fixed_per_occurrence: "บาทต่อครั้ง",
+    fixed_per_day: "บาทต่อวัน"
+  }[form.absDeduct] || "บาท";
 
   const inputBaseStyle = "w-full border rounded-lg p-2.5 bg-white text-slate-800 transition-all outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/10 text-xs shadow-sm placeholder:text-slate-400";
   const labelBaseStyle = "block font-semibold text-slate-600 mb-1.5 flex items-center gap-1";
@@ -386,19 +415,6 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
-          <div className="lg:col-span-6">
-            <label className={labelBaseStyle}>รหัสพนักงาน (ID) <span className="text-red-500">*</span></label>
-            <input
-              type="text"
-              value={form.id}
-              onChange={set("id")}
-              disabled={isEdit}
-              placeholder="เช่น emp_20240601_001"
-              className={`${inputBaseStyle} ${errors.id ? "border-red-400 bg-red-50/20" : "border-slate-200"} ${isEdit ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed" : ""}`}
-            />
-            {errors.id && !isEdit && <p className="text-red-500 text-[10px] mt-1">⚠️ ต้องระบุ ID พนักงาน</p>}
-          </div>
-
           <div className="lg:col-span-4">
             <label className={labelBaseStyle}>สีประจำตัวบนตารางงาน</label>
             <div className="flex flex-wrap gap-2 py-1.5 bg-slate-50 px-2.5 rounded-lg border border-slate-100">
@@ -611,17 +627,32 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
           </label>
 
           <div>
+            <label className={labelBaseStyle}>หักประกันสังคม (฿)</label>
+            <input
+              type="number"
+              min="0"
+              value={form.socialSecurityAmount}
+              onChange={set("socialSecurityAmount")}
+              disabled={!form.socialSecurityEnabled}
+              placeholder="0"
+              className={`${inputBaseStyle} border-slate-200 disabled:bg-slate-50 disabled:text-slate-400 disabled:border-slate-100`}
+            />
+          </div>
+
+          <div>
             <label className={labelBaseStyle}>การหักเงินมาสาย</label>
             <select value={form.absDeduct} onChange={set("absDeduct")} className={`${inputBaseStyle} border-slate-200 cursor-pointer`}>
               <option value="system_hourly_avg">คำนวณอัตโนมัติ (เรทเฉลี่ยชั่วโมงจริง)</option>
               <option value="system_hourly_fixed">หักคงที่คำนวณรายชั่วโมง</option>
+              <option value="fixed_per_minute">หักคงที่ต่อนาที</option>
+              <option value="fixed_per_occurrence">หักคงที่ต่อครั้ง</option>
               <option value="fixed_per_day">หักเรทเหมารายวัน</option>
             </select>
           </div>
 
           <div>
-            <label className={labelBaseStyle}>เรทหักเงินคงที่ (฿)</label>
-            <input type="number" value={form.absFixed} onChange={set("absFixed")} disabled={absFixedDisabled} placeholder="ระบุจำนวนเงิน" className={`${inputBaseStyle} border-slate-200 disabled:bg-slate-50 disabled:text-slate-400 disabled:border-slate-100`} />
+            <label className={labelBaseStyle}>เรทหักเงินมาสาย ({lateDeductUnitLabel})</label>
+            <input type="number" min="0" value={form.absFixed} onChange={set("absFixed")} disabled={absFixedDisabled} placeholder="ระบุจำนวนเงิน" className={`${inputBaseStyle} border-slate-200 disabled:bg-slate-50 disabled:text-slate-400 disabled:border-slate-100`} />
           </div>
 
           <div>

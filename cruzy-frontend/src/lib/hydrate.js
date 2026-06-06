@@ -89,15 +89,16 @@ export function hydrateConsoleData(data = {}) {
 
   const primaryBranches = derivePrimaryEmployeeBranches(branchRules, scheduleRows);
   state.employees = empRows.map((employee) => {
+    const employeeId = String(employee.id);
     const fallbackBranch = branchRows.find((b) => b.region_id === (employee.region_id || state.branches[0]?.region))?.id || state.branches[0]?.id || '';
-    const pay = getPayProfile(employee.id, data.employeePayProfiles || data.employee_pay_profiles || [], employee.salary);
+    const pay = getPayProfile(employeeId, data.employeePayProfiles || data.employee_pay_profiles || [], employee.salary);
     return {
-      id: employee.id,
+      id: employeeId,
       name: employee.name,
       nickname: employee.nickname,
-      code: employee.id,
+      code: employeeId,
       color: employee.color || '#4CAF50',
-      branch: primaryBranches[employee.id] || employee.branch_id || fallbackBranch,
+      branch: primaryBranches[employeeId] || employee.branch_id || fallbackBranch,
       position: employee.position || 'พนักงานขาย',
       empType: employee.emp_type || employee.empType || 'fulltime',
       salary: Number(employee.salary || pay.monthlySalary || 0),
@@ -111,10 +112,15 @@ export function hydrateConsoleData(data = {}) {
       commissionRate: pay.commissionRate,
       commissionCalcType: pay.commissionCalcType,
       commissionBranches: branchRules
-        .filter((rule) => rule.empId === employee.id && rule.canWork !== false && rule.commissionEligible !== false)
+        .filter((rule) => rule.empId === employeeId && rule.canWork !== false && rule.commissionEligible !== false)
         .map((rule) => rule.branchId),
       specialAllowance: pay.specialAllowance,
       socialSecurityEnabled: pay.socialSecurityEnabled,
+      socialSecurityAmount: pay.socialSecurityAmount,
+      absenceDeductMode: pay.absenceDeductMode,
+      absenceDeductUnit: pay.absenceDeductUnit,
+      absenceDeductValue: pay.absenceDeductValue,
+      absenceSystemCalc: pay.absenceSystemCalc,
       startDate: pay.effectiveFrom
     };
   });
@@ -127,7 +133,7 @@ export function hydrateConsoleData(data = {}) {
     const vacationRemaining = Number(row.vacation_remaining ?? 0);
     const annualUsed = Number(row.annual_used ?? (annualQuota - annualRemaining) ?? 0);
     const vacationUsed = Number(row.vacation_used ?? (vacationQuota - vacationRemaining) ?? 0);
-    acc[row.employee_id] = {
+    acc[String(row.employee_id)] = {
       annualQuota,
       annualRemaining,
       annualUsed,
@@ -145,14 +151,14 @@ export function hydrateConsoleData(data = {}) {
   scheduleRows.forEach((row) => {
     const key = `${row.branch_id}_${row.work_date}`;
     if (!state.schedule[key]) state.schedule[key] = [];
-    state.schedule[key].push(row.employee_id);
+    state.schedule[key].push(String(row.employee_id));
   });
 
   state.branchQuota = deriveBranchQuota(state.branches, state.schedule, staffingRules);
   state.employeeBranches = deriveEmployeeBranches(state.employees, branchRules, state.schedule);
   state.contracts = (data.contracts || []).map((contract) => ({
     id: String(contract.id),
-    empId: contract.employee_id,
+    empId: String(contract.employee_id),
     type: contract.contract_type || contract.type || 'ประจำ',
     label: contract.label || contract.contract_type || 'สัญญาจ้าง',
     start: contract.start_date,
@@ -166,7 +172,7 @@ export function hydrateConsoleData(data = {}) {
     const attachments = state.attachments.filter((file) => file.entityType === 'leave' && String(file.entityId) === id);
     return {
       id,
-      empId: leave.employee_id,
+      empId: String(leave.employee_id),
       type: leave.leave_type || 'ลา',
       from: leave.start_date,
       to: leave.end_date,
@@ -190,7 +196,7 @@ export function hydrateConsoleData(data = {}) {
   state.deposits = (data.cashDeposits || []).map((row) => mapDepositRow(row, state.attachments));
   state.attendance = (data.attendance || []).map((row) => ({
     id: String(row.id),
-    empId: row.employee_id,
+    empId: String(row.employee_id),
     date: row.work_date,
     clockIn: formatDbTime(row.clock_in),
     clockOut: formatDbTime(row.clock_out),
@@ -204,7 +210,7 @@ export function hydrateConsoleData(data = {}) {
   state.attendanceAlerts = (data.attendanceAlerts || []).map((alert) => ({
     id: String(alert.id),
     type: alert.alert_type,
-    empId: alert.employee_id,
+    empId: String(alert.employee_id),
     date: alert.work_date,
     branch: alert.branch_id,
     title: alert.title,
@@ -217,7 +223,7 @@ export function hydrateConsoleData(data = {}) {
     id: String(inspection.id),
     date: inspection.work_date,
     bid: inspection.branch_id,
-    submittedBy: inspection.submitted_by,
+    submittedBy: inspection.submitted_by === null || inspection.submitted_by === undefined ? null : String(inspection.submitted_by),
     submitTime: formatDbTime(inspection.submit_time),
     status: inspection.status || 'pass',
     note: inspection.manager_note || ''
@@ -231,13 +237,13 @@ export function hydrateConsoleData(data = {}) {
   }));
   state.warningLetters = (data.warningLetters || []).map((letter) => ({
     id: String(letter.id),
-    empId: letter.employee_id,
+    empId: String(letter.employee_id),
     templateId: letter.template_id,
     level: letter.level,
     date: letter.issue_date,
     reason: letter.reason,
     branch: letter.branch_id,
-    issuedBy: letter.issued_by,
+    issuedBy: letter.issued_by === null || letter.issued_by === undefined ? null : String(letter.issued_by),
     status: letter.status || 'draft'
   }));
   state.users = (data.users || []).map((user) => ({
@@ -259,7 +265,8 @@ function derivePrimaryEmployeeBranches(branchRules, scheduleRows) {
     if (!byEmployee[rule.empId]) byEmployee[rule.empId] = rule.branchId;
   });
   scheduleRows.slice().sort((a, b) => String(b.work_date).localeCompare(String(a.work_date))).forEach((schedule) => {
-    if (!byEmployee[schedule.employee_id]) byEmployee[schedule.employee_id] = schedule.branch_id;
+    const employeeId = String(schedule.employee_id);
+    if (!byEmployee[employeeId]) byEmployee[employeeId] = schedule.branch_id;
   });
   return byEmployee;
 }
@@ -302,19 +309,19 @@ function deriveEmployeeBranches(employees, branchRules, schedule) {
 }
 
 function mapEmployeeBranchRule(row) {
-  return { id: String(row.id || ''), empId: row.employee_id, branchId: row.branch_id, canWork: row.can_work !== false, isPreferred: Boolean(row.is_preferred), priority: Number(row.priority || 0), commissionEligible: row.commission_eligible !== false, note: row.note || '' };
+  return { id: String(row.id || ''), empId: String(row.employee_id), branchId: row.branch_id, canWork: row.can_work !== false, isPreferred: Boolean(row.is_preferred), priority: Number(row.priority || 0), commissionEligible: row.commission_eligible !== false, note: row.note || '' };
 }
 
 function mapAvailabilityRule(row) {
-  return { id: String(row.id || ''), empId: row.employee_id, dayOfWeek: Number(row.day_of_week), type: row.availability_type || 'available', start: formatDbTime(row.start_time), end: formatDbTime(row.end_time), note: row.note || '' };
+  return { id: String(row.id || ''), empId: String(row.employee_id), dayOfWeek: Number(row.day_of_week), type: row.availability_type || 'available', start: formatDbTime(row.start_time), end: formatDbTime(row.end_time), note: row.note || '' };
 }
 
 function mapAvailabilityOverride(row) {
-  return { id: String(row.id || ''), empId: row.employee_id, date: row.work_date, type: row.availability_type || 'available', start: formatDbTime(row.start_time), end: formatDbTime(row.end_time), reason: row.reason || '' };
+  return { id: String(row.id || ''), empId: String(row.employee_id), date: row.work_date, type: row.availability_type || 'available', start: formatDbTime(row.start_time), end: formatDbTime(row.end_time), reason: row.reason || '' };
 }
 
 function mapPayProfile(row) {
-  return { id: String(row.id || ''), empId: row.employee_id, payType: row.pay_type || 'monthly', payCycle: row.pay_cycle || 'monthly', monthlySalary: Number(row.monthly_salary || 0), dailyRate: Number(row.daily_rate || 0), breakHours: Number(row.break_hours || 1), commissionEnabled: row.commission_enabled !== false, commissionRate: Number(row.commission_rate || 0), commissionCalcType: row.commission_calc_type || 'scheduled_assigned_branch_days', specialAllowance: Number(row.special_allowance || 0), socialSecurityEnabled: row.social_security_enabled !== false, effectiveFrom: row.effective_from, effectiveTo: row.effective_to, active: row.is_active !== false };
+  return { id: String(row.id || ''), empId: String(row.employee_id), payType: row.pay_type || 'monthly', payCycle: row.pay_cycle || 'monthly', monthlySalary: Number(row.monthly_salary || 0), dailyRate: Number(row.daily_rate || 0), breakHours: Number(row.break_hours || 1), commissionEnabled: row.commission_enabled !== false, commissionRate: Number(row.commission_rate || 0), commissionCalcType: row.commission_calc_type || 'scheduled_assigned_branch_days', specialAllowance: Number(row.special_allowance || 0), socialSecurityEnabled: row.social_security_enabled !== false, socialSecurityAmount: Number(row.social_security_amount ?? 0), absenceDeductMode: row.absence_deduct_mode || 'system', absenceDeductUnit: row.absence_deduct_unit || null, absenceDeductValue: row.absence_deduct_value === null || row.absence_deduct_value === undefined ? null : Number(row.absence_deduct_value), absenceSystemCalc: row.absence_system_calc || null, effectiveFrom: row.effective_from, effectiveTo: row.effective_to, active: row.is_active !== false };
 }
 
 function mapStaffingRule(row) {
@@ -322,7 +329,7 @@ function mapStaffingRule(row) {
 }
 
 function getPayProfile(empId, rows, legacySalary) {
-  const active = (rows || []).filter((row) => row.employee_id === empId && row.is_active !== false).sort((a, b) => String(b.effective_from || '').localeCompare(String(a.effective_from || '')))[0];
+  const active = (rows || []).filter((row) => String(row.employee_id) === String(empId) && row.is_active !== false).sort((a, b) => String(b.effective_from || '').localeCompare(String(a.effective_from || '')))[0];
   if (active) {
     return {
       payType: active.pay_type || 'monthly',
@@ -335,10 +342,15 @@ function getPayProfile(empId, rows, legacySalary) {
       commissionCalcType: active.commission_calc_type || 'scheduled_assigned_branch_days',
       specialAllowance: Number(active.special_allowance || 0),
       socialSecurityEnabled: active.social_security_enabled !== false,
+      socialSecurityAmount: Number(active.social_security_amount ?? 0),
+      absenceDeductMode: active.absence_deduct_mode || 'system',
+      absenceDeductUnit: active.absence_deduct_unit || null,
+      absenceDeductValue: active.absence_deduct_value === null || active.absence_deduct_value === undefined ? null : Number(active.absence_deduct_value),
+      absenceSystemCalc: active.absence_system_calc || null,
       effectiveFrom: active.effective_from
     };
   }
-  return { payType: 'monthly', payCycle: 'monthly', monthlySalary: Number(legacySalary || 0), dailyRate: 0, breakHours: 1, commissionEnabled: true, commissionRate: 0, commissionCalcType: 'scheduled_assigned_branch_days', specialAllowance: 0, socialSecurityEnabled: true, effectiveFrom: null };
+  return { payType: 'monthly', payCycle: 'monthly', monthlySalary: Number(legacySalary || 0), dailyRate: 0, breakHours: 1, commissionEnabled: true, commissionRate: 0, commissionCalcType: 'scheduled_assigned_branch_days', specialAllowance: 0, socialSecurityEnabled: true, socialSecurityAmount: 0, absenceDeductMode: 'fixed', absenceDeductUnit: 'occurrence', absenceDeductValue: 50, absenceSystemCalc: null, effectiveFrom: null };
 }
 
 function mapSaleRow(row, salesLogs = [], attachments = []) {
@@ -353,7 +365,7 @@ function mapSaleRow(row, salesLogs = [], attachments = []) {
     credit: Number(row.credit_amount || 0),
     qr: Number(row.qr_amount || 0),
     orders: Number(row.orders_count || 0),
-    submittedBy: row.submitted_by || null,
+    submittedBy: row.submitted_by === null || row.submitted_by === undefined ? null : String(row.submitted_by),
     submitTime: formatDbTime(row.submitted_at),
     confirmedBy: row.confirmed_by || null,
     confirmTime: formatDbTime(row.confirmed_at),
@@ -367,7 +379,7 @@ function mapSaleRow(row, salesLogs = [], attachments = []) {
 function mapDepositRow(row, attachments = []) {
   const id = String(row.id);
   const files = attachments.filter((file) => file.entityType === 'cash_deposit' && String(file.entityId) === id);
-  return { id, date: row.deposit_date || row.date, bid: row.branch_id, expected: Number(row.expected_amount || 0), deposited: Number(row.deposited_amount || 0), slip: Boolean(row.slip_url || files.length), slipUrl: row.slip_url || files[0]?.fileUrl || '', attachments: files, bankAccId: row.bank_account_id || null, depositedBy: row.deposited_by || null, verifiedBy: row.verified_by || null, verifyTime: formatDbTime(row.verified_at), status: row.status || 'waiting' };
+  return { id, date: row.deposit_date || row.date, bid: row.branch_id, expected: Number(row.expected_amount || 0), deposited: Number(row.deposited_amount || 0), slip: Boolean(row.slip_url || files.length), slipUrl: row.slip_url || files[0]?.fileUrl || '', attachments: files, bankAccId: row.bank_account_id || null, depositedBy: row.deposited_by === null || row.deposited_by === undefined ? null : String(row.deposited_by), verifiedBy: row.verified_by || null, verifyTime: formatDbTime(row.verified_at), status: row.status || 'waiting' };
 }
 
 function mapSalesLogRow(row) {
@@ -375,7 +387,7 @@ function mapSalesLogRow(row) {
     id: String(row.id),
     saleId: String(row.sale_id),
     time: formatDbTime(row.created_at),
-    by: row.edited_by || null,
+    by: row.edited_by === null || row.edited_by === undefined ? null : String(row.edited_by),
     field: row.field_name,
     from: row.old_value,
     to: row.new_value,

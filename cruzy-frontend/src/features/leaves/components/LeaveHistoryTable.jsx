@@ -1,10 +1,13 @@
-import { Eye } from 'lucide-react';
+import { Eye,ClipboardList } from 'lucide-react';
 
 export function LeaveHistoryTable({ rows, onView }) {
   return (
     <div className="tw">
       <div className="tw-head processed-head">
-        <h3 style={{ color: '#1b5e20' }}>🗃️ สรุปวันลา (Approved)</h3>
+        <div className="flex items-center gap-2">
+          <ClipboardList size={16}/>
+        <h3 style={{ color: '#1b5e20' }}>สรุปวันลา (Approved)</h3>
+        </div>
         <span className="count-badge">{rows.length} รายการ</span>
       </div>
       <div className="overflow-x-auto">

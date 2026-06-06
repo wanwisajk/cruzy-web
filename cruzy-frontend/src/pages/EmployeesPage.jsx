@@ -37,9 +37,15 @@ function statusColor(status) {
 
 function payCycleLabel(c) {
   return {
-    daily: 'รายวัน/รายกะ',
     weekly: 'รายสัปดาห์',
     bimonthly: 'จ่ายครึ่งเดือน',
+    monthly: 'รายเดือน'
+  }[c] || c;
+}
+
+function payTypeLabel(c) {
+  return {
+    daily: 'รายวัน/รายกะ',
     monthly: 'รายเดือน'
   }[c] || c;
 }
@@ -243,6 +249,72 @@ function employeeCommissionForPeriod(data, employee, periodDays, selectedBranch 
   };
 }
 
+function employeeHourlyRate(employee, baseWage, workDays) {
+  const dailyHours = 8;
+  if (employee.payType === 'daily') return Number(employee.dailyRate || 0) / dailyHours;
+  const divisorDays = Math.max(workDays || 0, 1);
+  return Number(baseWage || employee.monthlySalary || employee.salary || 0) / divisorDays / dailyHours;
+}
+
+function monthDaysFor(dateKey) {
+  const date = new Date(`${dateKey}T00:00:00`);
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+}
+
+function payrollPeriodFor(cycle, anchorDate) {
+  const anchor = new Date(`${anchorDate}T00:00:00`);
+  const year = anchor.getFullYear();
+  const month = anchor.getMonth();
+
+  if (cycle === 'weekly') {
+    const day = anchor.getDay();
+    const mondayOffset = day === 0 ? -6 : 1 - day;
+    const start = new Date(anchor);
+    start.setDate(anchor.getDate() + mondayOffset);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    return { start: fmtDate(start), end: fmtDate(end), label: 'สรุปรายอาทิตย์' };
+  }
+
+  if (cycle === 'bimonthly') {
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    const isFirstHalf = anchor.getDate() <= 15;
+    const start = new Date(year, month, isFirstHalf ? 1 : 16);
+    const end = new Date(year, month, isFirstHalf ? 15 : lastDay);
+    return { start: fmtDate(start), end: fmtDate(end), label: isFirstHalf ? 'สรุปครึ่งเดือน 1-15' : 'สรุปครึ่งเดือน 16-สิ้นเดือน' };
+  }
+
+  const start = new Date(year, month, 1);
+  const end = new Date(year, month + 1, 0);
+  return { start: fmtDate(start), end: fmtDate(end), label: 'สรุปรายเดือน' };
+}
+
+function prorateMonthlyAmount(amount, periodDays, cycle, anchorDate) {
+  const value = Number(amount || 0);
+  if (cycle === 'monthly') return value;
+  return Math.round(value * (periodDays.length / monthDaysFor(anchorDate)));
+}
+
+function calculateLateDeduct(employee, baseWage, workDays, lateMinutes, lateCount) {
+  const mode = employee.absenceDeductMode || employee.absence_deduct_mode || 'fixed';
+  const unit = employee.absenceDeductUnit || employee.absence_deduct_unit || (mode === 'fixed' ? 'occurrence' : null);
+  const fixedValue = Number(employee.absenceDeductValue ?? employee.absence_deduct_value ?? 50);
+  if (lateMinutes <= 0 && lateCount <= 0) return 0;
+
+  if (mode === 'system') {
+    const systemCalc = employee.absenceSystemCalc || employee.absence_system_calc || 'hourly_avg';
+    const hourlyRate = systemCalc === 'hourly_fixed' && Number.isFinite(fixedValue)
+      ? fixedValue
+      : employeeHourlyRate(employee, baseWage, workDays);
+    return Math.round((lateMinutes / 60) * hourlyRate);
+  }
+
+  if (unit === 'minute') return Math.round(lateMinutes * fixedValue);
+  if (unit === 'day') return Math.round(lateCount * fixedValue);
+  if (unit === 'hour') return Math.round((lateMinutes / 60) * fixedValue);
+  return Math.round(lateCount * fixedValue);
+}
+
 function StatCard({ label, value, accent = 'green' }) {
   const colorMap = {
     green: 'border-l-emerald-500',
@@ -266,7 +338,7 @@ export default function EmployeesPage(props) {
   const [attendanceFilter, setAttendanceFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
-  const [payCycleFilter, setPayCycleFilter] = useState('all');
+  const [payCycleFilter, setPayCycleFilter] = useState('weekly');
   const [contractFilter, setContractFilter] = useState('all');
   const [attendanceDate, setAttendanceDate] = useState(() => props.data.initialDate || fmtDate(new Date()));
   const [attendanceForm, setAttendanceForm] = useState(() => emptyAttendanceForm(props.data.initialDate || fmtDate(new Date())));
@@ -299,16 +371,19 @@ export default function EmployeesPage(props) {
     return warningLetters.filter((letter) => filteredEmployees.some((employee) => employee.id === letter.empId));
   }, [warningLetters, filteredEmployees]);
   const contracts = props.data.contracts || [];
-  const payrollPeriodDays = useMemo(() => {
-    const start = props.from || props.data.initialDate || fmtDate(new Date());
-    const end = props.to || props.data.initialDateTo || start;
-    return start && end ? dateRange(start, end) : [];
-  }, [props.from, props.to, props.data.initialDate, props.data.initialDateTo]);
+  const payrollAnchorDate = props.to || props.from || props.data.initialDateTo || props.data.initialDate || fmtDate(new Date());
+  const payrollPeriod = useMemo(
+    () => payrollPeriodFor(payCycleFilter, payrollAnchorDate),
+    [payCycleFilter, payrollAnchorDate],
+  );
+  const payrollPeriodDays = useMemo(() => (
+    payrollPeriod.start && payrollPeriod.end ? dateRange(payrollPeriod.start, payrollPeriod.end) : []
+  ), [payrollPeriod]);
 
   const payrollRows = useMemo(() => {
     const periodDaySet = new Set(payrollPeriodDays);
     return filteredEmployees
-      .filter((employee) => payCycleFilter === 'all' || (employee.payType || 'monthly') === payCycleFilter)
+      .filter((employee) => (employee.payCycle || 'monthly') === payCycleFilter)
       .map((employee) => {
         const scheduledDays = new Set();
         Object.entries(props.data.schedule || {}).forEach(([key, empIds]) => {
@@ -328,22 +403,29 @@ export default function EmployeesPage(props) {
 
         const workDays = scheduledDays.size;
         const baseWage = employee.payType === 'monthly'
-          ? Number(employee.monthlySalary || employee.salary || 0)
+          ? prorateMonthlyAmount(employee.monthlySalary || employee.salary || 0, payrollPeriodDays, payCycleFilter, payrollAnchorDate)
           : Number(employee.dailyRate || 0) * workDays;
         const commissionInfo = employeeCommissionForPeriod(props.data, employee, payrollPeriodDays, selectedBranch);
         const comm = commissionInfo.commission;
-        const allowance = Number(employee.specialAllowance || 0);
+        const allowance = employee.payType === 'monthly'
+          ? prorateMonthlyAmount(employee.specialAllowance || 0, payrollPeriodDays, payCycleFilter, payrollAnchorDate)
+          : Number(employee.specialAllowance || 0);
         const lateCount = empAttendanceRows.reduce((sum, row) => {
           const metrics = calculateAttendanceMetrics(props.data, row, employee);
           return sum + (metrics.lateMinutes > 0 ? 1 : 0);
         }, 0);
-        const lateDeduct = lateCount * 50;
+        const lateMinutes = empAttendanceRows.reduce((sum, row) => {
+          const metrics = calculateAttendanceMetrics(props.data, row, employee);
+          return sum + metrics.lateMinutes;
+        }, 0);
+        const lateDeduct = calculateLateDeduct(employee, baseWage, workDays, lateMinutes, lateCount);
         const hasSocialSecurity = employee.socialSecurityEnabled ?? employee.ssoEnabled ?? employee.hasSocialSecurity ?? employee.payType === 'monthly';
-        const sso = hasSocialSecurity ? 750 : 0;
+        const sso = hasSocialSecurity ? Number(employee.socialSecurityAmount ?? employee.social_security_amount ?? 0) : 0;
         const net = baseWage + comm + allowance - lateDeduct - sso;
         return {
           ...employee,
           workDays,
+          periodDays: payrollPeriodDays.length,
           baseWage,
           comm,
           commissionSales: commissionInfo.commissionSales,
@@ -351,12 +433,13 @@ export default function EmployeesPage(props) {
           commissionTypeLabel: commissionInfo.commissionTypeLabel,
           allowance,
           lateCount,
+          lateMinutes,
           lateDeduct,
           sso,
           net
         };
       });
-  }, [filteredEmployees, attendanceRows, payCycleFilter, payrollPeriodDays, props.data, selectedBranch]);
+  }, [filteredEmployees, attendanceRows, payCycleFilter, payrollPeriodDays, payrollAnchorDate, props.data, selectedBranch]);
 
   const contractRows = useMemo(() => {
     return contracts.filter((contract) => {
@@ -707,22 +790,29 @@ export default function EmployeesPage(props) {
 
         {activeTab === 'payroll' && (
           <div className="space-y-4">
-            <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+            <div className="flex flex-col gap-4 bg-white p-4 rounded-xl border border-gray-100 shadow-sm lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <span className="text-sm font-bold text-gray-700">รายการคำนวณรอบจ่ายปัจจุบัน</span>
                 <div className="text-[11px] text-gray-400 mt-0.5">
-                  ช่วงวันที่ {payrollPeriodDays[0] || '-'} ถึง {payrollPeriodDays.at(-1) || '-'}
+                  {payrollPeriod.label} · ช่วงวันที่ {payrollPeriodDays[0] || '-'} ถึง {payrollPeriodDays.at(-1) || '-'}
                 </div>
               </div>
-              <select
-                value={payCycleFilter}
-                onChange={(e) => setPayCycleFilter(e.target.value)}
-                className="border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs outline-none bg-white font-semibold"
-              >
-                <option value="all">ประเภทค่าจ้างทั้งหมด</option>
-                <option value="monthly">รายเดือน</option>
-                <option value="daily">รายวัน/รายกะ</option>
-              </select>
+              <div className="grid gap-2 sm:grid-cols-3">
+                {[
+                  { id: 'weekly', label: '💵 สรุปรายอาทิตย์' },
+                  { id: 'bimonthly', label: '💵 สรุปครึ่งเดือน' },
+                  { id: 'monthly', label: '💵 สรุปรายเดือน' },
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setPayCycleFilter(item.id)}
+                    className={`rounded-xl border px-3 py-2 text-xs font-bold transition ${payCycleFilter === item.id ? 'border-emerald-700 bg-emerald-700 text-white shadow-sm' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -745,7 +835,10 @@ export default function EmployeesPage(props) {
                     {payrollRows.map((p) => (
                       <tr key={p.id} className="hover:bg-gray-50/30">
                         <td className="px-3 py-2.5 text-gray-900 font-semibold">{p.name} ({p.nickname || ''})</td>
-                        <td className="px-3 py-2.5 text-gray-500">{payCycleLabel(p.payType)}</td>
+                        <td className="px-3 py-2.5 text-gray-500">
+                          {payCycleLabel(p.payCycle)}
+                          <div className="text-[10px] text-gray-400">{payTypeLabel(p.payType)}</div>
+                        </td>
                         <td className="px-3 py-2.5 text-right">{p.payType === 'monthly' ? '-' : nf(p.workDays)}</td>
                         <td className="px-3 py-2.5">฿{nf(p.baseWage)}</td>
                         <td className="px-3 py-2.5 text-emerald-600">
@@ -753,7 +846,10 @@ export default function EmployeesPage(props) {
                           <div className="text-[10px] text-gray-400">{p.commissionTypeLabel} · {p.commissionDays} วัน</div>
                         </td>
                         <td className="px-3 py-2.5 text-blue-600">+฿{nf(p.allowance)}</td>
-                        <td className="px-3 py-2.5 text-red-500">-฿{nf(p.lateDeduct)} <span className="text-[10px] text-gray-400">({p.lateCount} ครั้ง)</span></td>
+                        <td className="px-3 py-2.5 text-red-500">
+                          -฿{nf(p.lateDeduct)}
+                          <div className="text-[10px] text-gray-400">{p.lateCount} ครั้ง · {p.lateMinutes} นาที</div>
+                        </td>
                         <td className="px-3 py-2.5 text-gray-400">-฿{nf(p.sso)}</td>
                         <td className="px-3 py-2.5 text-right font-bold text-emerald-700 text-sm">฿{nf(p.net)}</td>
                       </tr>

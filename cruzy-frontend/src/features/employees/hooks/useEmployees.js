@@ -67,6 +67,16 @@ export function useEmployees({ data, user, currentBranch, setData, toast }) {
         special_allowance: payProfile.special_allowance ?? payProfile.specialAllowance,
         socialSecurityEnabled: payProfile.socialSecurityEnabled ?? payProfile.social_security_enabled,
         social_security_enabled: payProfile.social_security_enabled ?? payProfile.socialSecurityEnabled,
+        socialSecurityAmount: payProfile.socialSecurityAmount ?? payProfile.social_security_amount,
+        social_security_amount: payProfile.social_security_amount ?? payProfile.socialSecurityAmount,
+        absenceDeductMode: payProfile.absenceDeductMode || payProfile.absence_deduct_mode,
+        absence_deduct_mode: payProfile.absence_deduct_mode || payProfile.absenceDeductMode,
+        absenceDeductUnit: payProfile.absenceDeductUnit || payProfile.absence_deduct_unit,
+        absence_deduct_unit: payProfile.absence_deduct_unit || payProfile.absenceDeductUnit,
+        absenceDeductValue: payProfile.absenceDeductValue ?? payProfile.absence_deduct_value,
+        absence_deduct_value: payProfile.absence_deduct_value ?? payProfile.absenceDeductValue,
+        absenceSystemCalc: payProfile.absenceSystemCalc || payProfile.absence_system_calc,
+        absence_system_calc: payProfile.absence_system_calc || payProfile.absenceSystemCalc,
         effectiveFrom: payProfile.effectiveFrom || payProfile.effective_from,
         effective_from: payProfile.effective_from || payProfile.effectiveFrom
       } : {
@@ -79,6 +89,16 @@ export function useEmployees({ data, user, currentBranch, setData, toast }) {
         special_allowance: employee.specialAllowance || 0,
         socialSecurityEnabled: employee.socialSecurityEnabled,
         social_security_enabled: employee.socialSecurityEnabled,
+        socialSecurityAmount: employee.socialSecurityAmount ?? 0,
+        social_security_amount: employee.socialSecurityAmount ?? 0,
+        absenceDeductMode: employee.absenceDeductMode,
+        absence_deduct_mode: employee.absenceDeductMode,
+        absenceDeductUnit: employee.absenceDeductUnit,
+        absence_deduct_unit: employee.absenceDeductUnit,
+        absenceDeductValue: employee.absenceDeductValue,
+        absence_deduct_value: employee.absenceDeductValue,
+        absenceSystemCalc: employee.absenceSystemCalc,
+        absence_system_calc: employee.absenceSystemCalc,
         effectiveFrom: employee.startDate
       },
       availabilityRules
@@ -99,7 +119,7 @@ export function useEmployees({ data, user, currentBranch, setData, toast }) {
 
   function openView(employee) {
     setModalMode('view');
-    setActiveEmployee(employee);
+    setActiveEmployee(buildFormEmployee(employee));
     setShowModal(true);
   }
 
@@ -110,11 +130,16 @@ export function useEmployees({ data, user, currentBranch, setData, toast }) {
   }
 
   async function handleFormSubmit(savedPayload) {
-    const id = savedPayload.id;
     const isEdit = Boolean(activeEmployee?.id);
     const result = isEdit
       ? await employeesApi.updateEmployee(activeEmployee.id, savedPayload)
       : await employeesApi.createEmployee(savedPayload);
+    const generatedId = isEdit ? activeEmployee.id : result?.data?.id;
+    if (generatedId === undefined || generatedId === null || generatedId === '') {
+      throw new Error('ระบบไม่ได้รับรหัสพนักงานจากฐานข้อมูล');
+    }
+    const id = String(generatedId);
+    savedPayload = { ...savedPayload, id };
 
     if (isEdit) {
       await employeesApi.saveWorkRules(activeEmployee.id, savedPayload);
@@ -150,6 +175,11 @@ export function useEmployees({ data, user, currentBranch, setData, toast }) {
       commissionBranches: employeeBranchRules.filter((rule) => rule.commissionEligible).map((rule) => rule.branchId),
       specialAllowance: savedPayload.payProfile?.special_allowance || savedPayload.payProfile?.specialAllowance || 0,
       socialSecurityEnabled: savedPayload.payProfile?.social_security_enabled ?? savedPayload.payProfile?.socialSecurityEnabled ?? true,
+      socialSecurityAmount: savedPayload.payProfile?.social_security_amount ?? savedPayload.payProfile?.socialSecurityAmount ?? 0,
+      absenceDeductMode: savedPayload.payProfile?.absence_deduct_mode ?? savedPayload.payProfile?.absenceDeductMode,
+      absenceDeductUnit: savedPayload.payProfile?.absence_deduct_unit ?? savedPayload.payProfile?.absenceDeductUnit,
+      absenceDeductValue: savedPayload.payProfile?.absence_deduct_value ?? savedPayload.payProfile?.absenceDeductValue,
+      absenceSystemCalc: savedPayload.payProfile?.absence_system_calc ?? savedPayload.payProfile?.absenceSystemCalc,
       startDate: savedPayload.payProfile?.effectiveFrom || activeEmployee?.startDate || new Date().toISOString().split('T')[0],
       region: savedPayload.regionId || activeEmployee?.region || '',
       phone: savedPayload.phone || ''
@@ -180,6 +210,16 @@ export function useEmployees({ data, user, currentBranch, setData, toast }) {
         special_allowance: savedPayload.payProfile?.special_allowance || savedPayload.payProfile?.specialAllowance || 0,
         socialSecurityEnabled: savedPayload.payProfile?.social_security_enabled ?? savedPayload.payProfile?.socialSecurityEnabled ?? true,
         social_security_enabled: savedPayload.payProfile?.social_security_enabled ?? savedPayload.payProfile?.socialSecurityEnabled ?? true,
+        socialSecurityAmount: savedPayload.payProfile?.social_security_amount ?? savedPayload.payProfile?.socialSecurityAmount ?? 0,
+        social_security_amount: savedPayload.payProfile?.social_security_amount ?? savedPayload.payProfile?.socialSecurityAmount ?? 0,
+        absenceDeductMode: savedPayload.payProfile?.absence_deduct_mode ?? savedPayload.payProfile?.absenceDeductMode,
+        absence_deduct_mode: savedPayload.payProfile?.absence_deduct_mode ?? savedPayload.payProfile?.absenceDeductMode,
+        absenceDeductUnit: savedPayload.payProfile?.absence_deduct_unit ?? savedPayload.payProfile?.absenceDeductUnit,
+        absence_deduct_unit: savedPayload.payProfile?.absence_deduct_unit ?? savedPayload.payProfile?.absenceDeductUnit,
+        absenceDeductValue: savedPayload.payProfile?.absence_deduct_value ?? savedPayload.payProfile?.absenceDeductValue,
+        absence_deduct_value: savedPayload.payProfile?.absence_deduct_value ?? savedPayload.payProfile?.absenceDeductValue,
+        absenceSystemCalc: savedPayload.payProfile?.absence_system_calc ?? savedPayload.payProfile?.absenceSystemCalc,
+        absence_system_calc: savedPayload.payProfile?.absence_system_calc ?? savedPayload.payProfile?.absenceSystemCalc,
         effectiveFrom: savedPayload.payProfile?.effectiveFrom,
         effective_from: savedPayload.payProfile?.effectiveFrom,
         active: true,

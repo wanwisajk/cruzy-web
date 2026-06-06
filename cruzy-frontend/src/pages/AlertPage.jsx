@@ -4,10 +4,11 @@ import { thaiShortDate, formatDbTime } from '../lib/date.js';
 import { useAlerts } from '../features/alerts/hooks/useAlerts.js';
 
 const TYPE_CONFIG = {
-  absent: { label: 'ขาดงาน', color: 'bg-red-50 text-red-700', badge: 'bg-red-100 text-red-800', icon: '👤' },
-  late: { label: 'มาสาย', color: 'bg-orange-50 text-orange-700', badge: 'bg-orange-100 text-orange-800', icon: '⏰' },
-  early: { label: 'กลับก่อนเวลา', color: 'bg-yellow-50 text-yellow-700', badge: 'bg-yellow-100 text-yellow-800', icon: '🏃' },
-  nocheck: { label: 'ไม่ Check-out', color: 'bg-blue-50 text-blue-700', badge: 'bg-blue-100 text-blue-800', icon: '❓' }
+  absent: { label: 'ขาดงาน', color: 'bg-red-50 text-red-700', badge: 'bg-red-100 text-red-800', icon: 'ขาด' },
+  late: { label: 'มาสาย', color: 'bg-orange-50 text-orange-700', badge: 'bg-orange-100 text-orange-800', icon: 'สาย' },
+  break_over: { label: 'พักเกิน', color: 'bg-amber-50 text-amber-700', badge: 'bg-amber-100 text-amber-800', icon: 'พัก' },
+  early: { label: 'ปิดก่อนเวลา', color: 'bg-yellow-50 text-yellow-700', badge: 'bg-yellow-100 text-yellow-800', icon: 'ปิด' },
+  nocheck: { label: 'ไม่ Check-out', color: 'bg-blue-50 text-blue-700', badge: 'bg-blue-100 text-blue-800', icon: 'ไม่มี' }
 };
 
 const SEVERITY_CONFIG = {
@@ -22,16 +23,18 @@ function Badge({ children, className = '' }) {
 function AlertCard({ alert, employee, branch, isOpen, onToggle, onAck, onEdit, onDelete }) {
   const config = TYPE_CONFIG[alert.alert_type] || TYPE_CONFIG.late;
   const severity = SEVERITY_CONFIG[alert.severity] || SEVERITY_CONFIG.warning;
+  const isDerived = alert.source === 'discipline';
 
   return (
-    <div className={`rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:shadow-md ${alert.is_acknowledged ? 'opacity-70' : ''}`}>
+    <div onClick={onToggle} className={`cursor-pointer rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:shadow-md ${alert.is_acknowledged ? 'opacity-70' : ''}`}>
       <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-3">
-          <div className={`grid h-11 w-11 place-items-center rounded-3xl border ${config.badge}`}>{config.icon}</div>
+          <div className={`grid h-11 w-11 place-items-center rounded-3xl border text-[11px] font-black ${config.badge}`}>{config.icon}</div>
           <div className="min-w-0">
             <div className="flex flex-wrap gap-2 text-sm font-bold text-slate-900">
               <span>{alert.title}</span>
               <Badge className={severity.className}>{severity.label}</Badge>
+              {isDerived ? <Badge className="bg-emerald-100 text-emerald-800">จากข้อมูลวินัยจริง</Badge> : null}
             </div>
             <div className="mt-1 text-sm text-slate-500">{employee?.name || alert.employee_id} · {branch?.code || alert.branch_id} · {thaiShortDate(alert.work_date)}</div>
             <div className="mt-2 text-sm text-slate-700">{alert.detail || '-'}</div>
@@ -50,12 +53,16 @@ function AlertCard({ alert, employee, branch, isOpen, onToggle, onAck, onEdit, o
                 <Check size={14} /> รับทราบ
               </button>
             ) : null}
-            <button type="button" onClick={(event) => { event.stopPropagation(); onEdit(alert); }} className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100">
-              แก้ไข
-            </button>
-            <button type="button" onClick={(event) => { event.stopPropagation(); onDelete(alert); }} className="rounded-2xl border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-100">
-              <Trash2 size={14} />
-            </button>
+            {!isDerived ? (
+              <>
+                <button type="button" onClick={(event) => { event.stopPropagation(); onEdit(alert); }} className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100">
+                  แก้ไข
+                </button>
+                <button type="button" onClick={(event) => { event.stopPropagation(); onDelete(alert); }} className="rounded-2xl border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-100">
+                  <Trash2 size={14} />
+                </button>
+              </>
+            ) : null}
           </div>
         </div>
       </div>
@@ -73,10 +80,185 @@ function AlertCard({ alert, employee, branch, isOpen, onToggle, onAck, onEdit, o
             <div className="text-xs text-slate-500">ประเภท</div>
             <div className="mt-2 font-semibold text-slate-900">{config.label}</div>
           </div>
+          <div className="rounded-3xl bg-slate-50 p-3 text-sm text-slate-700">
+            <div className="text-xs text-slate-500">แหล่งข้อมูล</div>
+            <div className="mt-2 font-semibold text-slate-900">{isDerived ? 'คำนวณจากวินัย/เข้างาน' : 'บันทึกในระบบแจ้งเตือน'}</div>
+          </div>
         </div>
       </div>
     </div>
   );
+}
+
+function toMinutes(value) {
+  if (!value) return null;
+  const [hours, minutes] = String(value).slice(0, 5).split(':').map(Number);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+  return (hours * 60) + minutes;
+}
+
+function diffAfter(value, target) {
+  const valueMinutes = toMinutes(value);
+  const targetMinutes = toMinutes(target);
+  if (valueMinutes === null || targetMinutes === null) return 0;
+  return Math.max(0, valueMinutes - targetMinutes);
+}
+
+function diffBefore(value, target) {
+  const valueMinutes = toMinutes(value);
+  const targetMinutes = toMinutes(target);
+  if (valueMinutes === null || targetMinutes === null) return 0;
+  return Math.max(0, targetMinutes - valueMinutes);
+}
+
+function diffBetween(start, end, fallback = 0) {
+  const startMinutes = toMinutes(start);
+  const endMinutes = toMinutes(end);
+  if (startMinutes === null || endMinutes === null) return Number(fallback || 0);
+  return Math.max(0, endMinutes - startMinutes);
+}
+
+function employeeBreakMinutes(employee) {
+  const raw = Number(employee?.breakHours ?? 1);
+  if (!Number.isFinite(raw)) return 60;
+  return Math.round(raw * 60);
+}
+
+function branchShiftStart(branch, date) {
+  const day = new Date(`${date}T00:00:00`).getDay();
+  const key = { 1: 'จ', 2: 'อ', 3: 'พ', 4: 'พฤ', 5: 'ศ', 6: 'ส', 0: 'อา' }[day];
+  return branch?.hours?.[key] || '10:00';
+}
+
+function branchShiftEnd(branch, date) {
+  const day = new Date(`${date}T00:00:00`).getDay();
+  const key = { 1: 'จ', 2: 'อ', 3: 'พ', 4: 'พฤ', 5: 'ศ', 6: 'ส', 0: 'อา' }[day];
+  return branch?.hoursEnd?.[key] || '21:00';
+}
+
+export function buildDisciplineAlerts(data, dismissedIds = new Set()) {
+  const employees = data?.employees || [];
+  const branches = data?.branches || [];
+  const attendanceRows = data?.attendance || [];
+  const schedule = data?.schedule || {};
+  const today = new Date().toISOString().slice(0, 10);
+  const alerts = [];
+
+  Object.entries(schedule).forEach(([key, employeeIds]) => {
+    const date = key.slice(-10);
+    const branchId = key.slice(0, -11);
+    if (!date || date > today) return;
+    (employeeIds || []).forEach((employeeId) => {
+      const hasAttendance = attendanceRows.some((row) => (
+        String(row.empId) === String(employeeId) &&
+        String(row.branch) === String(branchId) &&
+        row.date === date
+      ));
+      if (hasAttendance) return;
+      const id = `discipline_absent_${employeeId}_${branchId}_${date}`;
+      if (dismissedIds.has(id)) return;
+      const employee = employees.find((item) => String(item.id) === String(employeeId));
+      const branch = branches.find((item) => String(item.id) === String(branchId));
+      alerts.push({
+        id,
+        source: 'discipline',
+        alert_type: 'absent',
+        employee_id: String(employeeId),
+        branch_id: branchId,
+        work_date: date,
+        alert_time: branchShiftStart(branch, date),
+        title: `${employee?.name || employeeId} ขาดงาน`,
+        detail: `มีตารางงานที่ ${branch?.code || branchId} แต่ไม่พบข้อมูลเข้างานในวันนั้น`,
+        severity: 'critical',
+        is_acknowledged: false
+      });
+    });
+  });
+
+  attendanceRows.forEach((row) => {
+    const employee = employees.find((item) => String(item.id) === String(row.empId));
+    const branch = branches.find((item) => String(item.id) === String(row.branch));
+    const shiftStart = branchShiftStart(branch, row.date);
+    const shiftEnd = branchShiftEnd(branch, row.date);
+    const lateMinutes = Math.max(Number(row.lateMin || 0), diffAfter(row.clockIn, shiftStart));
+    if (lateMinutes > 0) {
+      const id = `discipline_late_${row.id || `${row.empId}_${row.branch}_${row.date}`}`;
+      if (!dismissedIds.has(id)) {
+        alerts.push({
+          id,
+          source: 'discipline',
+          alert_type: 'late',
+          employee_id: String(row.empId),
+          branch_id: row.branch,
+          work_date: row.date,
+          alert_time: row.clockIn || shiftStart,
+          title: `${employee?.name || row.empId} มาสาย ${lateMinutes} นาที`,
+          detail: `เวลาเข้างาน ${row.clockIn || '-'} เทียบเวลาเริ่มกะ ${shiftStart} ที่ ${branch?.code || row.branch}`,
+          severity: lateMinutes >= 30 ? 'critical' : 'warning',
+          is_acknowledged: false
+        });
+      }
+    }
+
+    const earlyMinutes = diffBefore(row.clockOut, shiftEnd);
+    if (earlyMinutes > 0) {
+      const id = `discipline_early_${row.id || `${row.empId}_${row.branch}_${row.date}`}`;
+      if (!dismissedIds.has(id)) {
+        alerts.push({
+          id,
+          source: 'discipline',
+          alert_type: 'early',
+          employee_id: String(row.empId),
+          branch_id: row.branch,
+          work_date: row.date,
+          alert_time: row.clockOut || shiftEnd,
+          title: `${employee?.name || row.empId} ปิดก่อนเวลา ${earlyMinutes} นาที`,
+          detail: `เวลาออกงาน ${row.clockOut || '-'} เทียบเวลาเลิกกะ ${shiftEnd} ที่ ${branch?.code || row.branch}`,
+          severity: earlyMinutes >= 30 ? 'critical' : 'warning',
+          is_acknowledged: false
+        });
+      }
+    }
+
+    const breakMinutes = diffBetween(row.breakStart, row.breakEnd, row.breakMinutes);
+    const allowedBreak = employeeBreakMinutes(employee);
+    const overMinutes = Math.max(0, breakMinutes - allowedBreak);
+    if (overMinutes > 0 || row.breakOver) {
+      const id = `discipline_break_${row.id || `${row.empId}_${row.branch}_${row.date}`}`;
+      if (!dismissedIds.has(id)) {
+        alerts.push({
+          id,
+          source: 'discipline',
+          alert_type: 'break_over',
+          employee_id: String(row.empId),
+          branch_id: row.branch,
+          work_date: row.date,
+          alert_time: row.breakEnd || row.breakStart || '',
+          title: `${employee?.name || row.empId} พักเกิน ${overMinutes} นาที`,
+          detail: `พักจริง ${breakMinutes} นาที เกณฑ์มาตรฐาน ${allowedBreak} นาที (${row.breakStart || '-'} - ${row.breakEnd || '-'})`,
+          severity: overMinutes >= 30 ? 'critical' : 'warning',
+          is_acknowledged: false
+        });
+      }
+    }
+  });
+
+  return alerts.sort((a, b) => String(b.work_date).localeCompare(String(a.work_date)) || String(b.alert_time || '').localeCompare(String(a.alert_time || '')));
+}
+
+function normalizePersistedAlert(alert) {
+  const type = alert.alert_type || alert.type;
+  return {
+    ...alert,
+    id: String(alert.id),
+    source: 'stored',
+    alert_type: type === 'break' ? 'break_over' : type,
+    employee_id: String(alert.employee_id ?? alert.empId ?? ''),
+    branch_id: alert.branch_id ?? alert.branch,
+    work_date: alert.work_date ?? alert.date,
+    alert_time: alert.alert_time ?? alert.time,
+    is_acknowledged: alert.is_acknowledged ?? alert.ack ?? false
+  };
 }
 
 function EditAlertModal({ open, onClose, onSave, employees, branches, initialData, saving }) {
@@ -172,13 +354,20 @@ export default function AlertPage({ data, currentBranch }) {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingAlert, setEditingAlert] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
+  const [dismissedDerivedIds, setDismissedDerivedIds] = useState(() => new Set());
 
   const employees = data?.employees ?? [];
   const branches = data?.branches ?? [];
 
+  const displayAlerts = useMemo(() => {
+    const persisted = (alerts?.length ? alerts : data?.attendanceAlerts || []).map(normalizePersistedAlert);
+    const derived = buildDisciplineAlerts(data, dismissedDerivedIds);
+    return [...derived, ...persisted];
+  }, [alerts, data, dismissedDerivedIds]);
+
   const filteredAlerts = useMemo(() => {
-    return alerts
-      .filter((alert) => currentBranch === 'all' || alert.branch_id === currentBranch)
+    return displayAlerts
+      .filter((alert) => currentBranch === 'all' || String(alert.branch_id) === String(currentBranch))
       .filter((alert) => {
         if (tab === 'unack') return !alert.is_acknowledged;
         if (tab === 'all') return true;
@@ -188,16 +377,20 @@ export default function AlertPage({ data, currentBranch }) {
         const value = searchTerm.trim().toLowerCase();
         if (!value) return true;
         return [alert.title, alert.detail, alert.alert_type, alert.severity].some((field) => String(field || '').toLowerCase().includes(value))
-          || employees.find((employee) => employee.id === alert.employee_id)?.name.toLowerCase().includes(value)
-          || branches.find((branch) => branch.id === alert.branch_id)?.code.toLowerCase().includes(value);
+          || employees.find((employee) => String(employee.id) === String(alert.employee_id))?.name.toLowerCase().includes(value)
+          || branches.find((branch) => String(branch.id) === String(alert.branch_id))?.code.toLowerCase().includes(value);
       });
-  }, [alerts, currentBranch, tab, searchTerm, employees, branches]);
+  }, [displayAlerts, currentBranch, tab, searchTerm, employees, branches]);
 
   const stats = useMemo(() => ({
-    total: alerts.length,
-    unack: alerts.filter((alert) => !alert.is_acknowledged).length,
-    critical: alerts.filter((alert) => alert.severity === 'critical').length
-  }), [alerts]);
+    total: displayAlerts.length,
+    absent: displayAlerts.filter((alert) => alert.alert_type === 'absent').length,
+    late: displayAlerts.filter((alert) => alert.alert_type === 'late').length,
+    early: displayAlerts.filter((alert) => alert.alert_type === 'early').length,
+    breakOver: displayAlerts.filter((alert) => alert.alert_type === 'break_over').length,
+    unack: displayAlerts.filter((alert) => !alert.is_acknowledged).length,
+    critical: displayAlerts.filter((alert) => alert.severity === 'critical').length
+  }), [displayAlerts]);
 
   const handleSave = async (formData) => {
     const payload = {
@@ -230,27 +423,39 @@ export default function AlertPage({ data, currentBranch }) {
         <div>
           <div className="flex items-center gap-2 text-base font-bold text-slate-900">
             <AlertTriangle size={20} />
-            <span>ระบบแจ้งเตือน</span>
+            <span>แจ้งเตือนวินัย</span>
           </div>
-          <div className="mt-1 text-sm text-slate-500">อิง UI จาก AlertUI และดึงข้อมูลจาก backend จริง</div>
+          <div className="mt-1 text-sm text-slate-500">แสดงคนขาดงาน มาสาย และพักเกินจากข้อมูลเข้างานจริง</div>
         </div>
         <button type="button" onClick={() => openEditor(null)} className="inline-flex items-center gap-2 rounded-2xl bg-[#1B5E20] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-600">
           <Plus size={16} /> สร้างแจ้งเตือน
         </button>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-6">
         <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="text-sm text-slate-500">ทั้งหมด</div>
           <div className="mt-3 text-3xl font-bold text-slate-900">{stats.total}</div>
         </div>
+        <div className="rounded-3xl border border-red-100 bg-red-50 p-4 shadow-sm">
+          <div className="text-sm text-red-700">ขาดงาน</div>
+          <div className="mt-3 text-3xl font-bold text-red-800">{stats.absent}</div>
+        </div>
+        <div className="rounded-3xl border border-orange-100 bg-orange-50 p-4 shadow-sm">
+          <div className="text-sm text-orange-700">มาสาย</div>
+          <div className="mt-3 text-3xl font-bold text-orange-800">{stats.late}</div>
+        </div>
+        <div className="rounded-3xl border border-amber-100 bg-amber-50 p-4 shadow-sm">
+          <div className="text-sm text-amber-700">พักเกิน</div>
+          <div className="mt-3 text-3xl font-bold text-amber-800">{stats.breakOver}</div>
+        </div>
+        <div className="rounded-3xl border border-yellow-100 bg-yellow-50 p-4 shadow-sm">
+          <div className="text-sm text-yellow-700">ปิดก่อนเวลา</div>
+          <div className="mt-3 text-3xl font-bold text-yellow-800">{stats.early}</div>
+        </div>
         <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="text-sm text-slate-500">ยังไม่รับทราบ</div>
           <div className="mt-3 text-3xl font-bold text-orange-700">{stats.unack}</div>
-        </div>
-        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="text-sm text-slate-500">วิกฤต</div>
-          <div className="mt-3 text-3xl font-bold text-red-700">{stats.critical}</div>
         </div>
       </div>
 
@@ -261,8 +466,8 @@ export default function AlertPage({ data, currentBranch }) {
             { id: 'unack', label: 'ยังไม่รับทราบ' },
             { id: 'absent', label: 'ขาดงาน' },
             { id: 'late', label: 'มาสาย' },
-            { id: 'early', label: 'กลับก่อน' },
-            { id: 'nocheck', label: 'ไม่ Check-out' }
+            { id: 'break_over', label: 'พักเกิน' },
+            { id: 'early', label: 'ปิดก่อนเวลา' }
           ].map((item) => (
             <button key={item.id} type="button" onClick={() => setTab(item.id)} className={`rounded-2xl px-4 py-2 text-sm font-semibold ${tab === item.id ? 'bg-[#1B5E20] text-white shadow' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>
               {item.label}
@@ -300,11 +505,17 @@ export default function AlertPage({ data, currentBranch }) {
               <AlertCard
                 key={alert.id}
                 alert={alert}
-                employee={employees.find((employee) => employee.id === alert.employee_id)}
-                branch={branches.find((branch) => branch.id === alert.branch_id)}
+                employee={employees.find((employee) => String(employee.id) === String(alert.employee_id))}
+                branch={branches.find((branch) => String(branch.id) === String(alert.branch_id))}
                 isOpen={expandedId === alert.id}
                 onToggle={() => setExpandedId((current) => (current === alert.id ? null : alert.id))}
-                onAck={async () => acknowledgeAlert(alert.id)}
+                onAck={async () => {
+                  if (alert.source === 'discipline') {
+                    setDismissedDerivedIds((current) => new Set([...current, alert.id]));
+                    return;
+                  }
+                  await acknowledgeAlert(alert.id);
+                }}
                 onEdit={() => openEditor(alert)}
                 onDelete={async () => {
                   if (window.confirm('ยืนยันลบแจ้งเตือนนี้?')) {

@@ -3,8 +3,7 @@ const { parseInteger, required, sendError, toNumber } = require('../../shared/ht
 const TABLES = require('../../shared/tables');
 
 function cleanEmployeePayload(body) {
-  return {
-    id: body.id,
+  const payload = {
     name: body.name,
     color: body.color || body.c || '#4CAF50',
     position: body.position || body.pos || null,
@@ -15,6 +14,8 @@ function cleanEmployeePayload(body) {
     phone: body.phone || null,
     line_user_id: body.line_user_id || null
   };
+  if (body.id !== undefined && body.id !== null && body.id !== '') payload.id = parseInteger(body.id);
+  return payload;
 }
 
 function cleanBranchEligibilityPayload(employeeId, row) {
@@ -64,6 +65,7 @@ function cleanPayProfilePayload(employeeId, body) {
   let rawAbsenceMode = body.absDeduct || body.absence_deduct_mode || body.absenceDeductMode || 'system_hourly_avg';
   let absenceDeductMode = null;
   let absenceSystemCalc = body.absenceSystemCalc || body.absence_system_calc || null;
+  let absenceDeductUnit = body.absenceDeductUnit || body.absence_deduct_unit || null;
 
   if (rawAbsenceMode === 'system_hourly_avg') {
     absenceDeductMode = 'system';
@@ -71,15 +73,27 @@ function cleanPayProfilePayload(employeeId, body) {
   } else if (rawAbsenceMode === 'system_hourly_fixed') {
     absenceDeductMode = 'system';
     absenceSystemCalc = 'hourly_fixed';
+    absenceDeductUnit = absenceDeductUnit || 'hour';
   } else if (rawAbsenceMode === 'fixed_per_day') {
     absenceDeductMode = 'fixed';
     absenceSystemCalc = null;
+    absenceDeductUnit = 'day';
+  } else if (rawAbsenceMode === 'fixed_per_minute') {
+    absenceDeductMode = 'fixed';
+    absenceSystemCalc = null;
+    absenceDeductUnit = 'minute';
+  } else if (rawAbsenceMode === 'fixed_per_occurrence') {
+    absenceDeductMode = 'fixed';
+    absenceSystemCalc = null;
+    absenceDeductUnit = 'occurrence';
   } else if (rawAbsenceMode === 'system') {
     absenceDeductMode = 'system';
     absenceSystemCalc = absenceSystemCalc || 'hourly_avg';
+    if (absenceSystemCalc === 'hourly_fixed') absenceDeductUnit = absenceDeductUnit || 'hour';
   } else if (rawAbsenceMode === 'fixed') {
     absenceDeductMode = 'fixed';
     absenceSystemCalc = null;
+    absenceDeductUnit = absenceDeductUnit || 'day';
   }
 
   if (!absenceDeductMode) {
@@ -100,9 +114,11 @@ function cleanPayProfilePayload(employeeId, body) {
     commission_calc_type: commissionCalcType,
     special_allowance: body.special_allowance !== undefined ? toNumber(body.special_allowance, 0) : body.specialAllowance !== undefined ? toNumber(body.specialAllowance, 0) : 0,
     social_security_enabled: body.socialSecurityEnabled === undefined ? body.social_security_enabled !== false : Boolean(body.socialSecurityEnabled),
+    social_security_amount: body.socialSecurityAmount !== undefined ? toNumber(body.socialSecurityAmount, 0) : body.social_security_amount !== undefined ? toNumber(body.social_security_amount, 0) : 0,
     break_hours: body.breakHours !== undefined ? parseFloat(body.breakHours) : body.break_hours !== undefined ? parseFloat(body.break_hours) : 1,
     absence_deduct_mode: absenceDeductMode,
     absence_system_calc: absenceSystemCalc,
+    absence_deduct_unit: absenceDeductUnit,
     absence_deduct_value: body.absFixed !== undefined ? toNumber(body.absFixed) : body.absence_deduct_value !== undefined ? toNumber(body.absence_deduct_value) : null,
     effective_from: body.effectiveFrom || body.effective_from || new Date().toISOString().slice(0, 10),
     effective_to: body.effectiveTo || body.effective_to || null,
@@ -204,12 +220,12 @@ exports.getEmployee = async (req, res) => {
 exports.createEmployee = async (req, res) => {
   let employeeId = null;
   try {
-    if (!required(res, req.body, ['id', 'name', 'branchEligibility', 'payProfile'])) return;
+    if (!required(res, req.body, ['name', 'branchEligibility', 'payProfile'])) return;
     if (!Array.isArray(req.body.branchEligibility) || req.body.branchEligibility.length === 0) {
       return res.status(400).json({ message: 'ต้องระบุสาขาที่พนักงานสามารถทำงานได้อย่างน้อย 1 สาขา' });
     }
 
-    const employee = cleanEmployeePayload(req.body);
+    const employee = cleanEmployeePayload({ ...req.body, id: undefined });
     const { data, error } = await supabase.from(TABLES.employees).insert([employee]).select().single();
     if (error) throw error;
     employeeId = data.id;

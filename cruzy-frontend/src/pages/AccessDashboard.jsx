@@ -404,7 +404,7 @@ export default function AccessDashboard({ user, fallbackData }) {
               </Table>
             </div>
 
-            {/* การ์ดสาขา สูงสุด 4 ต่อแถว */}
+            {/* การ์ดสาขา สูงสุด 4 ต่อแถว
             <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
               {lineGroups.map((group) => (
                 <div key={group.name} className="card p-4">
@@ -416,7 +416,7 @@ export default function AccessDashboard({ user, fallbackData }) {
                   </div>
                 </div>
               ))}
-            </div>
+            </div> */}
           </div>
         )}
       </Content>

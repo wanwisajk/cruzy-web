@@ -10,7 +10,7 @@ import {
 import { useSchedule } from "../features/schedules/hooks/useSchedule";
 import BranchSettingsSection from "../features/schedules/components/BranchSettingsSection";
 import OverviewSection from "../features/schedules/components/OverviewSection";
-import AllAlertsPage from "../features/schedules/components/Allalertpage";
+import AllAlertsPage from "../features/schedules/components/AllAlertsPage";
 import { createPortal } from "react-dom";
 
 export default function ScheduleDashboard({

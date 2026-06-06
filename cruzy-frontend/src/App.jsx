@@ -15,7 +15,7 @@ import SalesDashboard from './pages/SaleDashboard.jsx';
 import LeaveDashboard from './pages/LeaveDashboard.jsx';
 import CommissionDashboard from './pages/CommissionDashboard.jsx';
 import InspectionDashboard from './pages/InspectionDashboard.jsx';
-import AlertPage from './pages/AlertPage.jsx';
+import AlertPage, { buildDisciplineAlerts } from './pages/AlertPage.jsx';
 import WarningLetterPage from './pages/WarningLetterPage.jsx';
 import LogPage from './pages/LogPage.jsx';
 import AccessDashboard from './pages/AccessDashboard.jsx';
@@ -115,7 +115,14 @@ export default function App() {
 
   const alertCount = useMemo(() => {
     if (!data) return 0;
-    return data.attendanceAlerts.filter((alert) => !alert.ack && (currentBranch === 'all' || alert.branch === currentBranch)).length;
+    const storedCount = data.attendanceAlerts.filter((alert) => (
+      !alert.ack &&
+      (currentBranch === 'all' || String(alert.branch) === String(currentBranch))
+    )).length;
+    const disciplineCount = buildDisciplineAlerts(data).filter((alert) => (
+      currentBranch === 'all' || String(alert.branch_id) === String(currentBranch)
+    )).length;
+    return storedCount + disciplineCount;
   }, [data, currentBranch]);
 
   useEffect(() => {

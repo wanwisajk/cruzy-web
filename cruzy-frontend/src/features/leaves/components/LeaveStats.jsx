@@ -5,7 +5,7 @@ export function LeaveStats({ stats }) {
         <div className="stat-num">{stats.pending}</div>
         <div className="stat-label">รออนุมัติ</div>
       </div>
-      <div className="stat-card hover:shadow-xl transition-shadow" style={{ borderTopColor: '#4caf50' }}>
+<div className="stat-card green hover:shadow-xl transition-shadow" style={{ borderTopColor: '#4caf50' }}>
         <div className="stat-num">{stats.approved}</div>
         <div className="stat-label">อนุมัติแล้ว</div>
       </div>
