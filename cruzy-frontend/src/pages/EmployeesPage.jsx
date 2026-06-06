@@ -206,14 +206,6 @@ function hasScheduledShift(data, empId, branchId, date) {
   return (data?.schedule?.[`${branchId}_${date}`] || []).includes(empId);
 }
 
-function hasAttendance(data, empId, branchId, date) {
-  return (data?.attendance || []).some((row) => (
-    row.empId === empId &&
-    String(row.branch) === String(branchId) &&
-    row.date === date
-  ));
-}
-
 function saleMatchesCommissionType(data, employee, sale, responsibleBranches, periodDays) {
   const branchId = sale.bid;
   const date = sale.date;
@@ -223,7 +215,30 @@ function saleMatchesCommissionType(data, employee, sale, responsibleBranches, pe
     return periodDays.includes(date);
   }
 
-  return hasAttendance(data, employee.id, branchId, date) || hasScheduledShift(data, employee.id, branchId, date);
+  return hasScheduledShift(data, employee.id, branchId, date);
+}
+
+function commissionBranchesInScope(responsibleBranches, selectedBranch) {
+  const branches = responsibleBranches.filter(Boolean);
+  if (selectedBranch === 'all') return branches;
+  return branches.filter((branchId) => String(branchId) === String(selectedBranch));
+}
+
+function countCommissionDays(data, employee, responsibleBranches, periodDays, selectedBranch = 'all') {
+  if (employee.commissionEnabled === false) return 0;
+
+  const scopedBranches = commissionBranchesInScope(responsibleBranches, selectedBranch);
+  if (!scopedBranches.length) return 0;
+
+  if (employee.commissionCalcType === 'period_days_responsible_branches') {
+    return periodDays.length;
+  }
+
+  return periodDays.filter((date) => (
+    scopedBranches.some((branchId) => (
+      hasScheduledShift(data, employee.id, branchId, date)
+    ))
+  )).length;
 }
 
 function employeeCommissionForPeriod(data, employee, periodDays, selectedBranch = 'all') {
@@ -239,7 +254,7 @@ function employeeCommissionForPeriod(data, employee, periodDays, selectedBranch 
   });
   const commissionSales = eligibleSales.reduce((sum, sale) => sum + Number(sale.total || 0), 0);
   const commission = Math.round(commissionSales * (Number(employee.commissionRate || 0) / 100));
-  const commissionDays = new Set(eligibleSales.map((sale) => sale.date)).size;
+  const commissionDays = countCommissionDays(data, employee, responsibleBranches, periodDays, selectedBranch);
 
   return {
     commission,
@@ -364,9 +379,13 @@ export default function EmployeesPage(props) {
     });
   }, [selectedBranch, employees.employees, props.data.employeeBranches]);
 
+  const allEmployees = props.data.employees || [];
   const attendanceRows = props.data.attendance || [];
   const attendanceAlerts = props.data.attendanceAlerts || [];
   const warningLetters = props.data.warningLetters || [];
+  const disciplinePeriodDays = useMemo(() => (
+    props.from && props.to ? dateRange(props.from, props.to) : []
+  ), [props.from, props.to]);
   const filteredWarningLetters = useMemo(() => {
     return warningLetters.filter((letter) => filteredEmployees.some((employee) => employee.id === letter.empId));
   }, [warningLetters, filteredEmployees]);
@@ -402,8 +421,6 @@ export default function EmployeesPage(props) {
           periodDaySet.has(row.date) &&
           (selectedBranch === 'all' || String(row.branch) === String(selectedBranch))
         ));
-        empAttendanceRows.forEach((row) => scheduledDays.add(`${row.date}_${row.branch}`));
-
         const workDays = employee.payType === 'monthly' ? scheduledDays.size : scheduledWorkDates.size;
         const baseWage = employee.payType === 'monthly'
           ? prorateMonthlyAmount(employee.monthlySalary || employee.salary || 0, payrollPeriodDays, payCycleFilter, payrollAnchorDate)
@@ -502,16 +519,29 @@ export default function EmployeesPage(props) {
     });
   }, [filteredEmployees, search, filterStatus]);
 
-  const attendanceDateRows = useMemo(() => {
+  const attendanceDisciplineRows = useMemo(() => {
     return attendanceRows
-      .filter((row) => row.date === attendanceDate)
-      .filter((row) => filteredEmployees.some((employee) => employee.id === row.empId));
-  }, [attendanceRows, attendanceDate, filteredEmployees]);
+      .filter((row) => disciplinePeriodDays.includes(row.date));
+  }, [attendanceRows, disciplinePeriodDays]);
 
   const attendanceSummaryRows = useMemo(() => {
     const groups = {};
-    attendanceDateRows.forEach((row) => {
-      const employee = filteredEmployees.find((item) => item.id === row.empId);
+    allEmployees.forEach((employee) => {
+      const branchId = employee.branch || '';
+      const key = `${employee.id}_${branchId}`;
+      groups[key] = {
+        empId: employee.id,
+        branchId,
+        workDays: 0,
+        lateCount: 0,
+        lateTotal: 0,
+        breakOverCount: 0,
+        disciplineCount: 0
+      };
+    });
+
+    attendanceDisciplineRows.forEach((row) => {
+      const employee = allEmployees.find((item) => item.id === row.empId);
       const metrics = calculateAttendanceMetrics(props.data, row, employee);
       const key = `${row.empId}_${row.branch}`;
       if (!groups[key]) {
@@ -534,19 +564,19 @@ export default function EmployeesPage(props) {
     Object.values(groups).forEach((row) => {
       const alertCount = attendanceAlerts.filter((alert) => (
         alert.empId === row.empId &&
-        String(alert.branch) === String(row.branchId) &&
-        alert.date === attendanceDate
+        disciplinePeriodDays.includes(alert.date) &&
+        String(alert.branch) === String(row.branchId)
       )).length;
       const warningCount = warningLetters.filter((letter) => (
         letter.empId === row.empId &&
-        letter.date === attendanceDate &&
+        disciplinePeriodDays.includes(letter.date) &&
         (!letter.branch || String(letter.branch) === String(row.branchId))
       )).length;
       row.disciplineCount = alertCount + warningCount;
     });
 
     return Object.values(groups);
-  }, [attendanceDateRows, attendanceAlerts, warningLetters, attendanceDate, filteredEmployees, props.data]);
+  }, [attendanceDisciplineRows, attendanceAlerts, warningLetters, disciplinePeriodDays, allEmployees, props.data]);
 
   const attendanceFormEmployee = useMemo(() => (
     filteredEmployees.find((employee) => employee.id === attendanceForm.employeeId)
@@ -617,7 +647,7 @@ export default function EmployeesPage(props) {
         : await api.createAttendance(payload);
       const savedRow = mapAttendanceResponse(result.data || result);
 
-      props.setData((current) => {
+      props.setData?.((current) => {
         const rows = current.attendance || [];
         const exists = rows.some((row) => row.id === savedRow.id);
         return {
@@ -641,7 +671,7 @@ export default function EmployeesPage(props) {
     const ok = window.confirm(`ลบข้อมูลเข้างานวันที่ ${row.date} ของ ${filteredEmployees.find((employee) => employee.id === row.empId)?.name || row.empId} ใช่ไหม?`);
     if (!ok) return;
     await api.deleteAttendance(row.id);
-    props.setData((current) => ({
+    props.setData?.((current) => ({
       ...current,
       attendance: (current.attendance || []).filter((item) => item.id !== row.id)
     }));
@@ -1044,7 +1074,7 @@ export default function EmployeesPage(props) {
                       );
                     })}
                     {attendanceSummaryRows.length === 0 && (
-                      <tr><td colSpan={7} className="text-center py-8 text-gray-400 text-xs">ไม่มีข้อมูลสรุปวินัยในวันที่เลือก</td></tr>
+                      <tr><td colSpan={7} className="text-center py-8 text-gray-400 text-xs">ไม่มีข้อมูลสรุปวินัยในช่วงวันที่เลือก</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -1073,8 +1103,8 @@ export default function EmployeesPage(props) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50 text-gray-700 font-medium">
-                    {attendanceDateRows.map((row) => {
-                      const employee = filteredEmployees.find((item) => item.id === row.empId);
+                    {attendanceDisciplineRows.map((row) => {
+                      const employee = props.data.employees?.find((item) => item.id === row.empId);
                       const branch = props.data.branches.find((item) => String(item.id) === String(row.branch));
                       const metrics = calculateAttendanceMetrics(props.data, row, employee);
                       const status = attendanceStatus(row, props.data, employee);
@@ -1103,8 +1133,8 @@ export default function EmployeesPage(props) {
                         </tr>
                       );
                     })}
-                    {attendanceDateRows.length === 0 && (
-                      <tr><td colSpan={11} className="text-center py-8 text-gray-400 text-xs">ไม่มีรายละเอียดเข้างานในวันที่เลือก</td></tr>
+                    {attendanceDisciplineRows.length === 0 && (
+                      <tr><td colSpan={11} className="text-center py-8 text-gray-400 text-xs">ไม่มีรายละเอียดเข้างานในช่วงวันที่เลือก</td></tr>
                     )}
                   </tbody>
                 </table>

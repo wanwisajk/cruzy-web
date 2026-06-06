@@ -191,15 +191,15 @@ export default function App() {
         <Routes>
           <Route
             path="/leave"
-            element={<LeaveDashboard data={data} currentBranch={currentBranch} />}
+            element={<LeaveDashboard data={data} currentBranch={currentBranch} onRefreshData={loadData} />}
           />
           <Route
             path="/inspection"
-            element={<InspectionDashboard user={user} currentBranch={currentBranch} from={from} to={to} />}
+            element={<InspectionDashboard user={user} currentBranch={currentBranch} from={from} to={to} onRefreshData={loadData} />}
           />
           <Route
             path="/alerts"
-            element={<AlertPage data={data} currentBranch={currentBranch} />}
+            element={<AlertPage data={data} currentBranch={currentBranch} onRefreshData={loadData} />}
           />
           <Route
             path="/auditlog"
@@ -207,19 +207,20 @@ export default function App() {
           />
           <Route
             path="/access"
-            element={<AccessDashboard user={user} fallbackData={data} />}
+            element={<AccessDashboard user={user} fallbackData={data} onRefreshData={loadData} />}
           />
           <Route
             path="/*"
             element={
               <>
                 {currentTab === 'schedule' ? <ScheduleDashboard data={data} setData={setData} user={user} currentBranch={currentBranch} from={from} to={to} toast={push} onRefreshData={loadData} /> : null}
-                {currentTab === 'employee' ? <EmployeesPage data={data} user={user} currentBranch={currentBranch} from={from} to={to} setData={setData} toast={push} /> : null}
-                {currentTab === 'sales' ? <SalesDashboard data={data} user={user} currentBranch={currentBranch} from={from} to={to} /> : null}
-  {currentTab === 'commission' ? <CommissionDashboard data={data} user={user} currentBranch={currentBranch} from={from} to={to} /> : null}                {currentTab === 'inspection' ? <InspectionDashboard user={user} currentBranch={currentBranch} from={from} to={to} /> : null}
-                {currentTab === 'alerts' ? <AlertPage data={data} currentBranch={currentBranch} /> : null}
-                {currentTab === 'warning-letters' ? <WarningLetterPage data={data} user={user} /> : null}
-                {currentTab === 'access' ? <AccessDashboard user={user} fallbackData={data} /> : null}
+                {currentTab === 'employee' ? <EmployeesPage data={data} user={user} currentBranch={currentBranch} from={from} to={to} setData={setData} toast={push} onRefreshData={loadData} /> : null}
+                {currentTab === 'sales' ? <SalesDashboard data={data} user={user} currentBranch={currentBranch} from={from} to={to} onRefreshData={loadData} /> : null}
+                {currentTab === 'commission' ? <CommissionDashboard data={data} user={user} currentBranch={currentBranch} from={from} to={to} onRefreshData={loadData} /> : null}
+                {currentTab === 'inspection' ? <InspectionDashboard user={user} currentBranch={currentBranch} from={from} to={to} onRefreshData={loadData} /> : null}
+                {currentTab === 'alerts' ? <AlertPage data={data} currentBranch={currentBranch} onRefreshData={loadData} /> : null}
+                {currentTab === 'warning-letters' ? <WarningLetterPage data={data} user={user} onRefreshData={loadData} /> : null}
+                {currentTab === 'access' ? <AccessDashboard user={user} fallbackData={data} onRefreshData={loadData} /> : null}
               </>
             }
           />

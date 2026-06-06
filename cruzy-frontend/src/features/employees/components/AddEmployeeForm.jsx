@@ -115,6 +115,7 @@ function getInitialFormState(employee = {}, branches = []) {
   const wageValue = storedPayType === "daily"
     ? (payProfile.daily_rate ?? payProfile.dailyRate ?? employee.dailyRate ?? employee.salary ?? "")
     : (payProfile.salary ?? payProfile.monthly_salary ?? payProfile.monthlySalary ?? employee.salary ?? "");
+  const breakHoursValue = payProfile.breakHours ?? payProfile.break_hours ?? employee.breakHours ?? employee.break_hours ?? "1";
 
   return {
     id: employee.id || "",
@@ -135,7 +136,7 @@ function getInitialFormState(employee = {}, branches = []) {
     comPct: String(payProfile.commission_rate ?? payProfile.commissionRate ?? employee.commissionRate ?? ""),
     weeklyOffs,
     holidays: employee.holidays || "วันหยุดนักขัตฤกษ์",
-    breakHours: String(payProfile.breakHours ?? payProfile.break_hours ?? "1"),
+    breakHours: String(breakHoursValue),
     allowance: String(payProfile.special_allowance ?? ""),
     socialSecurityEnabled: payProfile.socialSecurityEnabled ?? payProfile.social_security_enabled ?? employee.socialSecurityEnabled ?? employee.social_security_enabled ?? true,
     socialSecurityAmount: String(payProfile.social_security_amount ?? payProfile.socialSecurityAmount ?? employee.socialSecurityAmount ?? employee.social_security_amount ?? 0),

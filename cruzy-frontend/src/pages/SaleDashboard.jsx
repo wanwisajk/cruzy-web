@@ -463,7 +463,7 @@ function DepositEditorModal({ data, deposit, mode, onClose, onSaved, onUpsert, o
   );
 }
 
-function AccountFormModal({ account, mode = 'create', onClose, onSaved, onCreated, onUpdated }) {
+function AccountFormModal({ account, mode = 'create', onClose, onSaved, onCreated, onUpdated, onRefresh }) {
   const readonly = mode === 'view';
   const [form, setForm] = useState({
     bankName: account?.bank || 'กสิกรไทย',
@@ -489,6 +489,7 @@ function AccountFormModal({ account, mode = 'create', onClose, onSaved, onCreate
       if (account) onUpdated(saved);
       else onCreated(saved);
       onSaved(account ? 'แก้ไขบัญชีธนาคารสำเร็จ' : 'เพิ่มบัญชีธนาคารสำเร็จ');
+      await onRefresh?.();
       onClose();
     } catch (error) {
       onSaved(error.message || 'เพิ่มบัญชีไม่สำเร็จ', 'err');
@@ -530,11 +531,25 @@ function AccountFormModal({ account, mode = 'create', onClose, onSaved, onCreate
 // 3. MAIN DASHBOARD COMPONENT
 // ==========================================
 
-export default function SaleDashboard({ data, user, currentBranch, from, to }) {
+function getMonthRange() {
+  const today = new Date();
+  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  return {
+    start: firstDay.toISOString().slice(0, 10),
+    end: lastDay.toISOString().slice(0, 10)
+  };
+}
+
+export default function SaleDashboard({ data, user, currentBranch, from, to, onRefreshData }) {
   const [activeTab, setActiveTab] = useState('sales');
   const [sales, setSales] = useState(data.sales);
   const [deposits, setDeposits] = useState(data.deposits);
   const [bankAccounts, setBankAccounts] = useState(data.bankAccounts);
+  
+  const monthRange = getMonthRange();
+  const [filterFrom, setFilterFrom] = useState(monthRange.start);
+  const [filterTo, setFilterTo] = useState(monthRange.end);
   
   const [modalSale, setModalSale] = useState(null);
   const [showAccountForm, setShowAccountForm] = useState(false);
@@ -547,9 +562,16 @@ export default function SaleDashboard({ data, user, currentBranch, from, to }) {
     setBankAccounts(data.bankAccounts);
   }, [data.sales, data.deposits, data.bankAccounts]);
 
+  useEffect(() => {
+    if (from && to) {
+      setFilterFrom(from);
+      setFilterTo(to);
+    }
+  }, [from, to]);
+
   const localData = useMemo(() => ({ ...data, sales, deposits, bankAccounts }), [data, sales, deposits, bankAccounts]);
-  const visibleSales = useMemo(() => filteredSales(localData, user, currentBranch, from, to), [localData, user, currentBranch, from, to]);
-  const visibleDeposits = useMemo(() => filteredDeposits(localData, user, currentBranch, from, to), [localData, user, currentBranch, from, to]);
+  const visibleSales = useMemo(() => filteredSales(localData, user, currentBranch, filterFrom, filterTo), [localData, user, currentBranch, filterFrom, filterTo]);
+  const visibleDeposits = useMemo(() => filteredDeposits(localData, user, currentBranch, filterFrom, filterTo), [localData, user, currentBranch, filterFrom, filterTo]);
 
   function flash(message, type = 'ok') {
     setToast({ message, type });
@@ -575,6 +597,7 @@ export default function SaleDashboard({ data, user, currentBranch, from, to }) {
       });
       setSales((rows) => rows.map((row) => row.id === sale.id ? { ...row, status: 'confirmed', confirmedBy: user.username, confirmTime: new Date().toISOString() } : row));
       flash('ยืนยันยอดเงินสำเร็จคลังจัดเก็บเข้าบัญชีหลักแล้ว');
+      await refreshConsoleData();
     } catch (error) {
       flash(error.message || 'ยืนยันยอดไม่สำเร็จ', 'err');
     }
@@ -587,6 +610,7 @@ export default function SaleDashboard({ data, user, currentBranch, from, to }) {
       });
       setDeposits((rows) => rows.map((row) => row.id === deposit.id ? { ...row, status: 'verified', verifiedBy: user.username, verifyTime: new Date().toISOString() } : row));
       flash('ตรวจสอบเอกสารและยืนยันรับยอดเรียบร้อย');
+      await refreshConsoleData();
     } catch (error) {
       flash(error.message || 'ยืนยันสลิปไม่สำเร็จ', 'err');
     }
@@ -597,6 +621,7 @@ export default function SaleDashboard({ data, user, currentBranch, from, to }) {
       await salesDashboardService.updateBankAccount(account.id, { isActive: !account.active });
       setBankAccounts((rows) => rows.map((row) => row.id === account.id ? { ...row, active: !row.active } : row));
       flash('เปลี่ยนแปลงสถานะการเปิดรับยอดของระบบธนาคารแล้ว');
+      await refreshConsoleData();
     } catch (error) {
       flash(error.message || 'เปลี่ยนสถานะไม่สำเร็จ', 'err');
     }
@@ -988,10 +1013,10 @@ export default function SaleDashboard({ data, user, currentBranch, from, to }) {
       </div>
 
       <SalesLogModal data={localData} sale={modalSale} onClose={() => setModalSale(null)} />
-      {showAccountForm && <AccountFormModal onClose={() => setShowAccountForm(false)} onSaved={flash} onCreated={(acc) => setBankAccounts((rows) => [...rows, acc])} onUpdated={updateAccount} />}
+      {showAccountForm && <AccountFormModal onClose={() => setShowAccountForm(false)} onSaved={flash} onCreated={(acc) => setBankAccounts((rows) => [...rows, acc])} onUpdated={updateAccount} onRefresh={refreshConsoleData} />}
       {editor?.type === 'sale' && <SalesEditorModal data={localData} sale={editor.item} mode={editor.mode} onClose={() => setEditor(null)} onSaved={flash} onUpsert={upsertSale} onRefresh={refreshConsoleData} />}
       {editor?.type === 'deposit' && <DepositEditorModal data={localData} deposit={editor.item} mode={editor.mode} onClose={() => setEditor(null)} onSaved={flash} onUpsert={upsertDeposit} onRefresh={refreshConsoleData} />}
-      {editor?.type === 'account' && <AccountFormModal account={editor.item} mode={editor.mode} onClose={() => setEditor(null)} onSaved={flash} onCreated={(acc) => setBankAccounts((rows) => [...rows, acc])} onUpdated={updateAccount} />}
+      {editor?.type === 'account' && <AccountFormModal account={editor.item} mode={editor.mode} onClose={() => setEditor(null)} onSaved={flash} onCreated={(acc) => setBankAccounts((rows) => [...rows, acc])} onUpdated={updateAccount} onRefresh={refreshConsoleData} />}
 
       {toast && (
         <div className="fixed bottom-5 right-5 z-50 animate-in fade-in slide-in-from-bottom-5 duration-150">

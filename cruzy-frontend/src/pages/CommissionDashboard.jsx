@@ -35,14 +35,6 @@ function hasScheduledShift(data, empId, branchId, date) {
   return (data?.schedule?.[`${branchId}_${date}`] || []).includes(empId);
 }
 
-function hasAttendance(data, empId, branchId, date) {
-  return (data?.attendance || []).some((row) => (
-    row.empId === empId &&
-    String(row.branch) === String(branchId) &&
-    row.date === date
-  ));
-}
-
 function saleMatchesCommissionType(data, emp, sale, responsibleBranches, periodDays) {
   const branchId = sale.bid;
   const date = sale.date;
@@ -53,10 +45,33 @@ function saleMatchesCommissionType(data, emp, sale, responsibleBranches, periodD
   }
 
   if (emp.commissionCalcType === 'actual_work_days_all_branches') {
-    return hasAttendance(data, emp.id, branchId, date) || hasScheduledShift(data, emp.id, branchId, date);
+    return hasScheduledShift(data, emp.id, branchId, date);
   }
 
-  return hasAttendance(data, emp.id, branchId, date) || hasScheduledShift(data, emp.id, branchId, date);
+  return hasScheduledShift(data, emp.id, branchId, date);
+}
+
+function commissionBranchesInScope(responsibleBranches, branchFilter) {
+  const branches = responsibleBranches.filter(Boolean);
+  if (branchFilter === 'all') return branches;
+  return branches.filter((branchId) => String(branchId) === String(branchFilter));
+}
+
+function countCommissionDays(data, emp, responsibleBranches, periodDays, branchFilter) {
+  if (emp.commissionEnabled === false) return 0;
+
+  const scopedBranches = commissionBranchesInScope(responsibleBranches, branchFilter);
+  if (!scopedBranches.length) return 0;
+
+  if (emp.commissionCalcType === 'period_days_responsible_branches') {
+    return periodDays.length;
+  }
+
+  return periodDays.filter((date) => (
+    scopedBranches.some((branchId) => (
+      hasScheduledShift(data, emp.id, branchId, date)
+    ))
+  )).length;
 }
 
 export default function CommissionDashboard({ data: initialData, user, currentBranch, from, to }) {
@@ -78,15 +93,16 @@ export default function CommissionDashboard({ data: initialData, user, currentBr
   function computeAll() {
     const rows = employees.map((emp) => {
       const responsibleBranches = getResponsibleBranches(data, emp, emp.branch);
-      const eligibleSales = sales.filter((sale) => {
+      const commissionEnabled = emp.commissionEnabled !== false;
+      const eligibleSales = commissionEnabled ? sales.filter((sale) => {
         if (!periodDays.includes(sale.date)) return false;
         if (branchFilter !== 'all' && String(sale.bid) !== String(branchFilter)) return false;
         return saleMatchesCommissionType(data, emp, sale, responsibleBranches, periodDays);
-      });
+      }) : [];
       const total = eligibleSales.reduce((sum, sale) => sum + Number(sale.total || 0), 0);
       const rate = Number(emp.commissionRate || 0) / 100;
-      const commission = emp.commissionEnabled === false ? 0 : Math.round(total * rate);
-      const eligibleDates = [...new Set(eligibleSales.map((sale) => sale.date))];
+      const commission = Math.round(total * rate);
+      const eligibleDays = countCommissionDays(data, emp, responsibleBranches, periodDays, branchFilter);
       const branchObj = branches.find((b) => String(b.id) === String(emp.branch)) || {};
       return {
         empId: emp.id,
@@ -96,9 +112,9 @@ export default function CommissionDashboard({ data: initialData, user, currentBr
         branchCode: branchObj.code || '',
         branchName: branchObj.name || '',
         responsibleBranches,
-        eligibleDays: eligibleDates.length,
+        eligibleDays,
         sales: total,
-        tier: COMMISSION_TYPE_LABELS[emp.commissionCalcType] || COMMISSION_TYPE_LABELS.scheduled_assigned_branch_days,
+        tier: commissionEnabled ? COMMISSION_TYPE_LABELS[emp.commissionCalcType] || COMMISSION_TYPE_LABELS.scheduled_assigned_branch_days : 'ไม่คิดค่าคอม',
         rate,
         commission,
         status: total > 0 ? 'calculated' : 'none'
