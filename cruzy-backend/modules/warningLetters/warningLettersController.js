@@ -1,5 +1,5 @@
 const { fetchTable, supabase } = require('../../shared/db');
-const { parseInteger, required, sendError } = require('../../shared/http');
+const { auditFields, parseInteger, required, sendError } = require('../../shared/http');
 const TABLES = require('../../shared/tables');
 
 function cleanWarningLetterPayload(body) {
@@ -48,7 +48,7 @@ exports.getWarningLetter = async (req, res) => {
 
 exports.createWarningLetter = async (req, res) => {
   try {
-    const payload = cleanWarningLetterPayload(req.body);
+    const payload = { ...cleanWarningLetterPayload(req.body), ...auditFields(req) };
     if (!required(res, payload, ['employee_id', 'level', 'issue_date', 'reason', 'issued_by'])) return;
     if (payload.template_id === null && (req.body.templateId !== undefined || req.body.template_id !== undefined)) return res.status(400).json({ message: 'templateId ต้องเป็นตัวเลข' });
     const rawBranchId = req.body.branchId ?? req.body.branch_id;
@@ -71,7 +71,7 @@ exports.updateWarningLetter = async (req, res) => {
   try {
     const id = parseInteger(req.params.id);
     if (id === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
-    const payload = cleanWarningLetterPayload(req.body);
+    const payload = { ...cleanWarningLetterPayload(req.body), ...auditFields(req) };
     Object.keys(payload).forEach((key) => payload[key] === undefined && delete payload[key]);
     if (payload.template_id === null) return res.status(400).json({ message: 'templateId ต้องเป็นตัวเลข' });
     const rawBranchId = req.body.branchId ?? req.body.branch_id;
@@ -88,6 +88,7 @@ exports.deleteWarningLetter = async (req, res) => {
   try {
     const id = parseInteger(req.params.id);
     if (id === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
+    await supabase.from(TABLES.warningLetters).update(auditFields(req)).eq('id', id);
     const { error } = await supabase.from(TABLES.warningLetters).delete().eq('id', id);
     if (error) throw error;
     res.json({ message: 'ลบหนังสือเตือนสำเร็จ' });

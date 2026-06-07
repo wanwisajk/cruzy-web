@@ -1,5 +1,5 @@
 const { fetchTable, MISSING_TABLE_CODES, supabase } = require('../../shared/db');
-const { parseInteger, required, sendError } = require('../../shared/http');
+const { auditFields, parseInteger, required, sendError } = require('../../shared/http');
 const TABLES = require('../../shared/tables');
 
 function cleanSchedulePayload(body) {
@@ -59,7 +59,7 @@ exports.getScheduleMap = async (_req, res) => {
 
 exports.createSchedule = async (req, res) => {
   try {
-    const payload = cleanSchedulePayload(req.body);
+    const payload = { ...cleanSchedulePayload(req.body), ...auditFields(req) };
     if (!required(res, payload, ['branch_id', 'employee_id', 'work_date'])) return;
     if (payload.branch_id === null) return res.status(400).json({ message: 'branch_id ต้องเป็นตัวเลข' });
     const { data, error } = await supabase.from(TABLES.schedules).insert([payload]).select().single();
@@ -74,7 +74,7 @@ exports.updateSchedule = async (req, res) => {
   try {
     const id = parseInteger(req.params.id);
     if (id === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
-    const payload = cleanSchedulePayload(req.body);
+    const payload = { ...cleanSchedulePayload(req.body), ...auditFields(req) };
     Object.keys(payload).forEach((key) => payload[key] === undefined && delete payload[key]);
     if (payload.branch_id === null) return res.status(400).json({ message: 'branch_id ต้องเป็นตัวเลข' });
     const { data, error } = await supabase.from(TABLES.schedules).update(payload).eq('id', id).select().single();
@@ -89,6 +89,7 @@ exports.deleteSchedule = async (req, res) => {
   try {
     const id = parseInteger(req.params.id);
     if (id === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
+    await supabase.from(TABLES.schedules).update(auditFields(req)).eq('id', id);
     const { error } = await supabase.from(TABLES.schedules).delete().eq('id', id);
     if (error) throw error;
     res.json({ message: 'ลบตารางงานสำเร็จ' });
@@ -176,7 +177,7 @@ exports.assignSchedule = async (req, res) => {
 
     const { data, error } = await supabase
       .from(TABLES.schedules)
-      .insert([{ branch_id: bid, work_date: date, employee_id: eid, shift_start: shiftStart || null, shift_end: shiftEnd || null, status: 'planned' }])
+      .insert([{ branch_id: bid, work_date: date, employee_id: eid, shift_start: shiftStart || null, shift_end: shiftEnd || null, status: 'planned', ...auditFields(req) }])
       .select()
       .single();
     if (error) throw error;
@@ -193,6 +194,7 @@ exports.removeSchedule = async (req, res) => {
     const bid = parseInteger(bidRaw);
     if (bid === null) return res.status(400).json({ message: 'bid ต้องเป็นตัวเลข' });
 
+    await supabase.from(TABLES.schedules).update(auditFields(req)).match({ branch_id: bid, work_date: date, employee_id: eid });
     const { error } = await supabase.from(TABLES.schedules).delete().match({ branch_id: bid, work_date: date, employee_id: eid });
     if (error) throw error;
     res.json({ message: 'ลบตารางงานเรียบร้อยแล้ว' });

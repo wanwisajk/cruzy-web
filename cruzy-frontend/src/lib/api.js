@@ -1,13 +1,31 @@
 const configured = import.meta.env.VITE_API_URL;
 const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+const sessionKey = 'cruzyAdminSession';
 
 export const API_URL = configured || (isLocal ? 'http://127.0.0.1:4000/api' : '/api');
+
+function currentAuditHeaders() {
+  try {
+    const session = JSON.parse(localStorage.getItem(sessionKey) || '{}');
+    const user = session.user || {};
+    const actorName = user.username || user.name;
+    if (!actorName) return {};
+    return {
+      'X-Cruzy-Actor-Type': user.employeeId || user.employee_id ? 'employee' : 'user',
+      'X-Cruzy-Actor-Id': String(user.employeeId || user.employee_id || user.id || user.username || ''),
+      'X-Cruzy-Actor-Name': String(actorName)
+    };
+  } catch (_error) {
+    return {};
+  }
+}
 
 export async function request(path, options = {}) {
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
+      ...currentAuditHeaders(),
       ...(options.headers || {})
     }
   });

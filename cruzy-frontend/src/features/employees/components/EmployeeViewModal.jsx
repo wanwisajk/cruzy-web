@@ -1,4 +1,6 @@
+import { X } from 'lucide-react';
 import { numberTH } from '../../../lib/date';
+import { COMMISSION_TYPE_DETAIL_LABELS } from '../lib/employeePageUtils';
 
 const EMP_TYPE_LABELS = {
   fulltime: 'เต็มเวลา (Fulltime)',
@@ -17,12 +19,6 @@ const PAY_CYCLE_LABELS = {
   monthly: 'รายเดือน',
   bimonthly: 'จ่ายปักษ์',
   weekly: 'รายสัปดาห์'
-};
-
-const COMMISSION_TYPE_LABELS = {
-  scheduled_assigned_branch_days: 'เลือกสาขาเอง แล้วคิดเฉพาะวันที่ทำงานในสาขานั้น',
-  actual_work_days_all_branches: 'ทุกสาขาที่ไปทำงานจริงตามตารางงาน/เข้างาน',
-  period_days_responsible_branches: 'ทุกวันในงวดของสาขาที่รับผิดชอบดูแล'
 };
 
 const DAY_LABELS = {
@@ -113,50 +109,55 @@ export function EmployeeViewModal({ employee, branches, onClose }) {
   const socialSecurityAmount = pay.socialSecurityAmount ?? pay.social_security_amount ?? employee.socialSecurityAmount ?? 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm transition-all">
-      <div className="w-full max-w-4xl max-h-[90vh] bg-white rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+    <div className="overlay open" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+      <div className="modal w-[1024px]">
+        <div className="m-head">
           <div>
-            <h3 className="text-sm font-bold text-slate-800">ดูข้อมูลพนักงาน</h3>
-            <p className="text-[11px] text-slate-400 mt-0.5">{employee.name || '-'} · {employee.id || '-'}</p>
+            <h2>ดูข้อมูลพนักงาน</h2>
+            <p className="text-[11px] text-slate-100 mt-0.5">{employee.name || '-'} · {employee.id || '-'}</p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-lg font-bold">&times;</button>
+          <button type="button" className="m-close" onClick={onClose} aria-label="ปิด">
+            <X size={18} />
+          </button>
         </div>
-        <div className="p-5 space-y-5 overflow-y-auto max-h-[calc(90vh-74px)]">
-          <Section title="ข้อมูลพื้นฐาน">
-            <Info label="รหัสพนักงาน" value={employee.id} />
-            <Info label="ชื่อ - นามสกุล" value={employee.name} />
-            <Info label="ชื่อเล่น" value={employee.nickname} />
-            <Info label="ตำแหน่ง" value={employee.position || employee.pos} />
-            <Info label="เบอร์โทรศัพท์" value={employee.phone} />
-            <Info label="LINE User ID" value={employee.line_user_id || employee.lineUserId} />
-          </Section>
 
-          <Section title="สาขาและรูปแบบงาน">
-            <Info label="ประเภทการว่าจ้าง" value={EMP_TYPE_LABELS[employee.empType] || employee.empType} />
-            <Info label="วันเริ่มงาน" value={pay.effectiveFrom || pay.effective_from || employee.startDate} />
-            <Info label="สาขาหลัก" value={branchName(branches, branchIds[0] || employee.branch)} />
-            <Info label="สาขาที่ทำงานได้" value={branchIds.map((id) => branchName(branches, id)).join(', ')} />
-            <Info label="วันหยุดประจำสัปดาห์" value={offDays.map((day) => DAY_LABELS[day] || day).join(', ')} />
-            <Info label="สีบนตารางงาน" value={<ColorValue color={employee.color} />} />
-          </Section>
+        <div className="m-body">
+          <div className="space-y-5">
+            <Section title="ข้อมูลพื้นฐาน">
+              <Info label="รหัสพนักงาน" value={employee.id} />
+              <Info label="ชื่อ - นามสกุล" value={employee.name} />
+              <Info label="ชื่อเล่น" value={employee.nickname} />
+              <Info label="ตำแหน่ง" value={employee.position || employee.pos} />
+              <Info label="เบอร์โทรศัพท์" value={employee.phone} />
+              <Info label="LINE User ID" value={employee.line_user_id || employee.lineUserId} />
+            </Section>
 
-          <Section title="รายได้และการจ่ายเงิน">
-            <Info label="วิธีจ่ายค่าจ้าง" value={PAY_TYPE_LABELS[payType] || payType} />
-            <Info label="รอบการจ่าย" value={PAY_CYCLE_LABELS[payCycle] || payCycle} />
-            <Info label="ค่าจ้างฐาน" value={money(getWage(employee), payType === 'daily' ? ' / วัน' : ' / เดือน')} />
-            <Info label="ประเภทค่าคอม" value={COMMISSION_TYPE_LABELS[pay.commissionCalcType || pay.commission_calc_type || employee.commissionCalcType] || '-'} />
-            <Info label="ค่าคอม" value={`${numberTH(Number(pay.commission_rate ?? pay.commissionRate ?? employee.commissionRate ?? 0))}%`} />
-            <Info label="สาขาที่ได้ค่าคอม" value={commissionBranchIds.map((id) => branchName(branches, id)).join(', ')} />
-            <Info label="เบี้ยเลี้ยงพิเศษ" value={money(pay.special_allowance ?? pay.specialAllowance ?? employee.specialAllowance ?? 0, ' / เดือน')} />
-          </Section>
+            <Section title="สาขาและรูปแบบงาน">
+              <Info label="ประเภทการว่าจ้าง" value={EMP_TYPE_LABELS[employee.empType] || employee.empType} />
+              <Info label="วันเริ่มงาน" value={pay.effectiveFrom || pay.effective_from || employee.startDate} />
+              <Info label="สาขาหลัก" value={branchName(branches, branchIds[0] || employee.branch)} />
+              <Info label="สาขาที่ทำงานได้" value={branchIds.map((id) => branchName(branches, id)).join(', ')} />
+              <Info label="วันหยุดประจำสัปดาห์" value={offDays.map((day) => DAY_LABELS[day] || day).join(', ')} />
+              <Info label="สีบนตารางงาน" value={<ColorValue color={employee.color} />} />
+            </Section>
 
-          <Section title="ข้อบังคับทางการเงิน">
-            <Info label="ประกันสังคม" value={socialSecurityEnabled ? 'มีประกันสังคม' : 'ไม่มีประกันสังคม'} />
-            <Info label="หักประกันสังคม" value={money(socialSecurityAmount)} />
-            <Info label="การหักเงินมาสาย" value={lateDeductLabel(employee)} />
-            <Info label="เวลาพักมาตรฐาน" value={`${numberTH(Number(pay.breakHours ?? pay.break_hours ?? employee.breakHours ?? 1))} ชั่วโมง / วัน`} />
-          </Section>
+            <Section title="รายได้และการจ่ายเงิน">
+              <Info label="วิธีจ่ายค่าจ้าง" value={PAY_TYPE_LABELS[payType] || payType} />
+              <Info label="รอบการจ่าย" value={PAY_CYCLE_LABELS[payCycle] || payCycle} />
+              <Info label="ค่าจ้างฐาน" value={money(getWage(employee), payType === 'daily' ? ' / วัน' : ' / เดือน')} />
+              <Info label="ประเภทค่าคอม" value={COMMISSION_TYPE_DETAIL_LABELS[pay.commissionCalcType || pay.commission_calc_type || employee.commissionCalcType] || '-'} />
+              <Info label="ค่าคอม" value={`${numberTH(Number(pay.commission_rate ?? pay.commissionRate ?? employee.commissionRate ?? 0))}%`} />
+              <Info label="สาขาที่ได้ค่าคอม" value={commissionBranchIds.map((id) => branchName(branches, id)).join(', ')} />
+              <Info label="เบี้ยเลี้ยงพิเศษ" value={money(pay.special_allowance ?? pay.specialAllowance ?? employee.specialAllowance ?? 0, ' / เดือน')} />
+            </Section>
+
+            <Section title="ข้อบังคับทางการเงิน">
+              <Info label="ประกันสังคม" value={socialSecurityEnabled ? 'มีประกันสังคม' : 'ไม่มีประกันสังคม'} />
+              <Info label="หักประกันสังคม" value={money(socialSecurityAmount)} />
+              <Info label="การหักเงินมาสาย" value={lateDeductLabel(employee)} />
+              <Info label="เวลาพักมาตรฐาน" value={`${numberTH(Number(pay.breakHours ?? pay.break_hours ?? employee.breakHours ?? 1))} ชั่วโมง / วัน`} />
+            </Section>
+          </div>
         </div>
       </div>
     </div>

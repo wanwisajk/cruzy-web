@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import { auditLogService } from '../services/auditLogService.js';
 
+function defaultFilters() {
+  const to = new Date();
+  const from = new Date();
+  from.setDate(from.getDate() - 7);
+  return {
+    from_date: from.toISOString().slice(0, 10),
+    to_date: to.toISOString().slice(0, 10)
+  };
+}
+
 export function useAuditLogs() {
   const [auditLogs, setAuditLogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -20,7 +30,7 @@ export function useAuditLogs() {
   }, []);
 
   useEffect(() => {
-    fetchAuditLogs();
+    fetchAuditLogs(defaultFilters());
   }, [fetchAuditLogs]);
 
   return {

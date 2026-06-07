@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { ClipboardList } from "lucide-react";
 
 const COLORS = [
   "#4CAF50", "#FF9800", "#2196F3", "#9C27B0", "#E91E63",
@@ -408,7 +409,7 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
   }[form.absDeduct] || "บาท";
 
   const inputBaseStyle = "w-full border rounded-lg p-2.5 bg-white text-slate-800 transition-all outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/10 text-xs shadow-sm placeholder:text-slate-400";
-  const labelBaseStyle = "block font-semibold text-slate-600 mb-1.5 flex items-center gap-1";
+  const labelBaseStyle = "mb-1 flex items-end min-h-[40px] text-xs font-medium text-slate-600";
 
   return (
     <div className="text-slate-700 text-xs space-y-6 max-w-6xl mx-auto p-1 sm:p-4">
@@ -423,7 +424,6 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
 
       {/* Info Tip */}
       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 p-4 rounded-xl text-blue-800 leading-relaxed shadow-sm flex items-start gap-2.5">
-        <span className="text-base mt-0.5">💡</span>
         <div>
           <span className="font-bold">คำแนะนำระบบบัญชี:</span> ข้อมูลเงินเดือนฐาน อัตราหักการมาสาย และโควตาวันหยุด จะถูกกระจายไปบันทึกแยกตารางในระบบอัตโนมัติตามเงื่อนไขทางบัญชี
         </div>
@@ -432,7 +432,8 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
       {/* SECTION 1: ข้อมูลพื้นฐานในระบบ */}
       <div className="bg-white border border-slate-100 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
         <div className="text-emerald-800 font-bold border-b border-slate-100 pb-2.5 text-sm flex items-center gap-2">
-          <span className="text-base">📋</span> ข้อมูลพื้นฐานในระบบ {isEdit && <span className="text-[10px] bg-amber-50 border border-amber-200 text-amber-700 px-2 py-0.5 rounded-md font-medium">กำลังแก้ไขข้อมูล</span>}
+          <ClipboardList size={16}/> 
+          ข้อมูลพื้นฐานในระบบ {isEdit && <span className="text-[10px] bg-amber-50 border border-amber-200 text-amber-700 px-2 py-0.5 rounded-md font-medium">กำลังแก้ไขข้อมูล</span>}
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
@@ -524,7 +525,7 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
       {/* SECTION 2: สัญญาจ้างและรูปแบบงาน */}
       <div className="bg-white border border-slate-100 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
         <div className="text-emerald-800 font-bold border-b border-slate-100 pb-2.5 text-sm flex items-center gap-2">
-          <span className="text-base">💼</span> สัญญาจ้างและรูปแบบงาน
+          สัญญาจ้างและรูปแบบงาน
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -574,11 +575,11 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
       {/* SECTION 3: รูปแบบรายได้และข้อบังคับทางการเงิน */}
       <div className="bg-white border border-slate-100 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
         <div className="text-emerald-800 font-bold border-b border-slate-100 pb-2.5 text-sm flex items-center gap-2">
-          <span className="text-base">💰</span> รูปแบบรายได้และข้อบังคับทางการเงิน
+          รูปแบบรายได้และข้อบังคับทางการเงิน
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
+          <div className="flex flex-col h-full"> 
             <label className={labelBaseStyle}>วิธีจ่ายค่าจ้าง</label>
             <select value={form.payType} onChange={set("payType")} className={`${inputBaseStyle} border-slate-200 cursor-pointer`}>
               <option value="monthly">รายเดือน (ฐานเงินเดือน)</option>
@@ -587,7 +588,7 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
             </select>
           </div>
 
-          <div>
+          <div className="flex flex-col h-full">
             <label className={labelBaseStyle}>รอบการตัดบัญชีสรุปจ่าย</label>
             <select value={form.payCycle} onChange={set("payCycle")} className={`${inputBaseStyle} border-slate-200 cursor-pointer`}>
               <option value="monthly">รายเดือน (จ่ายสิ้นเดือน)</option>
@@ -596,7 +597,7 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
             </select>
           </div>
 
-          <div>
+          <div className="flex flex-col h-full">
             <label className={labelBaseStyle}>จำนวนเงินค่าจ้างฐาน (฿) <span className="text-red-500">*</span></label>
             <input type="number" value={form.wage} onChange={set("wage")} placeholder="15000" className={`${inputBaseStyle} ${errors.wage ? "border-red-400 bg-red-50/20" : "border-slate-200"}`} />
           </div>
@@ -610,7 +611,7 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
             </select>
           </div>
 
-          <div>
+          <div className="flex flex-col h-full">
             <label className={labelBaseStyle}>ได้ค่าคอม (%)</label>
             <input type="number" value={form.comPct} onChange={set("comPct")} placeholder="2" className={`${inputBaseStyle} ${errors.comPct ? "border-red-400 bg-red-50/20" : "border-slate-200"}`} />
             {errors.comPct && <p className="text-red-500 text-[10px] mt-1">ต้องระบุเปอร์เซ็นต์ค่าคอมมากกว่า 0</p>}
@@ -645,22 +646,24 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
             </div>
           )}
 
-          <div>
+          <div className="flex flex-col h-full">
             <label className={labelBaseStyle}>เบี้ยเลี้ยงพิเศษอื่น ๆ (฿/เดือน)</label>
             <input type="number" value={form.allowance} onChange={set("allowance")} placeholder="0" className={`${inputBaseStyle} border-slate-200`} />
           </div>
 
-          <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={Boolean(form.socialSecurityEnabled)}
-              onChange={(event) => setForm((current) => ({ ...current, socialSecurityEnabled: event.target.checked }))}
-              className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-            />
-            <span className="text-xs  text-slate-600">มีประกันสังคม</span>
-          </label>
+          <div className="flex flex-col h-full mt-10">
+            <label className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={Boolean(form.socialSecurityEnabled)}
+                onChange={(event) => setForm((current) => ({ ...current, socialSecurityEnabled: event.target.checked }))}
+                className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+              />
+              <span className="text-xs text-slate-600">มีประกันสังคม</span>
+            </label>
+          </div>
 
-          <div>
+          <div className="flex flex-col h-full">
             <label className={labelBaseStyle}>หักประกันสังคม (฿)</label>
             <input
               type="number"
@@ -673,7 +676,7 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
             />
           </div>
 
-          <div>
+          <div className="flex flex-col h-full">
             <label className={labelBaseStyle}>การหักเงินมาสาย</label>
             <select value={form.absDeduct} onChange={set("absDeduct")} className={`${inputBaseStyle} border-slate-200 cursor-pointer`}>
               <option value="system_hourly_avg">คำนวณอัตโนมัติ (เรทเฉลี่ยชั่วโมงจริง)</option>
@@ -684,12 +687,12 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
             </select>
           </div>
 
-          <div>
+          <div className="flex flex-col h-full">
             <label className={labelBaseStyle}>เรทหักเงินมาสาย ({lateDeductUnitLabel})</label>
             <input type="number" min="0" value={form.absFixed} onChange={set("absFixed")} disabled={absFixedDisabled} placeholder="ระบุจำนวนเงิน" className={`${inputBaseStyle} border-slate-200 disabled:bg-slate-50 disabled:text-slate-400 disabled:border-slate-100`} />
           </div>
 
-          <div>
+          <div className="flex flex-col h-full">
             <label className={labelBaseStyle}>เวลาพักกะมาตรฐานต่อวัน</label>
             <select value={form.breakHours} onChange={set("breakHours")} className={`${inputBaseStyle} border-slate-200 cursor-pointer`}>
               <option value="1">1 ชั่วโมง</option>
@@ -706,9 +709,9 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
           type="button" 
           onClick={handleReset} 
           disabled={loading} 
-          className="w-full sm:w-auto order-3 sm:order-1 px-5 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 font-semibold text-slate-500 active:scale-95 transition-all text-xs"
+          className="w-full sm:w-auto order-3 sm:order-1 px-5 py-2.5 rounded-xl border border-slate-200 hover:border-emerald-600 hover:bg-emerald-50 font-semibold text-slate-500 active:scale-95 transition-all text-xs"
         >
-          {isEdit ? "🔄 คืนค่าข้อมูลเดิม" : "🔄 ล้างฟอร์ม"}
+          {isEdit ? "คืนค่าข้อมูลเดิม" : "ล้างฟอร์ม"}
         </button>
         
         {onCancel && (
@@ -716,7 +719,7 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
             type="button" 
             onClick={onCancel} 
             disabled={loading} 
-            className="w-full sm:w-auto order-2 sm:order-2 px-5 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 font-semibold text-slate-500 active:scale-95 transition-all text-xs"
+            className="w-full sm:w-auto order-2 sm:order-2 px-5 py-2.5 rounded-xl border border-slate-200 hover:border-emerald-600 hover:bg-emerald-50 font-semibold text-slate-500 active:scale-95 transition-all text-xs"
           >
             ยกเลิก
           </button>
@@ -728,7 +731,7 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
           disabled={loading} 
           className="w-full sm:w-auto order-1 sm:order-3 px-6 py-2.5 rounded-xl bg-emerald-700 text-white font-bold hover:bg-emerald-800 shadow-sm shadow-emerald-700/10 active:scale-95 disabled:bg-emerald-400 transition-all text-xs"
         >
-          {loading ? "⏳ กำลังบันทึกข้อมูล..." : isEdit ? "💾 อัปเดตข้อมูลพนักงาน" : "💾 บันทึกพนักงาน"}
+          {loading ? "กำลังบันทึกข้อมูล..." : isEdit ? "อัปเดตข้อมูลพนักงาน" : "บันทึก"}
         </button>
       </div>
     </div>

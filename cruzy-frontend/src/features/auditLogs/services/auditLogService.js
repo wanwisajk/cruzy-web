@@ -7,6 +7,8 @@ export const auditLogService = {
     if (filters.to_date) params.append('to_date', filters.to_date);
     if (filters.action) params.append('action', filters.action);
     if (filters.table_name) params.append('table_name', filters.table_name);
+    if (filters.module) params.append('module', filters.module);
+    if (filters.source) params.append('source', filters.source);
     if (filters.search) params.append('search', filters.search);
     
     const query = params.toString() ? `?${params.toString()}` : '';

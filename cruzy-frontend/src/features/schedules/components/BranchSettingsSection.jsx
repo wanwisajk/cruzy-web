@@ -11,7 +11,7 @@ export default function BranchSettingsSection() {
   const branches = useBranches();
 
   return (
-    <section className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+    <section className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
       <BranchHeader onAdd={() => branches.setModal('add')} />
 
       <div className="px-6 py-5 max-w-6xl mx-auto">

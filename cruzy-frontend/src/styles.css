@@ -232,11 +232,11 @@ tr:hover { background: #fafafa; }
 
 .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: none; align-items: center; justify-content: center; z-index: 200; }
 .overlay.open { display: flex; }
-.modal { background: #fff; border-radius: 16px; width: 480px; max-width: 94vw; box-shadow: 0 20px 60px rgba(0,0,0,.2); max-height: 90vh; overflow-y: auto; }
-.m-head { padding: 14px 16px; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center; }
+.modal { background: #fff; border-radius: 16px; max-width: 94vw; box-shadow: 0 20px 60px rgba(0,0,0,.2); max-height: 90vh; overflow: hidden; display: flex; flex-direction: column;}
+.m-head { padding: 14px 16px; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center; background: #2E7D32; color: #fff; }
 .m-head h2 { font-size: 15px; }
-.m-close { background: none; border: none; font-size: 20px; cursor: pointer; color: #888; }
-.m-body { padding: 14px 16px; }
+.m-close { background: rgba(255, 255, 255, 0.18); border: none; font-size: 20px; cursor: pointer; color: #fff; width: 32px; height: 32px; border-radius: 9999px; display: flex; align-items: center; justify-content: center; }
+.m-body { padding: 14px 16px; overflow-y: auto; flex: 1; min-height: 0; }
 .m-foot { padding: 10px 16px; border-top: 1px solid #e0e0e0; display: flex; justify-content: flex-end; gap: 6px; }
 
 .login-overlay { position: fixed; inset: 0; background: linear-gradient(135deg,#1B5E20,#2E7D32,#388E3C); display: flex; align-items: center; justify-content: center; z-index: 9999; }

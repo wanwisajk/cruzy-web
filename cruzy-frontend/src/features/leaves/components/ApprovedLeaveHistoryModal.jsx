@@ -12,7 +12,7 @@ export function ApprovedLeaveHistoryModal({ open, onClose, employee }) {
 
   return (
     <div className="overlay open" onClick={(event) => event.target === event.currentTarget && onClose()}>
-      <div className="modal max-w-4xl w-full">
+      <div className="modal max-w-4xl rounded-xl overflow-hidden">
         <div className="m-head">
           <h2>ประวัติการลา approved ของ {employee.name}</h2>
           <button type="button" className="m-close" onClick={onClose}><X size={18} /></button>

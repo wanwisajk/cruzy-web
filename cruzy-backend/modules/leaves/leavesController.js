@@ -1,5 +1,5 @@
 const { fetchTable, supabase } = require('../../shared/db');
-const { parseInteger, required, sendError, toNumber } = require('../../shared/http');
+const { auditFields, parseInteger, required, sendError, toNumber } = require('../../shared/http');
 const TABLES = require('../../shared/tables');
 
 function hasValue(body, ...keys) {
@@ -116,7 +116,7 @@ exports.getLeave = async (req, res) => {
 
 exports.createLeave = async (req, res) => {
   try {
-    const payload = cleanLeavePayload(req.body);
+    const payload = { ...cleanLeavePayload(req.body), ...auditFields(req) };
     if (!required(res, payload, ['employee_id', 'leave_type', 'start_date', 'end_date'])) return;
     const { data, error } = await supabase.from(TABLES.leaves).insert([payload]).select().single();
     if (error) throw error;
@@ -131,7 +131,7 @@ exports.updateLeave = async (req, res) => {
   try {
     const id = parseInteger(req.params.id);
     if (id === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
-    const payload = cleanLeavePayload(req.body, { partial: true });
+    const payload = { ...cleanLeavePayload(req.body, { partial: true }), ...auditFields(req) };
     Object.keys(payload).forEach((key) => payload[key] === undefined && delete payload[key]);
     const { data, error } = await supabase.from(TABLES.leaves).update(payload).eq('id', id).select().single();
     if (error) throw error;
@@ -151,7 +151,7 @@ exports.updateLeaveStatus = async (req, res) => {
     }
     const id = parseInteger(req.params.id);
     if (id === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
-    const { data, error } = await supabase.from(TABLES.leaves).update({ status }).eq('id', id).select().single();
+    const { data, error } = await supabase.from(TABLES.leaves).update({ status, ...auditFields(req) }).eq('id', id).select().single();
     if (error) throw error;
     res.json({ message: 'อัปเดตสถานะการลาเรียบร้อยแล้ว', data });
   } catch (error) {
@@ -164,6 +164,7 @@ exports.deleteLeave = async (req, res) => {
     const id = parseInteger(req.params.id);
     if (id === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
     await supabase.from(TABLES.attachments).delete().eq('entity_type', 'leave').eq('entity_id', id);
+    await supabase.from(TABLES.leaves).update(auditFields(req)).eq('id', id);
     const { error } = await supabase.from(TABLES.leaves).delete().eq('id', id);
     if (error) throw error;
     res.json({ message: 'ลบรายการลาสำเร็จ' });

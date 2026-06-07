@@ -11,6 +11,21 @@ function cleanContractPayload(body) {
   };
 }
 
+function validateContractPayload(res, payload, { partial = false } = {}) {
+  if (!partial && !required(res, payload, ['employee_id', 'contract_type', 'start_date', 'end_date'])) {
+    return false;
+  }
+  if (payload.contract_type && !['fulltime', 'parttime', 'freelance'].includes(payload.contract_type)) {
+    res.status(400).json({ message: 'ประเภทสัญญาจ้างไม่ถูกต้อง' });
+    return false;
+  }
+  if (payload.start_date && payload.end_date && payload.end_date < payload.start_date) {
+    res.status(400).json({ message: 'วันที่สิ้นสุดต้องไม่ก่อนวันที่เริ่มสัญญา' });
+    return false;
+  }
+  return true;
+}
+
 exports.listContracts = async (_req, res) => {
   try {
     res.json(await fetchTable(TABLES.contracts));
@@ -34,7 +49,7 @@ exports.getContract = async (req, res) => {
 exports.createContract = async (req, res) => {
   try {
     const payload = cleanContractPayload(req.body);
-    if (!required(res, payload, ['employee_id', 'contract_type', 'start_date', 'end_date'])) return;
+    if (!validateContractPayload(res, payload)) return;
     const { data, error } = await supabase.from(TABLES.contracts).insert([payload]).select().single();
     if (error) throw error;
     res.status(201).json({ message: 'เพิ่มสัญญาจ้างสำเร็จ', data });
@@ -49,6 +64,7 @@ exports.updateContract = async (req, res) => {
     if (id === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
     const payload = cleanContractPayload(req.body);
     Object.keys(payload).forEach((key) => payload[key] === undefined && delete payload[key]);
+    if (!validateContractPayload(res, payload, { partial: true })) return;
     const { data, error } = await supabase.from(TABLES.contracts).update(payload).eq('id', id).select().single();
     if (error) throw error;
     res.json({ message: 'อัปเดตสัญญาจ้างสำเร็จ', data });

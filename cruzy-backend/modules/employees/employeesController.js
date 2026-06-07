@@ -1,5 +1,5 @@
 const { fetchTable, supabase } = require('../../shared/db');
-const { parseInteger, required, sendError, toNumber } = require('../../shared/http');
+const { auditFields, parseInteger, required, sendError, toNumber } = require('../../shared/http');
 const TABLES = require('../../shared/tables');
 
 function cleanEmployeePayload(body) {
@@ -128,11 +128,12 @@ function cleanPayProfilePayload(employeeId, body) {
   };
 }
 
-async function saveWorkRules(employeeId, body) {
+async function saveWorkRules(employeeId, body, audit = {}) {
   if (Array.isArray(body.branchEligibility)) {
+    await stampRowsBeforeDelete(TABLES.employeeBranchEligibility, audit, 'employee_id', employeeId);
     const { error: deleteError } = await supabase.from(TABLES.employeeBranchEligibility).delete().eq('employee_id', employeeId);
     if (deleteError) throw deleteError;
-    const rows = body.branchEligibility.map((row) => cleanBranchEligibilityPayload(employeeId, row)).filter((row) => row.branch_id);
+    const rows = body.branchEligibility.map((row) => ({ ...cleanBranchEligibilityPayload(employeeId, row), ...audit })).filter((row) => row.branch_id);
     if (rows.length) {
       const { error } = await supabase.from(TABLES.employeeBranchEligibility).insert(rows);
       if (error) throw error;
@@ -140,10 +141,11 @@ async function saveWorkRules(employeeId, body) {
   }
 
   if (Array.isArray(body.availabilityRules)) {
+    await stampRowsBeforeDelete(TABLES.employeeAvailabilityRules, audit, 'employee_id', employeeId);
     const { error: deleteError } = await supabase.from(TABLES.employeeAvailabilityRules).delete().eq('employee_id', employeeId);
     if (deleteError) throw deleteError;
     const rows = body.availabilityRules
-      .map((row) => cleanAvailabilityRulePayload(employeeId, row))
+      .map((row) => ({ ...cleanAvailabilityRulePayload(employeeId, row), ...audit }))
       .filter((row) => Number.isInteger(row.day_of_week) && row.day_of_week >= 0 && row.day_of_week <= 6);
     if (rows.length) {
       const { error } = await supabase.from(TABLES.employeeAvailabilityRules).insert(rows);
@@ -152,9 +154,10 @@ async function saveWorkRules(employeeId, body) {
   }
 
   if (Array.isArray(body.availabilityOverrides)) {
+    await stampRowsBeforeDelete(TABLES.employeeAvailabilityOverrides, audit, 'employee_id', employeeId);
     const { error: deleteError } = await supabase.from(TABLES.employeeAvailabilityOverrides).delete().eq('employee_id', employeeId);
     if (deleteError) throw deleteError;
-    const rows = body.availabilityOverrides.map((row) => cleanAvailabilityOverridePayload(employeeId, row)).filter((row) => row.work_date);
+    const rows = body.availabilityOverrides.map((row) => ({ ...cleanAvailabilityOverridePayload(employeeId, row), ...audit })).filter((row) => row.work_date);
     if (rows.length) {
       const { error } = await supabase.from(TABLES.employeeAvailabilityOverrides).insert(rows);
       if (error) throw error;
@@ -164,18 +167,34 @@ async function saveWorkRules(employeeId, body) {
   if (body.payProfile) {
     const { error: oldProfileError } = await supabase
       .from(TABLES.employeePayProfiles)
-      .update({ is_active: false, effective_to: new Date().toISOString().slice(0, 10) })
+      .update({ is_active: false, effective_to: new Date().toISOString().slice(0, 10), ...audit })
       .eq('employee_id', employeeId)
       .eq('is_active', true);
     if (oldProfileError) throw oldProfileError;
 
-    const payload = cleanPayProfilePayload(employeeId, body.payProfile);
+    const payload = { ...cleanPayProfilePayload(employeeId, body.payProfile), ...audit };
     const { error } = await supabase.from(TABLES.employeePayProfiles).insert([payload]);
     if (error) throw error;
   }
 }
 
-async function deleteEmployeeCascade(employeeId) {
+async function stampRowsBeforeDelete(table, audit, column, value) {
+  const { error } = await supabase.from(table).update(audit).eq(column, value);
+  if (error) console.error('stampRowsBeforeDelete error:', table, error);
+}
+
+async function deleteEmployeeCascade(employeeId, audit = {}) {
+  await Promise.all([
+    stampRowsBeforeDelete(TABLES.schedules, audit, 'employee_id', employeeId),
+    stampRowsBeforeDelete(TABLES.warningLetters, audit, 'employee_id', employeeId),
+    stampRowsBeforeDelete(TABLES.leaves, audit, 'employee_id', employeeId),
+    stampRowsBeforeDelete(TABLES.employeePayProfiles, audit, 'employee_id', employeeId),
+    stampRowsBeforeDelete(TABLES.employeeBranchEligibility, audit, 'employee_id', employeeId),
+    stampRowsBeforeDelete(TABLES.employeeAvailabilityRules, audit, 'employee_id', employeeId),
+    stampRowsBeforeDelete(TABLES.employeeAvailabilityOverrides, audit, 'employee_id', employeeId),
+    stampRowsBeforeDelete(TABLES.leaveBalances, audit, 'employee_id', employeeId)
+  ]);
+
   const operations = [
     supabase.from(TABLES.salesLogs).update({ edited_by: null }).eq('edited_by', employeeId),
     supabase.from(TABLES.sales).update({ submitted_by: null }).eq('submitted_by', employeeId),
@@ -221,13 +240,14 @@ exports.getEmployee = async (req, res) => {
 
 exports.createEmployee = async (req, res) => {
   let employeeId = null;
+  const audit = auditFields(req);
   try {
     if (!required(res, req.body, ['name', 'branchEligibility', 'payProfile'])) return;
     if (!Array.isArray(req.body.branchEligibility) || req.body.branchEligibility.length === 0) {
       return res.status(400).json({ message: 'ต้องระบุสาขาที่พนักงานสามารถทำงานได้อย่างน้อย 1 สาขา' });
     }
 
-    const employee = cleanEmployeePayload({ ...req.body, id: undefined });
+    const employee = { ...cleanEmployeePayload({ ...req.body, id: undefined }), ...audit };
     const { data, error } = await supabase.from(TABLES.employees).insert([employee]).select().single();
     if (error) throw error;
     employeeId = data.id;
@@ -238,16 +258,17 @@ exports.createEmployee = async (req, res) => {
       vacation_remaining: toNumber(req.body.vacationRemaining, 6),
       sick_used: 0,
       personal_used: 0,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
+      ...audit
     }], { onConflict: 'employee_id' });
     if (balanceError) throw balanceError;
 
-    await saveWorkRules(employeeId, req.body);
+    await saveWorkRules(employeeId, req.body, audit);
     res.status(201).json({ message: 'เพิ่มพนักงานสำเร็จ', data });
   } catch (error) {
     console.error('createEmployee failed:', error);
     if (employeeId) {
-      await deleteEmployeeCascade(employeeId);
+      await deleteEmployeeCascade(employeeId, audit);
       await supabase.from(TABLES.employees).delete().eq('id', employeeId);
     }
     const status = error.code === '23505' ? 409 : 500;
@@ -258,7 +279,7 @@ exports.createEmployee = async (req, res) => {
 
 exports.saveEmployeeWorkRules = async (req, res) => {
   try {
-    await saveWorkRules(req.params.id, req.body);
+    await saveWorkRules(req.params.id, req.body, auditFields(req));
     res.json({ message: 'อัปเดตกติกาพนักงานสำเร็จ' });
   } catch (error) {
     console.error('saveEmployeeWorkRules failed:', error);
@@ -283,7 +304,7 @@ exports.updateEmployee = async (req, res) => {
       employee.region_id = regionId;
     }
 
-    const { data, error } = await supabase.from(TABLES.employees).update(employee).eq('id', req.params.id).select().single();
+    const { data, error } = await supabase.from(TABLES.employees).update({ ...employee, ...auditFields(req) }).eq('id', req.params.id).select().single();
     if (error) throw error;
     res.json({ message: 'อัปเดตพนักงานสำเร็จ', data });
   } catch (error) {
@@ -293,7 +314,9 @@ exports.updateEmployee = async (req, res) => {
 
 exports.deleteEmployee = async (req, res) => {
   try {
-    await deleteEmployeeCascade(req.params.id);
+    const audit = auditFields(req);
+    await deleteEmployeeCascade(req.params.id, audit);
+    await supabase.from(TABLES.employees).update(audit).eq('id', req.params.id);
     const { error } = await supabase.from(TABLES.employees).delete().eq('id', req.params.id);
     if (error) throw error;
     res.json({ message: 'ลบพนักงานสำเร็จ' });
