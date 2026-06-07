@@ -33,7 +33,9 @@ export default function AuditLogPage() {
       action: normalizeAction(log.action),
       module: friendlyModuleName(log.module || log.page || log.table_name || '-'),
       table_label: friendlyTableName(log.table_name),
-      subject: log.subject || log.record_id || '-',
+      subject: log.employee_name || log.subject || log.record_id || '-',
+      employee_name: log.employee_name || '',
+      employee_id: log.employee_id || '',
       actor_type: log.actor_type || '',
       actor_id: log.actor_id || ''
     }));
@@ -55,6 +57,8 @@ export default function AuditLogPage() {
         log.module,
         log.table_name,
         log.subject,
+        log.employee_name,
+        log.employee_id,
         log.branch,
         log.source,
         log.actor_type,

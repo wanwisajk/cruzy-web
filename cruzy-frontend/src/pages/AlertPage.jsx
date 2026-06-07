@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { AlertTriangle, Check, Search, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle2, Loader2, Search, Plus, Trash2 } from 'lucide-react';
 import { thaiShortDate, formatDbTime } from '../lib/date.js';
 import { useAlerts } from '../features/alerts/hooks/useAlerts.js';
 
@@ -20,13 +20,19 @@ function Badge({ children, className = '' }) {
   return <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold ${className}`}>{children}</span>;
 }
 
-function AlertCard({ alert, employee, branch, isOpen, onToggle, onAck, onEdit, onDelete }) {
+function AlertCard({ alert, employee, branch, isOpen, onToggle, onAck, onEdit, onDelete, acking }) {
   const config = TYPE_CONFIG[alert.alert_type] || TYPE_CONFIG.late;
   const severity = SEVERITY_CONFIG[alert.severity] || SEVERITY_CONFIG.warning;
   const isDerived = alert.source === 'discipline';
+  const acknowledged = Boolean(alert.is_acknowledged);
 
   return (
-    <div onClick={onToggle} className={`cursor-pointer rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:shadow-md ${alert.is_acknowledged ? 'opacity-70' : ''}`}>
+    <div
+      onClick={onToggle}
+      className={`cursor-pointer rounded-3xl border bg-white shadow-sm transition hover:shadow-md ${
+        acknowledged ? 'border-emerald-200 bg-emerald-50/35' : 'border-slate-200'
+      }`}
+    >
       <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-3">
           <div className={`grid h-11 w-11 place-items-center rounded-3xl border text-[11px] font-black ${config.badge}`}>{config.icon}</div>
@@ -44,15 +50,31 @@ function AlertCard({ alert, employee, branch, isOpen, onToggle, onAck, onEdit, o
         <div className="flex flex-col items-start gap-2 sm:items-end">
           <div className="flex flex-wrap gap-2">
             <Badge className={config.badge}>{config.label}</Badge>
-            <Badge className={alert.is_acknowledged ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'}>{alert.is_acknowledged ? 'รับทราบแล้ว' : 'ยังไม่รับทราบ'}</Badge>
+            <Badge className={acknowledged ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'}>
+              {acknowledged ? (
+                <>
+                  <CheckCircle2 size={12} /> รับทราบแล้ว
+                </>
+              ) : 'ยังไม่รับทราบ'}
+            </Badge>
           </div>
           <div className="text-right text-xs text-slate-500">{formatDbTime(alert.alert_time) || 'ไม่ระบุเวลา'}</div>
           <div className="flex gap-2 pt-2">
-            {!alert.is_acknowledged ? (
-              <button type="button" onClick={(event) => { event.stopPropagation(); onAck(alert); }} className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">
-                <Check size={14} /> รับทราบ
+            {!acknowledged ? (
+              <button
+                type="button"
+                onClick={(event) => { event.stopPropagation(); onAck(alert); }}
+                disabled={acking}
+                className="inline-flex items-center gap-1 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:cursor-wait disabled:opacity-60"
+              >
+                {acking ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                {acking ? 'กำลังบันทึก...' : 'รับทราบ'}
               </button>
-            ) : null}
+            ) : (
+              <button type="button" disabled className="inline-flex items-center gap-1 rounded-2xl border border-emerald-200 bg-emerald-600 px-3 py-1 text-xs font-bold text-white">
+                <CheckCircle2 size={14} /> รับทราบแล้ว
+              </button>
+            )}
             {!isDerived ? (
               <>
                 <button type="button" onClick={(event) => { event.stopPropagation(); onEdit(alert); }} className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100">
@@ -87,6 +109,21 @@ function AlertCard({ alert, employee, branch, isOpen, onToggle, onAck, onEdit, o
         </div>
       </div>
     </div>
+  );
+}
+
+function AlertSection({ title, subtitle, alerts, children }) {
+  return (
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-bold text-slate-900">{title}</h2>
+          {subtitle ? <p className="mt-1 text-xs text-slate-500">{subtitle}</p> : null}
+        </div>
+        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{alerts.length} รายการ</span>
+      </div>
+      {children}
+    </section>
   );
 }
 
@@ -261,6 +298,16 @@ function normalizePersistedAlert(alert) {
   };
 }
 
+function alertIdentityKey(alert) {
+  const type = alert.alert_type === 'break' ? 'break_over' : alert.alert_type;
+  return [
+    type || '',
+    String(alert.employee_id ?? alert.empId ?? ''),
+    String(alert.branch_id ?? alert.branch ?? ''),
+    String(alert.work_date ?? alert.date ?? '')
+  ].join('|');
+}
+
 function EditAlertModal({ open, onClose, onSave, employees, branches, initialData, saving }) {
   const [form, setForm] = useState(() => ({
     alert_type: initialData?.alert_type || 'late',
@@ -349,27 +396,34 @@ function EditAlertModal({ open, onClose, onSave, employees, branches, initialDat
 
 export default function AlertPage({ data, currentBranch }) {
   const { alerts, loading, saving, error, createAlert, updateAlert, acknowledgeAlert, deleteAlert } = useAlerts();
-  const [tab, setTab] = useState('unack');
+  const [tab, setTab] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingAlert, setEditingAlert] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
   const [dismissedDerivedIds, setDismissedDerivedIds] = useState(() => new Set());
+  const [acknowledgedDerivedIds, setAcknowledgedDerivedIds] = useState(() => new Set());
+  const [ackingId, setAckingId] = useState(null);
+  const [justAcknowledgedIds, setJustAcknowledgedIds] = useState(() => new Set());
 
   const employees = data?.employees ?? [];
   const branches = data?.branches ?? [];
 
   const displayAlerts = useMemo(() => {
     const persisted = (alerts?.length ? alerts : data?.attendanceAlerts || []).map(normalizePersistedAlert);
-    const derived = buildDisciplineAlerts(data, dismissedDerivedIds);
+    const persistedKeys = new Set(persisted.map(alertIdentityKey));
+    const derived = buildDisciplineAlerts(data, dismissedDerivedIds).map((alert) =>
+      acknowledgedDerivedIds.has(alert.id) ? { ...alert, is_acknowledged: true } : alert,
+    ).filter((alert) => !persistedKeys.has(alertIdentityKey(alert)));
     return [...derived, ...persisted];
-  }, [alerts, data, dismissedDerivedIds]);
+  }, [alerts, data, dismissedDerivedIds, acknowledgedDerivedIds]);
 
   const filteredAlerts = useMemo(() => {
     return displayAlerts
       .filter((alert) => currentBranch === 'all' || String(alert.branch_id) === String(currentBranch))
       .filter((alert) => {
-        if (tab === 'unack') return !alert.is_acknowledged;
+        if (tab === 'unack') return !alert.is_acknowledged || justAcknowledgedIds.has(alert.id);
+        if (tab === 'ack') return alert.is_acknowledged;
         if (tab === 'all') return true;
         return alert.alert_type === tab;
       })
@@ -377,10 +431,10 @@ export default function AlertPage({ data, currentBranch }) {
         const value = searchTerm.trim().toLowerCase();
         if (!value) return true;
         return [alert.title, alert.detail, alert.alert_type, alert.severity].some((field) => String(field || '').toLowerCase().includes(value))
-          || employees.find((employee) => String(employee.id) === String(alert.employee_id))?.name.toLowerCase().includes(value)
-          || branches.find((branch) => String(branch.id) === String(alert.branch_id))?.code.toLowerCase().includes(value);
+          || String(employees.find((employee) => String(employee.id) === String(alert.employee_id))?.name || '').toLowerCase().includes(value)
+          || String(branches.find((branch) => String(branch.id) === String(alert.branch_id))?.code || '').toLowerCase().includes(value);
       });
-  }, [displayAlerts, currentBranch, tab, searchTerm, employees, branches]);
+  }, [displayAlerts, currentBranch, tab, searchTerm, employees, branches, justAcknowledgedIds]);
 
   const stats = useMemo(() => ({
     total: displayAlerts.length,
@@ -389,8 +443,14 @@ export default function AlertPage({ data, currentBranch }) {
     early: displayAlerts.filter((alert) => alert.alert_type === 'early').length,
     breakOver: displayAlerts.filter((alert) => alert.alert_type === 'break_over').length,
     unack: displayAlerts.filter((alert) => !alert.is_acknowledged).length,
+    ack: displayAlerts.filter((alert) => alert.is_acknowledged).length,
     critical: displayAlerts.filter((alert) => alert.severity === 'critical').length
   }), [displayAlerts]);
+
+  const groupedAlerts = useMemo(() => ({
+    unacknowledged: filteredAlerts.filter((alert) => !alert.is_acknowledged || justAcknowledgedIds.has(alert.id)),
+    acknowledged: filteredAlerts.filter((alert) => alert.is_acknowledged && !justAcknowledgedIds.has(alert.id))
+  }), [filteredAlerts, justAcknowledgedIds]);
 
   const handleSave = async (formData) => {
     const payload = {
@@ -417,6 +477,51 @@ export default function AlertPage({ data, currentBranch }) {
     setEditorOpen(true);
   };
 
+  const markJustAcknowledged = (id) => {
+    setJustAcknowledgedIds((current) => new Set([...current, id]));
+    window.setTimeout(() => {
+      setJustAcknowledgedIds((current) => {
+        const next = new Set(current);
+        next.delete(id);
+        return next;
+      });
+    }, 2500);
+  };
+
+  const handleAcknowledge = async (alert) => {
+    setAckingId(alert.id);
+    try {
+      if (alert.source === 'discipline') {
+        await createAlert({
+          alertType: alert.alert_type,
+          employeeId: alert.employee_id,
+          branchId: Number(alert.branch_id),
+          workDate: alert.work_date,
+          alertTime: alert.alert_time,
+          title: alert.title,
+          detail: alert.detail,
+          severity: alert.severity,
+          isAcknowledged: true
+        });
+        setAcknowledgedDerivedIds((current) => new Set([...current, alert.id]));
+        markJustAcknowledged(alert.id);
+        window.setTimeout(() => {
+          setDismissedDerivedIds((current) => new Set([...current, alert.id]));
+          setAcknowledgedDerivedIds((current) => {
+            const next = new Set(current);
+            next.delete(alert.id);
+            return next;
+          });
+        }, 2500);
+        return;
+      }
+      await acknowledgeAlert(alert.id);
+      markJustAcknowledged(alert.id);
+    } finally {
+      setAckingId(null);
+    }
+  };
+
   return (
     <div className="space-y-4 p-4 sm:p-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -432,7 +537,7 @@ export default function AlertPage({ data, currentBranch }) {
         </button>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-6">
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-7">
         <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="text-sm text-slate-500">ทั้งหมด</div>
           <div className="mt-3 text-3xl font-bold text-slate-900">{stats.total}</div>
@@ -457,6 +562,10 @@ export default function AlertPage({ data, currentBranch }) {
           <div className="text-sm text-slate-500">ยังไม่รับทราบ</div>
           <div className="mt-3 text-3xl font-bold text-orange-700">{stats.unack}</div>
         </div>
+        <div className="rounded-3xl border border-emerald-100 bg-emerald-50 p-4 shadow-sm">
+          <div className="text-sm text-emerald-700">รับทราบแล้ว</div>
+          <div className="mt-3 text-3xl font-bold text-emerald-800">{stats.ack}</div>
+        </div>
       </div>
 
       <div className="overflow-x-auto rounded-3xl bg-white p-3 shadow-sm">
@@ -464,6 +573,7 @@ export default function AlertPage({ data, currentBranch }) {
           {[
             { id: 'all', label: 'ทั้งหมด' },
             { id: 'unack', label: 'ยังไม่รับทราบ' },
+            { id: 'ack', label: 'รับทราบแล้ว' },
             { id: 'absent', label: 'ขาดงาน' },
             { id: 'late', label: 'มาสาย' },
             { id: 'break_over', label: 'พักเกิน' },
@@ -501,7 +611,54 @@ export default function AlertPage({ data, currentBranch }) {
       ) : (
         <div className="space-y-4">
           {filteredAlerts.length ? (
-            filteredAlerts.map((alert) => (
+            tab === 'all' ? (
+              <>
+                <AlertSection title="ยังไม่รับทราบ" subtitle="รายการที่ต้องกดรับทราบหรือจัดการต่อ" alerts={groupedAlerts.unacknowledged}>
+                  {groupedAlerts.unacknowledged.length ? groupedAlerts.unacknowledged.map((alert) => (
+                    <AlertCard
+                      key={alert.id}
+                      alert={alert}
+                      employee={employees.find((employee) => String(employee.id) === String(alert.employee_id))}
+                      branch={branches.find((branch) => String(branch.id) === String(alert.branch_id))}
+                      isOpen={expandedId === alert.id}
+                      onToggle={() => setExpandedId((current) => (current === alert.id ? null : alert.id))}
+                      onAck={handleAcknowledge}
+                      onEdit={() => openEditor(alert)}
+                      acking={ackingId === alert.id}
+                      onDelete={async () => {
+                        if (window.confirm('ยืนยันลบแจ้งเตือนนี้?')) {
+                          await deleteAlert(alert.id);
+                        }
+                      }}
+                    />
+                  )) : (
+                    <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 text-center text-sm font-semibold text-emerald-700">ไม่มีรายการค้างรับทราบ</div>
+                  )}
+                </AlertSection>
+                <AlertSection title="รับทราบแล้ว" subtitle="รายการที่ถูกบันทึกลงฐานข้อมูลแล้ว รีเฟรชหน้าก็ยังคงสถานะเดิม" alerts={groupedAlerts.acknowledged}>
+                  {groupedAlerts.acknowledged.length ? groupedAlerts.acknowledged.map((alert) => (
+                    <AlertCard
+                      key={alert.id}
+                      alert={alert}
+                      employee={employees.find((employee) => String(employee.id) === String(alert.employee_id))}
+                      branch={branches.find((branch) => String(branch.id) === String(alert.branch_id))}
+                      isOpen={expandedId === alert.id}
+                      onToggle={() => setExpandedId((current) => (current === alert.id ? null : alert.id))}
+                      onAck={handleAcknowledge}
+                      onEdit={() => openEditor(alert)}
+                      acking={ackingId === alert.id}
+                      onDelete={async () => {
+                        if (window.confirm('ยืนยันลบแจ้งเตือนนี้?')) {
+                          await deleteAlert(alert.id);
+                        }
+                      }}
+                    />
+                  )) : (
+                    <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-center text-sm text-slate-500">ยังไม่มีรายการที่รับทราบแล้ว</div>
+                  )}
+                </AlertSection>
+              </>
+            ) : filteredAlerts.map((alert) => (
               <AlertCard
                 key={alert.id}
                 alert={alert}
@@ -509,14 +666,9 @@ export default function AlertPage({ data, currentBranch }) {
                 branch={branches.find((branch) => String(branch.id) === String(alert.branch_id))}
                 isOpen={expandedId === alert.id}
                 onToggle={() => setExpandedId((current) => (current === alert.id ? null : alert.id))}
-                onAck={async () => {
-                  if (alert.source === 'discipline') {
-                    setDismissedDerivedIds((current) => new Set([...current, alert.id]));
-                    return;
-                  }
-                  await acknowledgeAlert(alert.id);
-                }}
+                onAck={handleAcknowledge}
                 onEdit={() => openEditor(alert)}
+                acking={ackingId === alert.id}
                 onDelete={async () => {
                   if (window.confirm('ยืนยันลบแจ้งเตือนนี้?')) {
                     await deleteAlert(alert.id);

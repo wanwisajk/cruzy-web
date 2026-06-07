@@ -9,6 +9,7 @@ function cleanAlertPayload(body) {
     employee_id: body.employeeId || body.employee_id,
     branch_id: branchId,
     work_date: body.workDate || body.work_date,
+    alert_time: body.alertTime || body.alert_time || null,
     title: body.title,
     detail: body.detail || null,
     severity: body.severity || 'warning',

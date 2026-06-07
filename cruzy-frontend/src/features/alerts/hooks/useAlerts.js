@@ -66,6 +66,38 @@ export function useAlerts() {
     }
   }, [fetchAlerts]);
 
+  const acknowledgeAlert = useCallback(async (id) => {
+    setSaving(true);
+    setError('');
+    try {
+      const result = await alertService.acknowledgeAlert(id);
+      const updated = result?.data || result;
+      if (updated?.id) {
+        setAlerts((current) =>
+          current.map((alert) =>
+            String(alert.id) === String(updated.id)
+              ? { ...alert, ...updated, is_acknowledged: true }
+              : alert,
+          ),
+        );
+      } else {
+        setAlerts((current) =>
+          current.map((alert) =>
+            String(alert.id) === String(id)
+              ? { ...alert, is_acknowledged: true }
+              : alert,
+          ),
+        );
+      }
+      return updated;
+    } catch (err) {
+      setError(err.message || 'ไม่สามารถรับทราบแจ้งเตือนได้');
+      throw err;
+    } finally {
+      setSaving(false);
+    }
+  }, []);
+
   return {
     alerts,
     loading,
@@ -75,6 +107,6 @@ export function useAlerts() {
     createAlert,
     updateAlert,
     deleteAlert,
-    acknowledgeAlert: (id) => alertService.acknowledgeAlert(id)
+    acknowledgeAlert
   };
 }

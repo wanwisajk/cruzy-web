@@ -405,7 +405,6 @@ export default function InspectionDashboard({ user, from, to }) {
             { id: 'summary', label: 'ภาพรวมสาขา' },
             { id: 'detail', label: 'รายละเอียด' },
             { id: 'config', label: 'ตั้งค่าตรวจ' },
-            { id: 'log', label: 'Log' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -716,58 +715,6 @@ export default function InspectionDashboard({ user, from, to }) {
             </div>
           )}
 
-          {activeTab === 'log' && (
-            <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-              <div className="flex flex-col gap-2 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <div className="text-sm font-bold text-slate-900">Activity Log รวมทุกหน้า</div>
-                  <div className="mt-1 text-xs text-slate-500">ดึงจาก DB จริง: พนักงาน, ค่าคอม, แจ้งเตือน, วันลา, ยอดขาย, หนังสือเตือน และตรวจร้าน</div>
-                </div>
-                <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">{filteredLogs.length.toLocaleString('th-TH')} รายการ</div>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full border-collapse text-sm">
-                  <thead className="bg-slate-50 text-slate-500">
-                    <tr>
-                      <th className="whitespace-nowrap px-4 py-3 text-left">วันเวลา</th>
-                      <th className="whitespace-nowrap px-4 py-3 text-left">หน้า</th>
-                      <th className="whitespace-nowrap px-4 py-3 text-left">ตาราง</th>
-                      <th className="whitespace-nowrap px-4 py-3 text-left">Action</th>
-                      <th className="whitespace-nowrap px-4 py-3 text-left">รายละเอียด</th>
-                      <th className="whitespace-nowrap px-4 py-3 text-left">ผู้เกี่ยวข้อง</th>
-                      <th className="whitespace-nowrap px-4 py-3 text-left">สาขา</th>
-                      <th className="whitespace-nowrap px-4 py-3 text-left">Source</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredLogs.length ? (
-                      filteredLogs.map((log) => (
-                        <tr key={log.id} className="border-b last:border-b-0 hover:bg-slate-50">
-                          <td className="whitespace-nowrap px-4 py-3 text-slate-600">{log.created_at ? new Date(log.created_at).toLocaleString('th-TH') : '-'}</td>
-                          <td className="px-4 py-3">
-                            <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">{log.page || '-'}</span>
-                          </td>
-                          <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-slate-500">{log.tableName || '-'}</td>
-                          <td className="whitespace-nowrap px-4 py-3 font-semibold text-slate-900">{log.action || '-'}</td>
-                          <td className="min-w-[260px] px-4 py-3 text-slate-700">{log.description || '-'}</td>
-                          <td className="min-w-[160px] px-4 py-3">
-                            <div className="font-semibold text-slate-800">{log.subject || '-'}</div>
-                            <div className="mt-1 text-xs text-slate-400">โดย {log.actor || '-'}</div>
-                          </td>
-                          <td className="whitespace-nowrap px-4 py-3 text-slate-600">{log.branch || '-'}</td>
-                          <td className="whitespace-nowrap px-4 py-3 text-xs font-semibold text-slate-500">{log.source || '-'}</td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan="8" className="px-4 py-8 text-center text-slate-500">ยังไม่มีข้อมูล Log จากฐานข้อมูลในช่วงนี้</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
         </div>
       )}
 

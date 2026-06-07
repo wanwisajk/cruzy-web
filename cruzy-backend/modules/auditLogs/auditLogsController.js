@@ -28,6 +28,20 @@ function employeeLabel(map, employeeId, fallback = '') {
   return fallback || (employeeId ? `พนักงาน ${employeeId}` : 'system');
 }
 
+function userLabel(map, userId, fallback = '') {
+  const user = map.get(rowId(userId));
+  if (user) return user.name || user.username || `ผู้ใช้ ${user.id}`;
+  return fallback || (userId ? `ผู้ใช้ ${userId}` : 'system');
+}
+
+function extractEmployeeId(row) {
+  const oldValue = safeJson(row.old_value);
+  const newValue = safeJson(row.new_value);
+  if (row.table_name === TABLES.employees || row.table_name === 'employees') return row.record_id || row.entity_id;
+  return newValue.employee_id || newValue.employeeId || newValue.emp_id || newValue.empId ||
+    oldValue.employee_id || oldValue.employeeId || oldValue.emp_id || oldValue.empId || null;
+}
+
 function branchLabel(map, branchId, fallback = '') {
   const branch = map.get(rowId(branchId));
   if (branch) return `${branch.code || branch.id} ${branch.name || ''}`.trim();
@@ -71,13 +85,19 @@ async function getOptionalLogs(table, fromDate, toDate) {
   });
 }
 
-function buildUnifiedLogs({ systemAuditLogs, inspectionLogs, salesLogs, sales, employees, branches }) {
+function buildUnifiedLogs({ systemAuditLogs, inspectionLogs, salesLogs, sales, employees, branches, users }) {
   const employeeMap = new Map((employees || []).map((employee) => [rowId(employee.id), employee]));
   const branchMap = new Map((branches || []).map((branch) => [rowId(branch.id), branch]));
   const saleMap = new Map((sales || []).map((sale) => [rowId(sale.id), sale]));
+  const userMap = new Map((users || []).map((user) => [rowId(user.id), user]));
   const logs = [];
 
   (systemAuditLogs || []).forEach((row) => {
+    const oldValue = safeJson(row.old_value);
+    const newValue = safeJson(row.new_value);
+    const employeeId = extractEmployeeId(row);
+    const employeeName = employeeId ? employeeLabel(employeeMap, employeeId, '') : '';
+    const actorName = row.user_name || userLabel(userMap, row.actor_id, row.actor || row.created_by || '');
     logs.push({
       id: `audit-${row.id}`,
       raw_id: row.id,
@@ -86,15 +106,17 @@ function buildUnifiedLogs({ systemAuditLogs, inspectionLogs, salesLogs, sales, e
       module: row.module || row.page || row.table_name || 'ระบบ',
       table_name: row.table_name || 'system_audit_logs',
       record_id: row.record_id || row.entity_id || null,
-      user_name: row.user_name || row.actor || row.created_by || 'system',
-      subject: row.entity_name || row.target_name || row.record_id || '-',
+      user_name: actorName || 'system',
+      subject: employeeName || row.entity_name || row.target_name || row.record_id || '-',
+      employee_id: employeeId || null,
+      employee_name: employeeName || null,
       branch: branchLabel(branchMap, row.branch_id, row.branch_code),
       source: row.source || 'audit',
       actor_type: row.actor_type || null,
       actor_id: row.actor_id || null,
       description: row.description || 'บันทึกประวัติระบบ',
-      old_value: safeJson(row.old_value),
-      new_value: safeJson(row.new_value),
+      old_value: oldValue,
+      new_value: newValue,
       raw: row
     });
   });
@@ -121,6 +143,7 @@ function buildUnifiedLogs({ systemAuditLogs, inspectionLogs, salesLogs, sales, e
 
   (salesLogs || []).forEach((row) => {
     const sale = saleMap.get(rowId(row.sale_id)) || {};
+    const actorName = userLabel(userMap, row.edited_by, row.edited_by || 'system');
     logs.push({
       id: `sale-log-${row.id}`,
       raw_id: row.id,
@@ -129,7 +152,7 @@ function buildUnifiedLogs({ systemAuditLogs, inspectionLogs, salesLogs, sales, e
       module: 'ยอดขาย',
       table_name: 'sales_logs',
       record_id: row.sale_id || null,
-      user_name: employeeLabel(employeeMap, row.edited_by, row.edited_by || 'system'),
+      user_name: actorName,
       subject: row.sale_id ? `Sale #${row.sale_id}` : '-',
       branch: branchLabel(branchMap, sale.branch_id || row.branch_id),
       source: 'sales',
@@ -163,13 +186,14 @@ exports.listAuditLogs = async (req, res) => {
       getOptionalLogs(TABLES.inspectionLogs, fromDate, toDate),
       getOptionalLogs(TABLES.salesLogs, fromDate, toDate)
     ]);
-    const [sales, employees, branches] = await Promise.all([
+    const [sales, employees, branches, users] = await Promise.all([
       getSalesByIds(salesLogs.map((row) => row.sale_id)),
-      getOptionalRows(TABLES.employees, 'id, name, full_name, nickname'),
-      getOptionalRows(TABLES.branches, 'id, code, name')
+      getOptionalRows(TABLES.employees, 'id, name, nickname'),
+      getOptionalRows(TABLES.branches, 'id, code, name'),
+      getOptionalRows(TABLES.users, 'id, username, name')
     ]);
 
-    let logs = buildUnifiedLogs({ systemAuditLogs, inspectionLogs, salesLogs, sales, employees, branches });
+    let logs = buildUnifiedLogs({ systemAuditLogs, inspectionLogs, salesLogs, sales, employees, branches, users });
     if (action) logs = logs.filter(log => String(log.action).toLowerCase() === String(action).toLowerCase());
     if (tableName) logs = logs.filter(log => String(log.table_name).toLowerCase() === String(tableName).toLowerCase());
     if (moduleName) logs = logs.filter(log => String(log.module).toLowerCase() === String(moduleName).toLowerCase());

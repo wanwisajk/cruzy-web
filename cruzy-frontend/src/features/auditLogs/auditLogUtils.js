@@ -124,12 +124,154 @@ export function mergeOptions(defaults, values) {
   return [...new Set([...defaults, ...values].filter(Boolean))];
 }
 
-export function stringifyValue(value) {
-  if (value === null || value === undefined || value === '') return '-';
-  if (typeof value === 'object') return JSON.stringify(value);
-  return String(value);
-}
-
 export function hasObjectValue(value) {
   return value && typeof value === 'object' && Object.keys(value).length > 0;
+}
+
+const FIELD_LABELS = {
+  name: 'ชื่อ',
+  nickname: 'ชื่อเล่น',
+  phone: 'เบอร์โทร',
+  position: 'ตำแหน่ง',
+  pos: 'ตำแหน่ง',
+  emp_type: 'ประเภทพนักงาน',
+  empType: 'ประเภทพนักงาน',
+  employee_id: 'พนักงาน',
+  branch_id: 'สาขา',
+  work_date: 'วันที่ทำงาน',
+  start_date: 'วันที่เริ่ม',
+  end_date: 'วันที่สิ้นสุด',
+  leave_type: 'ประเภทการลา',
+  reason: 'เหตุผล',
+  status: 'สถานะ',
+  level: 'ระดับ',
+  issue_date: 'วันที่ออกเอกสาร',
+  contract_type: 'ประเภทสัญญา',
+  pay_type: 'รูปแบบค่าจ้าง',
+  pay_cycle: 'รอบจ่าย',
+  wage: 'ค่าแรง',
+  salary: 'เงินเดือน',
+  monthly_salary: 'เงินเดือน',
+  daily_rate: 'ค่าแรงรายวัน',
+  commission_type: 'รูปแบบค่าคอม',
+  commission_percent: 'เปอร์เซ็นต์ค่าคอม',
+  special_allowance: 'เบี้ยพิเศษ'
+};
+
+const TABLE_NOUNS = {
+  schedules: 'ตารางงาน',
+  employees: 'พนักงาน',
+  employee_pay_profiles: 'ข้อมูลค่าคอม',
+  warning_letters: 'หนังสือเตือน',
+  leaves: 'รายการลา',
+  leave_balances: 'ยอดลาคงเหลือ',
+  employee_branch_eligibility: 'สิทธิ์ลงสาขา',
+  employee_availability_rules: 'กติกาเวลาทำงาน',
+  employee_availability_overrides: 'การแก้ไขเวลาทำงานเฉพาะวัน',
+  sales_logs: 'ยอดขาย',
+  inspection_logs: 'รายการตรวจร้าน',
+  system_audit_logs: 'บันทึกระบบ'
+};
+
+const HIDDEN_CHANGE_FIELDS = new Set([
+  'id',
+  'created_at',
+  'updated_at',
+  'created_by',
+  'updated_by',
+  'audit_actor_type',
+  'audit_actor_id',
+  'audit_actor_name'
+]);
+
+function fieldLabel(key) {
+  return FIELD_LABELS[key] || key.replaceAll('_', ' ');
+}
+
+function pickName(row) {
+  if (!hasObjectValue(row)) return '';
+  return row.name || row.employee_name || row.nickname || row.title || '';
+}
+
+function pickEmployeeId(row) {
+  if (!hasObjectValue(row)) return '';
+  return row.employee_id || row.employeeId || row.emp_id || row.empId || '';
+}
+
+function employeePhrase(log, employeeId) {
+  if (log.employee_name) return `พนักงาน ${log.employee_name}`;
+  return employeeId ? `พนักงาน #${employeeId}` : 'พนักงาน';
+}
+
+function entityPhrase(log) {
+  const newValue = hasObjectValue(log.new_value) ? log.new_value : {};
+  const oldValue = hasObjectValue(log.old_value) ? log.old_value : {};
+  const row = Object.keys(newValue).length ? newValue : oldValue;
+  const table = log.table_name;
+  const noun = TABLE_NOUNS[table] || friendlyTableName(table) || log.module || 'รายการ';
+  const name = pickName(row) || pickName(log);
+  const employeeId = log.employee_id || pickEmployeeId(row);
+  const employeeText = employeePhrase(log, employeeId);
+
+  if (table === 'employees') return log.employee_name ? `พนักงาน ${log.employee_name}` : (name ? `พนักงานชื่อ ${name}` : employeeText);
+  if (table === 'employee_pay_profiles') {
+    return `ข้อมูลค่าคอมของ${employeeText}`;
+  }
+  if (table === 'schedules') {
+    const date = row.work_date || row.date;
+    return date ? `ตารางงานวันที่ ${date} ของ${employeeText}` : `ตารางงานของ${employeeText}`;
+  }
+  if (table === 'leaves') {
+    const leaveType = row.leave_type || '';
+    return `รายการลา${leaveType ? `ประเภท${leaveType}` : ''}ของ${employeeText}`;
+  }
+  if (table === 'warning_letters') {
+    return `หนังสือเตือนของ${employeeText}`;
+  }
+  if (table === 'leave_balances') return `ยอดลาคงเหลือของ${employeeText}`;
+  if (table?.startsWith('employee_')) return `${noun}ของ${employeeText}`;
+  if (name) return `${noun} ${name}`;
+  if (log.entity_name && !/^CREATE |^UPDATE |^DELETE /i.test(log.entity_name)) return log.entity_name;
+  if (log.record_id) return `${noun} #${log.record_id}`;
+  return noun;
+}
+
+export function changedFieldLabels(log, limit = 4) {
+  const oldValue = hasObjectValue(log.old_value) ? log.old_value : {};
+  const newValue = hasObjectValue(log.new_value) ? log.new_value : {};
+  const keys = [...new Set([...Object.keys(oldValue), ...Object.keys(newValue)])]
+    .filter((key) => !key.startsWith('audit_'))
+    .filter((key) => !HIDDEN_CHANGE_FIELDS.has(key))
+    .filter((key) => !key.endsWith('_id'))
+    .map(fieldLabel);
+
+  return {
+    visible: keys.slice(0, limit),
+    extraCount: Math.max(0, keys.length - limit),
+    total: keys.length
+  };
+}
+
+export function auditLogSentence(log) {
+  const action = normalizeAction(log.action);
+  const actor = log.user_name && log.user_name !== 'system' ? `คุณ ${log.user_name}` : 'ระบบ';
+  const target = entityPhrase(log);
+  const fields = changedFieldLabels(log);
+
+  if (action === 'CREATE' && log.table_name === 'employees') return `${actor} เพิ่ม${target.replace('พนักงานชื่อ', 'พนักงานใหม่ชื่อ')}`;
+  if (action === 'CREATE') return `${actor} เพิ่ม${target}`;
+  if (action === 'DELETE') return `${actor} ลบ${target}`;
+  if (action === 'APPROVE') return `${actor} อนุมัติ${target}`;
+  if (action === 'REJECT') return `${actor} ปฏิเสธ${target}`;
+  if (action === 'UPDATE' || action === 'EDIT') {
+    const changedText = fields.total
+      ? ` โดยเปลี่ยน ${fields.visible.join(', ')}${fields.extraCount ? ` และอีก ${fields.extraCount} รายการ` : ''}`
+      : '';
+    return `${actor} แก้ไข${target}${changedText}`;
+  }
+
+  if (log.description && !/^(CREATE|UPDATE|DELETE|APPROVE|REJECT)\b/i.test(log.description)) {
+    return `${actor} ${log.description}`;
+  }
+  return `${actor} มีการบันทึกกิจกรรมใน${target}`;
 }
