@@ -138,12 +138,7 @@ export default function EmployeesPage(props) {
           : scheduledWorkDates.size;
       const baseWage =
         employee.payType === "monthly"
-          ? prorateMonthlyAmount(
-              employee.monthlySalary || employee.salary || 0,
-              payrollPeriodDays,
-              payCycleFilter,
-              payrollAnchorDate,
-            )
+          ? Number(employee.monthlySalary || employee.salary || 0)
           : Number(employee.dailyRate || 0) * workDays;
       const commissionInfo = employeeCommissionForPeriod(
         props.data,
