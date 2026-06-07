@@ -42,7 +42,7 @@ export function EmployeeInfoTab({
           </div>
         </div>
 
-        <div className="flex w-full justify-end gap-2 sm:w-auto">
+        <div className="flex shrink-0 justify-end">
           <div className="flex gap-1 rounded-xl bg-gray-100 p-1">
             {EMPLOYEE_STATUS_FILTERS.map((status) => (
               <button
