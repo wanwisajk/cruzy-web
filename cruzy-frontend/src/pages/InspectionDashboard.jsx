@@ -143,7 +143,6 @@ export default function InspectionDashboard({ user, from, to }) {
     employees,
     inspections,
     settings,
-    logs,
     loading,
     error,
     detailOpen,
@@ -168,6 +167,10 @@ export default function InspectionDashboard({ user, from, to }) {
   const visibleBranches = useMemo(
     () => (branchFilter === 'all' ? branches : branches.filter((branch) => branch.id === branchFilter)),
     [branches, branchFilter]
+  );
+  const visibleBranchIds = useMemo(
+    () => new Set(visibleBranches.map((branch) => String(branch.id))),
+    [visibleBranches]
   );
 
   const enrichedInspections = useMemo(
@@ -196,6 +199,7 @@ export default function InspectionDashboard({ user, from, to }) {
   }, [enrichedInspections, branchFilter, searchValue]);
 
   const rangeDates = useMemo(() => (from && to ? rangeDays(from, to) : []), [from, to]);
+  const rangeDateSet = useMemo(() => new Set(rangeDates), [rangeDates]);
   const expectedCombos = useMemo(
     () => visibleBranches.length * rangeDates.length,
     [visibleBranches.length, rangeDates.length]
@@ -203,32 +207,36 @@ export default function InspectionDashboard({ user, from, to }) {
   const actualCombos = useMemo(() => {
     const set = new Set();
     enrichedInspections.forEach((item) => {
-      if (visibleBranches.some((branch) => branch.id === item.branch_id) && rangeDates.includes(item.work_date)) {
+      if (visibleBranchIds.has(String(item.branch_id)) && rangeDateSet.has(item.work_date)) {
         set.add(`${item.branch_id}|${item.work_date}`);
       }
     });
     return set.size;
-  }, [enrichedInspections, visibleBranches, rangeDates]);
+  }, [enrichedInspections, visibleBranchIds, rangeDateSet]);
   const missingCount = Math.max(0, expectedCombos - actualCombos);
 
+  const rangeInspections = useMemo(
+    () => enrichedInspections.filter((item) => visibleBranchIds.has(String(item.branch_id)) && rangeDateSet.has(item.work_date)),
+    [enrichedInspections, visibleBranchIds, rangeDateSet]
+  );
+
   const summaryCounts = useMemo(() => {
-    const trimmed = enrichedInspections.filter((item) => visibleBranches.some((branch) => branch.id === item.branch_id) && rangeDates.includes(item.work_date));
-    const late = trimmed.filter((item) => {
+    const late = rangeInspections.filter((item) => {
       const branch = branchMap[item.branch_id];
       return openingStatusFor(item, branch, item.work_date).lateMinutes > 0;
     }).length;
     return {
-      opened: trimmed.length,
+      opened: rangeInspections.length,
       late,
-      onTime: trimmed.length - late,
+      onTime: rangeInspections.length - late,
       missing: missingCount,
     };
-  }, [enrichedInspections, visibleBranches, rangeDates, missingCount, branchMap]);
+  }, [rangeInspections, missingCount, branchMap]);
 
   const branchSummary = useMemo(
     () =>
       visibleBranches.map((branch) => {
-        const rows = enrichedInspections.filter((item) => item.branch_id === branch.id && rangeDates.includes(item.work_date));
+        const rows = rangeInspections.filter((item) => String(item.branch_id) === String(branch.id));
         const pass = rows.filter((item) => item.status === 'pass').length;
         const issues = rows.filter((item) => item.status !== 'pass').length;
         const total = rows.length;
@@ -240,7 +248,7 @@ export default function InspectionDashboard({ user, from, to }) {
           rate: total ? Math.round((pass / total) * 100) : 0,
         };
       }),
-    [enrichedInspections, visibleBranches, rangeDates]
+    [rangeInspections, visibleBranches]
   );
 
   const openingBranches = useMemo(() => {
@@ -255,7 +263,7 @@ export default function InspectionDashboard({ user, from, to }) {
   const openingInspectionMap = useMemo(() => {
     const map = {};
     enrichedInspections
-      .filter((item) => rangeDates.includes(item.work_date))
+      .filter((item) => rangeDateSet.has(item.work_date))
       .slice()
       .sort((a, b) => String(a.submit_time || '').localeCompare(String(b.submit_time || '')))
       .forEach((item) => {
@@ -263,29 +271,12 @@ export default function InspectionDashboard({ user, from, to }) {
         if (!map[key]) map[key] = item;
       });
     return map;
-  }, [enrichedInspections, rangeDates]);
+  }, [enrichedInspections, rangeDateSet]);
 
   const detailBranch = branchMap[detailInspection?.branch_id] || {};
   const detailEmployee = employeeMap[detailInspection?.submitted_by] || { name: detailInspection?.submitted_by || '-' };
   const detailOpeningMeta = detailInspection ? openingStatusFor(detailInspection, detailBranch, detailInspection.work_date) : null;
   const detailAttachments = detailInspection?.attachments || [];
-  const filteredLogs = useMemo(() => {
-    if (!searchValue) return logs;
-    return logs.filter((log) => {
-      const values = [
-        log.page,
-        log.tableName,
-        log.action,
-        log.description,
-        log.actor,
-        log.subject,
-        log.branch,
-        log.source,
-      ];
-      return values.some((value) => String(value || '').toLowerCase().includes(searchValue));
-    });
-  }, [logs, searchValue]);
-
   const currentSettingsMap = useMemo(
     () => Object.fromEntries(settings.map((setting) => [setting.branch_id, setting])),
     [settings]

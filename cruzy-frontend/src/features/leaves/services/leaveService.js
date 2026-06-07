@@ -2,6 +2,7 @@ import { request } from '../../../lib/api.js';
 
 export const leaveService = {
   getLeaves: () => request('/leaves'),
+  getLeave: (id) => request(`/leaves/${id}`),
   createLeave: (body) => request('/leaves', {
     method: 'POST',
     body: JSON.stringify(body)

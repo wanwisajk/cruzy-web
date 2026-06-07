@@ -6,7 +6,7 @@ exports.listRegions = async (_req, res) => {
   try {
     res.json(await fetchTable(TABLES.regions));
   } catch (error) {
-    sendError(res, error, 'ไม่สามารถดึงข้อมูลภูมิภาคได้');
+    sendError(res, error, 'ไม่สามารถดึงข้อมูลจังหวัดได้');
   }
 };
 
@@ -20,7 +20,7 @@ exports.getRegion = async (req, res) => {
     if (error) throw error;
     res.json(data);
   } catch (error) {
-    sendError(res, error, 'ไม่สามารถดึงข้อมูลภูมิภาคได้');
+    sendError(res, error, 'ไม่สามารถดึงข้อมูลจังหวัดได้');
   }
 };
 
@@ -29,9 +29,9 @@ exports.createRegion = async (req, res) => {
     if (!required(res, req.body, ['name'])) return;
     const { data, error } = await supabase.from(TABLES.regions).insert([{ name: req.body.name }]).select().single();
     if (error) throw error;
-    res.status(201).json({ message: 'เพิ่มภูมิภาคสำเร็จ', data });
+    res.status(201).json({ message: 'เพิ่มจังหวัดสำเร็จ', data });
   } catch (error) {
-    sendError(res, error, 'ไม่สามารถเพิ่มภูมิภาคได้');
+    sendError(res, error, 'ไม่สามารถเพิ่มจังหวัดได้');
   }
 };
 
@@ -41,9 +41,9 @@ exports.updateRegion = async (req, res) => {
     if (id === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
     const { data, error } = await supabase.from(TABLES.regions).update({ name: req.body.name }).eq('id', id).select().single();
     if (error) throw error;
-    res.json({ message: 'อัปเดตภูมิภาคสำเร็จ', data });
+    res.json({ message: 'อัปเดตจังหวัดสำเร็จ', data });
   } catch (error) {
-    sendError(res, error, 'ไม่สามารถอัปเดตภูมิภาคได้');
+    sendError(res, error, 'ไม่สามารถอัปเดตจังหวัดได้');
   }
 };
 
@@ -53,8 +53,8 @@ exports.deleteRegion = async (req, res) => {
     if (id === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
     const { error } = await supabase.from(TABLES.regions).delete().eq('id', id);
     if (error) throw error;
-    res.json({ message: 'ลบภูมิภาคสำเร็จ' });
+    res.json({ message: 'ลบจังหวัดสำเร็จ' });
   } catch (error) {
-    sendError(res, error, 'ไม่สามารถลบภูมิภาคได้');
+    sendError(res, error, 'ไม่สามารถลบจังหวัดได้');
   }
 };

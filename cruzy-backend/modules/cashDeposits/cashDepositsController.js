@@ -20,7 +20,12 @@ function cleanCashDepositPayload(body) {
 
 exports.listCashDeposits = async (_req, res) => {
   try {
-    res.json(await fetchTable(TABLES.cashDeposits));
+    res.json(await fetchTable(TABLES.cashDeposits, '*', {
+      order: [
+        { column: 'deposit_date', ascending: false },
+        { column: 'branch_id', ascending: true }
+      ]
+    }));
   } catch (error) {
     sendError(res, error, 'ไม่สามารถดึงข้อมูลรายการฝากเงินได้');
   }

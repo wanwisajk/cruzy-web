@@ -6,7 +6,7 @@ function sameId(a, b) {
   return String(a) === String(b);
 }
 
-export function useEmployees({ data, user, currentBranch, setData, toast, onRefreshData }) {
+export function useEmployees({ data, user, currentBranch, setData, toast }) {
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState('create');
   const [activeEmployee, setActiveEmployee] = useState(null);
@@ -276,13 +276,6 @@ export function useEmployees({ data, user, currentBranch, setData, toast, onRefr
 
     closeModal();
     if (toast) toast(`✅ บันทึกข้อมูลพนักงาน ${updatedEmployee.name} สำเร็จเรียบร้อย!`);
-    if (onRefreshData) {
-      try {
-        await onRefreshData();
-      } catch (refreshError) {
-        console.warn('Unable to refresh data after employee save', refreshError);
-      }
-    }
     return { ...savedPayload, ...(result?.data || {}) };
   }
 

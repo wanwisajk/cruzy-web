@@ -23,7 +23,13 @@ function isUnavailableType(type) {
 
 exports.listSchedules = async (_req, res) => {
   try {
-    res.json(await fetchTable(TABLES.schedules));
+    res.json(await fetchTable(TABLES.schedules, '*', {
+      order: [
+        { column: 'work_date', ascending: false },
+        { column: 'branch_id', ascending: true },
+        { column: 'employee_id', ascending: true }
+      ]
+    }));
   } catch (error) {
     sendError(res, error, 'ไม่สามารถดึงตารางงานได้');
   }
@@ -43,7 +49,13 @@ exports.getSchedule = async (req, res) => {
 
 exports.getScheduleMap = async (_req, res) => {
   try {
-    const schedules = await fetchTable(TABLES.schedules);
+    const schedules = await fetchTable(TABLES.schedules, '*', {
+      order: [
+        { column: 'work_date', ascending: false },
+        { column: 'branch_id', ascending: true },
+        { column: 'employee_id', ascending: true }
+      ]
+    });
     const map = {};
     schedules.forEach((row) => {
       const key = `${row.branch_id}_${row.work_date}`;

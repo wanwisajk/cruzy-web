@@ -12,14 +12,14 @@ export default function BranchSettingsSection() {
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-      <BranchHeader onAdd={() => branches.setModal('add')} />
+      <BranchHeader onAdd={branches.openCreateModal} />
 
       <div className="px-6 py-5 max-w-6xl mx-auto">
 
         <BranchFilters
           search={branches.search}
           onSearch={branches.setSearch}
-          regions={branches.regions}
+          regions={branches.branchRegions}
           filterRegion={branches.filterRegion}
           onFilterRegion={branches.setFilterRegion}
         />
@@ -37,7 +37,7 @@ export default function BranchSettingsSection() {
       {branches.modal ? (
         <BranchModal
           branch={branches.modal === 'add' ? null : branches.modal}
-          regions={branches.regions}
+          regions={branches.getModalRegions(branches.modal === 'add' ? null : branches.modal)}
           onClose={() => branches.setModal(null)}
           onSave={branches.handleSave}
         />

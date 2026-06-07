@@ -1,6 +1,11 @@
-const { fetchTable, supabase } = require('../../shared/db');
+const { fetchOptionalTable, fetchTable, supabase } = require('../../shared/db');
 const { parseInteger, required, sendError, toNumber } = require('../../shared/http');
 const TABLES = require('../../shared/tables');
+const INSPECTION_SELECT = 'id, branch_id, work_date, submitted_by, submit_time, status, inspection_items, reviewed_by, review_time, manager_note, score, photo_count, is_late, late_minutes, created_at';
+const BRANCH_SELECT = 'id, name, code, region_id';
+const EMPLOYEE_SELECT = 'id, name, position';
+const SETTINGS_SELECT = 'id, branch_id, cctv_count, shelf_count, required_photos, checklists, required_products, updated_at';
+const STAFFING_RULE_SELECT = 'branch_id, day_of_week, shift_start, shift_end, is_active';
 
 function hasValue(body, ...keys) {
   return keys.some((key) => body[key] !== undefined);
@@ -32,9 +37,47 @@ function cleanInspectionPayload(body, { partial = false } = {}) {
 
 exports.listInspections = async (_req, res) => {
   try {
-    res.json(await fetchTable(TABLES.storeInspections));
+    res.json(await fetchTable(TABLES.storeInspections, INSPECTION_SELECT, {
+      order: [
+        { column: 'work_date', ascending: false },
+        { column: 'branch_id', ascending: true }
+      ]
+    }));
   } catch (error) {
     sendError(res, error, 'ไม่สามารถดึงข้อมูลตรวจร้านได้');
+  }
+};
+
+exports.getDashboardData = async (req, res) => {
+  try {
+    const fromDate = req.query.from || req.query.from_date;
+    const toDate = req.query.to || req.query.to_date;
+    let inspectionsQuery = supabase.from(TABLES.storeInspections).select(INSPECTION_SELECT);
+    if (fromDate) inspectionsQuery = inspectionsQuery.gte('work_date', fromDate);
+    if (toDate) inspectionsQuery = inspectionsQuery.lte('work_date', toDate);
+    inspectionsQuery = inspectionsQuery
+      .order('work_date', { ascending: false })
+      .order('branch_id', { ascending: true });
+
+    const [branches, employees, inspectionsResult, settings, staffingRules] = await Promise.all([
+      fetchTable(TABLES.branches, BRANCH_SELECT, { order: [{ column: 'code', ascending: true }, { column: 'name', ascending: true }] }),
+      fetchTable(TABLES.employees, EMPLOYEE_SELECT, { order: { column: 'name', ascending: true } }),
+      inspectionsQuery,
+      fetchOptionalTable(TABLES.inspectionSettings, SETTINGS_SELECT),
+      fetchOptionalTable(TABLES.branchStaffingRules, STAFFING_RULE_SELECT)
+    ]);
+
+    if (inspectionsResult.error) throw inspectionsResult.error;
+
+    res.json({
+      branches,
+      employees,
+      storeInspections: inspectionsResult.data || [],
+      inspectionSettings: settings,
+      branchStaffingRules: staffingRules
+    });
+  } catch (error) {
+    sendError(res, error, 'ไม่สามารถดึงข้อมูลหน้าตรวจร้านได้');
   }
 };
 

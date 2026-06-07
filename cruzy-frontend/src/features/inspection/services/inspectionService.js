@@ -1,8 +1,8 @@
 import { api } from '../../../lib/api.js';
 
 export const inspectionService = {
-  fetchConsoleData: async () => {
-    return api.consoleData();
+  fetchDashboardData: async (filters) => {
+    return api.getInspectionDashboard(filters);
   },
 
   getInspection: async (id) => {
@@ -21,8 +21,8 @@ export const inspectionService = {
     return api.createAttachments(attachments);
   },
 
-  getAttachments: async () => {
-    return api.getAttachments();
+  getAttachments: async (filters) => {
+    return api.getAttachments(filters);
   },
 
   getInspectionSettings: async () => {

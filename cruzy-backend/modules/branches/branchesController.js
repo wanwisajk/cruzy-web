@@ -6,6 +6,20 @@ const DAY_MAP = { จ: 1, อ: 2, พ: 3, พฤ: 4, ศ: 5, ส: 6, อา: 0 }
 const DEFAULT_BRANCH_HOURS = { จ: '10:00', อ: '10:00', พ: '10:00', พฤ: '10:00', ศ: '10:00', ส: '10:00', อา: '10:00' };
 const DEFAULT_BRANCH_CLOSE = { จ: '21:00', อ: '21:00', พ: '21:00', พฤ: '21:00', ศ: '21:00', ส: '21:00', อา: '21:00' };
 const DAY_NUMBER_TO_KEY = { 1: 'จ', 2: 'อ', 3: 'พ', 4: 'พฤ', 5: 'ศ', 6: 'ส', 0: 'อา' };
+const STAFFING_RULE_SELECT = 'branch_id, day_of_week, required_staff, shift_start, shift_end';
+const BRANCH_SELECT = 'id, name, code, region_id, regions(id, name)';
+
+function normalizeBranch(branch) {
+  if (!branch) return branch;
+  const region = Array.isArray(branch.regions) ? branch.regions[0] : branch.regions;
+  return {
+    id: branch.id,
+    name: branch.name,
+    code: branch.code,
+    region_id: branch.region_id,
+    region_name: region?.name || ''
+  };
+}
 
 function extractStaffingRules(branchId, form) {
   return Object.entries(DAY_MAP).map(([dayAbbr, dayOfWeek]) => {
@@ -24,9 +38,20 @@ function extractStaffingRules(branchId, form) {
   });
 }
 
-function mergeBranchStaffing(branches, rules) {
+function groupStaffingRules(rules) {
+  return rules.reduce((groups, rule) => {
+    const branchRules = groups.get(rule.branch_id) || [];
+    branchRules.push(rule);
+    groups.set(rule.branch_id, branchRules);
+    return groups;
+  }, new Map());
+}
+
+function mergeBranchStaffing(branches, rulesOrGroups) {
+  const rulesByBranch = rulesOrGroups instanceof Map ? rulesOrGroups : groupStaffingRules(rulesOrGroups);
+
   return branches.map((branch) => {
-    const branchRules = rules.filter((rule) => rule.branch_id === branch.id);
+    const branchRules = rulesByBranch.get(branch.id) || [];
     const hours = { ...DEFAULT_BRANCH_HOURS };
     const hoursEnd = { ...DEFAULT_BRANCH_CLOSE };
     let minWeekday = 1;
@@ -51,9 +76,11 @@ function mergeBranchStaffing(branches, rules) {
 
 exports.listBranches = async (_req, res) => {
   try {
-    const branches = await fetchTable(TABLES.branches);
-    const staffingRules = await fetchOptionalTable(TABLES.branchStaffingRules);
-    res.json(mergeBranchStaffing(branches, staffingRules));
+    const [branches, staffingRules] = await Promise.all([
+      fetchTable(TABLES.branches, BRANCH_SELECT, { order: [{ column: 'code', ascending: true }, { column: 'name', ascending: true }] }),
+      fetchOptionalTable(TABLES.branchStaffingRules, STAFFING_RULE_SELECT)
+    ]);
+    res.json(mergeBranchStaffing(branches.map(normalizeBranch), groupStaffingRules(staffingRules)));
   } catch (error) {
     console.error('listBranches failed:', error);
     sendError(res, error, 'ไม่สามารถดึงข้อมูลสาขาได้');
@@ -64,10 +91,12 @@ exports.getBranch = async (req, res) => {
   try {
     const id = parseInteger(req.params.id);
     if (id === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
-    const { data, error } = await supabase.from(TABLES.branches).select('*').eq('id', id).single();
+    const { data, error } = await supabase.from(TABLES.branches).select(BRANCH_SELECT).eq('id', id).single();
     if (error) throw error;
-    const rules = await fetchOptionalTable(TABLES.branchStaffingRules);
-    res.json(mergeBranchStaffing([data], rules)[0]);
+    const rules = await fetchOptionalTable(TABLES.branchStaffingRules, STAFFING_RULE_SELECT, {
+      filters: [{ column: 'branch_id', value: id }]
+    });
+    res.json(mergeBranchStaffing([normalizeBranch(data)], rules)[0]);
   } catch (error) {
     sendError(res, error, 'ไม่สามารถดึงข้อมูลสาขาได้');
   }
@@ -83,16 +112,17 @@ exports.createBranch = async (req, res) => {
     const { data, error } = await supabase
       .from(TABLES.branches)
       .insert([{ name: payload.name, code: payload.code, region_id: regionId }])
-      .select()
+      .select(BRANCH_SELECT)
       .single();
     if (error) throw error;
 
-    let branchResponse = mergeBranchStaffing([data], [])[0];
+    const normalizedBranch = normalizeBranch(data);
+    let branchResponse = mergeBranchStaffing([normalizedBranch], [])[0];
     if (payload.minWeekday || payload.hours || payload.hoursEnd) {
       const staffingRules = extractStaffingRules(data.id, payload);
       const { error: staffError } = await supabase.from(TABLES.branchStaffingRules).insert(staffingRules);
       if (staffError) throw staffError;
-      branchResponse = mergeBranchStaffing([data], staffingRules)[0];
+      branchResponse = mergeBranchStaffing([normalizedBranch], staffingRules)[0];
     }
 
     res.status(201).json({ message: 'เพิ่มสาขาสำเร็จ', data: branchResponse });
@@ -117,16 +147,17 @@ exports.updateBranch = async (req, res) => {
       branchData.region_id = regionId;
     }
 
-    const { data, error } = await supabase.from(TABLES.branches).update(branchData).eq('id', id).select().single();
+    const { data, error } = await supabase.from(TABLES.branches).update(branchData).eq('id', id).select(BRANCH_SELECT).single();
     if (error) throw error;
 
-    let branchResponse = mergeBranchStaffing([data], [])[0];
+    const normalizedBranch = normalizeBranch(data);
+    let branchResponse = mergeBranchStaffing([normalizedBranch], [])[0];
     if (payload.minWeekday !== undefined || payload.minWeekend !== undefined || payload.hours || payload.hoursEnd) {
       await supabase.from(TABLES.branchStaffingRules).delete().eq('branch_id', id);
       const staffingRules = extractStaffingRules(id, payload);
       const { error: staffError } = await supabase.from(TABLES.branchStaffingRules).insert(staffingRules);
       if (staffError) throw staffError;
-      branchResponse = mergeBranchStaffing([data], staffingRules)[0];
+      branchResponse = mergeBranchStaffing([normalizedBranch], staffingRules)[0];
     }
 
     res.json({ message: 'อัปเดตสาขาสำเร็จ', data: branchResponse });

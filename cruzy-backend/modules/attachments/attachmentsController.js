@@ -29,9 +29,26 @@ function parseDataUrl(dataUrl) {
   };
 }
 
-exports.listAttachments = async (_req, res) => {
+exports.listAttachments = async (req, res) => {
   try {
-    res.json(await fetchOptionalTable(TABLES.attachments));
+    const entityType = req.query.entity_type || req.query.entityType;
+    const entityId = req.query.entity_id || req.query.entityId;
+    if (entityType && entityId !== undefined) {
+      const parsedEntityId = parseInteger(entityId);
+      if (parsedEntityId === null) return res.status(400).json({ message: 'entityId ต้องเป็นตัวเลข' });
+      const { data, error } = await supabase
+        .from(TABLES.attachments)
+        .select('*')
+        .eq('entity_type', entityType)
+        .eq('entity_id', parsedEntityId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return res.json(data || []);
+    }
+
+    return res.json(await fetchOptionalTable(TABLES.attachments, '*', {
+      order: { column: 'created_at', ascending: false }
+    }));
   } catch (error) {
     sendError(res, error, 'ไม่สามารถดึงไฟล์แนบได้');
   }

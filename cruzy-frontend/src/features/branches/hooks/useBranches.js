@@ -23,7 +23,25 @@ export const regionColor = {
   default: 'bg-slate-100 text-slate-700'
 };
 
-export function useBranches({ onRefreshData } = {}) {
+const normalizeId = (value) => String(value ?? '');
+const normalizeName = (value) => String(value ?? '').trim();
+
+function buildRegionsFromBranches(branches, fallbackRegions = []) {
+  const fallbackMap = new Map(fallbackRegions.map((region) => [normalizeId(region.id), region.name]));
+  const regionsMap = new Map();
+
+  branches.forEach((branch) => {
+    const regionId = normalizeId(branch.region_id);
+    if (!regionId) return;
+    const regionName = normalizeName(branch.region_name || fallbackMap.get(regionId));
+    if (!regionName) return;
+    regionsMap.set(regionId, { id: branch.region_id, name: regionName });
+  });
+
+  return Array.from(regionsMap.values()).sort((left, right) => left.name.localeCompare(right.name, 'th'));
+}
+
+export function useBranches() {
   const [branches, setBranches] = useState([]);
   const [regions, setRegions] = useState([]);
   const [modal, setModal] = useState(null);
@@ -39,15 +57,16 @@ export function useBranches({ onRefreshData } = {}) {
     setTimeout(() => setToasts((items) => items.filter((item) => item.id !== id)), 2800);
   };
 
+  const loadBranches = async () => {
+    const branchesRes = await branchesApi.getBranches();
+    setBranches(Array.isArray(branchesRes) ? branchesRes : []);
+  };
+
   const loadData = async () => {
     try {
       setLoading(true);
-      const [branchesRes, regionsRes] = await Promise.all([
-        branchesApi.getBranches(),
-        branchesApi.getRegions()
-      ]);
+      const branchesRes = await branchesApi.getBranches();
       setBranches(Array.isArray(branchesRes) ? branchesRes : []);
-      setRegions(Array.isArray(regionsRes) ? regionsRes : []);
     } catch (error) {
       console.error('Failed to load branches:', error);
       push('ไม่สามารถดึงข้อมูลได้', 'err');
@@ -61,23 +80,68 @@ export function useBranches({ onRefreshData } = {}) {
   }, []);
 
   const filtered = useMemo(() => branches.filter((branch) => {
-    const matchRegion = filterRegion === 'all' || branch.region_id === filterRegion;
+    const matchRegion = filterRegion === 'all' || normalizeId(branch.region_id) === normalizeId(filterRegion);
     const term = search.toLowerCase();
     const matchSearch = (branch.name || '').toLowerCase().includes(term) ||
       (branch.code || '').toLowerCase().includes(term);
     return matchRegion && matchSearch;
   }), [branches, filterRegion, search]);
 
+  const branchRegions = useMemo(
+    () => buildRegionsFromBranches(branches, regions),
+    [branches, regions]
+  );
+
   const stats = useMemo(() => [
     { label: 'สาขาทั้งหมด', value: branches.length, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { label: 'เชียงใหม่', value: branches.filter((b) => b.region_id === regions.find((r) => r.name === 'เชียงใหม่')?.id).length, color: 'text-sky-600', bg: 'bg-sky-50' },
-    { label: 'กรุงเทพ', value: branches.filter((b) => b.region_id === regions.find((r) => r.name === 'กรุงเทพ')?.id).length, color: 'text-violet-600', bg: 'bg-violet-50' },
-    { label: 'อื่น ๆ', value: branches.filter((b) => !regions.some((r) => r.id === b.region_id)).length, color: 'text-slate-600', bg: 'bg-slate-50' }
-  ], [branches, regions]);
+    { label: 'เชียงใหม่', value: branches.filter((branch) => normalizeName(branch.region_name) === 'เชียงใหม่').length, color: 'text-sky-600', bg: 'bg-sky-50' },
+    { label: 'กรุงเทพ', value: branches.filter((branch) => normalizeName(branch.region_name) === 'กรุงเทพ').length, color: 'text-violet-600', bg: 'bg-violet-50' },
+    { label: 'อื่น ๆ', value: branches.filter((branch) => {
+      const regionName = normalizeName(branch.region_name);
+      return Boolean(regionName) && regionName !== 'เชียงใหม่' && regionName !== 'กรุงเทพ';
+    }).length, color: 'text-slate-600', bg: 'bg-slate-50' }
+  ], [branches]);
+
+  const branchRegionIds = useMemo(
+    () => new Set(branches.map((branch) => normalizeId(branch.region_id)).filter(Boolean)),
+    [branches]
+  );
 
   const visibleRegions = filterRegion === 'all'
-    ? regions
-    : regions.filter((region) => region.id === filterRegion);
+    ? branchRegions
+    : branchRegions.filter((region) => normalizeId(region.id) === normalizeId(filterRegion));
+
+  useEffect(() => {
+    if (filterRegion === 'all') return;
+    if (!branchRegionIds.has(normalizeId(filterRegion))) setFilterRegion('all');
+  }, [branchRegionIds, filterRegion]);
+
+  async function ensureRegionsLoaded() {
+    if (regions.length) return regions;
+    const regionsRes = await branchesApi.getRegions();
+    const nextRegions = Array.isArray(regionsRes) ? regionsRes : [];
+    setRegions(nextRegions);
+    return nextRegions;
+  }
+
+  async function openCreateModal() {
+    try {
+      if (!branchRegions.length) {
+        await ensureRegionsLoaded();
+      }
+      setModal('add');
+    } catch (error) {
+      push(error.message || 'ไม่สามารถดึงข้อมูลจังหวัดได้', 'err');
+    }
+  }
+
+  const getModalRegions = (branch) => {
+    if (!branch) return branchRegions.length ? branchRegions : regions;
+    const hasCurrentRegion = branchRegions.some((region) => normalizeId(region.id) === normalizeId(branch.region_id));
+    return hasCurrentRegion
+      ? branchRegions
+      : buildRegionsFromBranches([branch], regions);
+  };
 
   async function handleSave(form) {
     try {
@@ -85,16 +149,27 @@ export function useBranches({ onRefreshData } = {}) {
       const payload = { ...form };
       if (!exists) delete payload.id;
 
+      const response = exists
+        ? await branchesApi.updateBranch(form.id, payload)
+        : await branchesApi.createBranch(payload);
+      const savedBranch = response?.data;
+
       if (exists) {
-        await branchesApi.updateBranch(form.id, payload);
+        if (savedBranch) {
+          setBranches((current) => current.map((branch) => normalizeId(branch.id) === normalizeId(form.id) ? savedBranch : branch));
+        } else {
+          await loadBranches();
+        }
         push(`✅ อัปเดต ${form.code} สำเร็จ`);
       } else {
-        await branchesApi.createBranch(payload);
+        if (savedBranch) {
+          setBranches((current) => [...current, savedBranch]);
+        } else {
+          await loadBranches();
+        }
         push(`✅ เพิ่มสาขา ${form.code} สำเร็จ`);
       }
-      
-      await loadData();
-      await onRefreshData?.();
+
       setModal(null);
     } catch (error) {
       push(error.message || 'เกิดข้อผิดพลาด', 'err');
@@ -119,6 +194,7 @@ export function useBranches({ onRefreshData } = {}) {
     filtered,
     stats,
     visibleRegions,
+    branchRegions,
     modal,
     deleteTarget,
     filterRegion,
@@ -129,6 +205,8 @@ export function useBranches({ onRefreshData } = {}) {
     setDeleteTarget,
     setFilterRegion,
     setSearch,
+    openCreateModal,
+    getModalRegions,
     handleSave,
     handleDelete
   };

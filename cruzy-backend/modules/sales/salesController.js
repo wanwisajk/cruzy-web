@@ -23,7 +23,12 @@ function cleanSalePayload(body) {
 
 exports.listSales = async (_req, res) => {
   try {
-    res.json(await fetchTable(TABLES.sales));
+    res.json(await fetchTable(TABLES.sales, '*', {
+      order: [
+        { column: 'sell_date', ascending: false },
+        { column: 'branch_id', ascending: true }
+      ]
+    }));
   } catch (error) {
     sendError(res, error, 'ไม่สามารถดึงข้อมูลยอดขายได้');
   }

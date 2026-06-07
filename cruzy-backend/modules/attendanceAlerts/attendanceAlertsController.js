@@ -19,7 +19,13 @@ function cleanAlertPayload(body) {
 
 exports.listAlerts = async (_req, res) => {
   try {
-    res.json(await fetchTable(TABLES.attendanceAlerts));
+    res.json(await fetchTable(TABLES.attendanceAlerts, '*', {
+      order: [
+        { column: 'is_acknowledged', ascending: true },
+        { column: 'work_date', ascending: false },
+        { column: 'created_at', ascending: false }
+      ]
+    }));
   } catch (error) {
     sendError(res, error, 'ไม่สามารถดึงข้อมูลแจ้งเตือนได้');
   }

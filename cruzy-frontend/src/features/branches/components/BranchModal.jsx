@@ -7,6 +7,7 @@ const presets = [
   { label: '10:00–21:00', open: '10:00', close: '21:00' },
   { label: '10:00–22:00', open: '10:00', close: '22:00' }
 ];
+const sameId = (left, right) => String(left ?? '') === String(right ?? '');
 
 export function BranchModal({ branch, regions, onClose, onSave }) {
   const [form, setForm] = useState(() => branch ? { ...branch } : { ...EMPTY_BRANCH });
@@ -98,9 +99,9 @@ function BranchIdentityStep({ form, regions, set }) {
           <input value={form.code} onChange={(event) => set('code', event.target.value.toUpperCase().slice(0, 4))} placeholder="CCR" maxLength={4} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-mono font-bold tracking-widest focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition" />
         </div>
         <div>
-          <label className="block text-xs font-semibold text-slate-500 mb-1.5">ภูมิภาค <span className="text-red-400">*</span></label>
+          <label className="block text-xs font-semibold text-slate-500 mb-1.5">จังหวัด<span className="text-red-400">*</span></label>
           <select value={form.region_id} onChange={(event) => set('region_id', event.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition bg-white">
-            <option value="">เลือกภูมิภาค</option>
+            <option value="">เลือกจังหวัด</option>
             {regions.map((region) => <option key={region.id} value={region.id}>{region.name}</option>)}
           </select>
         </div>
@@ -112,7 +113,7 @@ function BranchIdentityStep({ form, regions, set }) {
           </div>
           <div>
             <p className="font-semibold text-emerald-800 text-sm">{form.name}</p>
-            <p className="text-xs text-emerald-600">{regions.find((region) => region.id === form.region_id)?.name}</p>
+            <p className="text-xs text-emerald-600">{regions.find((region) => sameId(region.id, form.region_id))?.name}</p>
           </div>
         </div>
       ) : null}

@@ -28,7 +28,12 @@ function validateContractPayload(res, payload, { partial = false } = {}) {
 
 exports.listContracts = async (_req, res) => {
   try {
-    res.json(await fetchTable(TABLES.contracts));
+    res.json(await fetchTable(TABLES.contracts, '*', {
+      order: [
+        { column: 'start_date', ascending: false },
+        { column: 'employee_id', ascending: true }
+      ]
+    }));
   } catch (error) {
     sendError(res, error, 'ไม่สามารถดึงข้อมูลสัญญาจ้างได้');
   }

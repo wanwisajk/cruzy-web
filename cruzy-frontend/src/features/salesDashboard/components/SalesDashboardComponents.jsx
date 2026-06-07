@@ -219,7 +219,7 @@ function normalizeSaleLocal(row) {
   };
 }
 
-export function SalesEditorModal({ data, sale, mode, onClose, onSaved, onUpsert, onRefresh }) {
+export function SalesEditorModal({ data, sale, mode, onClose, onSaved, onUpsert }) {
   const isLocked = sale?.status === 'confirmed';
   const readonly = mode === 'view' || isLocked;
   const currentBranch = data.branches[0]?.id || '';
@@ -290,7 +290,6 @@ export function SalesEditorModal({ data, sale, mode, onClose, onSaved, onUpsert,
       }
 
       onUpsert(saved, Boolean(sale));
-      await onRefresh?.();
       onSaved(sale ? 'แก้ไขยอดขายสำเร็จ' : 'เพิ่มยอดขายสำเร็จ');
       onClose();
     } catch (error) {
@@ -364,7 +363,7 @@ function normalizeDepositLocal(row) {
   };
 }
 
-export function DepositEditorModal({ data, deposit, mode, onClose, onSaved, onUpsert, onRefresh }) {
+export function DepositEditorModal({ data, deposit, mode, onClose, onSaved, onUpsert }) {
   const isLocked = deposit?.status === 'verified';
   const readonly = mode === 'view' || isLocked;
   const [form, setForm] = useState({
@@ -410,7 +409,6 @@ export function DepositEditorModal({ data, deposit, mode, onClose, onSaved, onUp
       }
 
       onUpsert(saved, Boolean(deposit));
-      await onRefresh?.();
       onSaved(deposit ? 'แก้ไขรายการฝากเงินสำเร็จ' : 'เพิ่มรายการฝากเงินสำเร็จ');
       onClose();
     } catch (error) {
@@ -483,7 +481,7 @@ function normalizeBankAccountLocal(row) {
   };
 }
 
-export function AccountFormModal({ account, mode = 'create', onClose, onSaved, onCreated, onUpdated, onRefresh }) {
+export function AccountFormModal({ account, mode = 'create', onClose, onSaved, onCreated, onUpdated }) {
   const readonly = mode === 'view';
   const [form, setForm] = useState({
     bankName: account?.bank || 'กสิกรไทย',
@@ -503,7 +501,6 @@ export function AccountFormModal({ account, mode = 'create', onClose, onSaved, o
       if (account) onUpdated(saved);
       else onCreated(saved);
       onSaved(account ? 'แก้ไขบัญชีธนาคารสำเร็จ' : 'เพิ่มบัญชีธนาคารสำเร็จ');
-      await onRefresh?.();
       onClose();
     } catch (error) {
       onSaved(error.message || 'เพิ่มบัญชีไม่สำเร็จ', 'err');

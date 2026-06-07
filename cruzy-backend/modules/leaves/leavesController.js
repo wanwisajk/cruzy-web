@@ -1,6 +1,8 @@
 const { fetchTable, supabase } = require('../../shared/db');
 const { auditFields, parseInteger, required, sendError, toNumber } = require('../../shared/http');
 const TABLES = require('../../shared/tables');
+const LEAVE_SELECT = 'id, employee_id, leave_type, start_date, end_date, days_count, reason, status, created_at';
+const ATTACHMENT_SELECT = 'id, entity_type, entity_id, file_url, file_type, created_at';
 
 function hasValue(body, ...keys) {
   return keys.some((key) => body[key] !== undefined);
@@ -60,9 +62,10 @@ async function fetchLeaveAttachments(leaveIds) {
   if (!leaveIds.length) return [];
   const { data, error } = await supabase
     .from(TABLES.attachments)
-    .select('*')
+    .select(ATTACHMENT_SELECT)
     .eq('entity_type', 'leave')
-    .in('entity_id', leaveIds);
+    .in('entity_id', leaveIds)
+    .order('created_at', { ascending: false });
   if (error) throw error;
   return data || [];
 }
@@ -93,7 +96,12 @@ async function insertLeaveAttachments(leaveId, attachments) {
 
 exports.listLeaves = async (_req, res) => {
   try {
-    const leaves = await fetchTable(TABLES.leaves);
+    const leaves = await fetchTable(TABLES.leaves, LEAVE_SELECT, {
+      order: [
+        { column: 'status', ascending: true },
+        { column: 'start_date', ascending: false }
+      ]
+    });
     const attachments = await fetchLeaveAttachments(leaves.map((leave) => leave.id));
     res.json(attachFiles(leaves, attachments));
   } catch (error) {
@@ -105,7 +113,7 @@ exports.getLeave = async (req, res) => {
   try {
     const id = parseInteger(req.params.id);
     if (id === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
-    const { data, error } = await supabase.from(TABLES.leaves).select('*').eq('id', id).single();
+    const { data, error } = await supabase.from(TABLES.leaves).select(LEAVE_SELECT).eq('id', id).single();
     if (error) throw error;
     const attachments = await fetchLeaveAttachments([id]);
     res.json(attachFiles([data], attachments)[0]);
@@ -118,7 +126,7 @@ exports.createLeave = async (req, res) => {
   try {
     const payload = { ...cleanLeavePayload(req.body), ...auditFields(req) };
     if (!required(res, payload, ['employee_id', 'leave_type', 'start_date', 'end_date'])) return;
-    const { data, error } = await supabase.from(TABLES.leaves).insert([payload]).select().single();
+    const { data, error } = await supabase.from(TABLES.leaves).insert([payload]).select(LEAVE_SELECT).single();
     if (error) throw error;
     const attachments = await insertLeaveAttachments(data.id, req.body.attachments);
     res.status(201).json({ message: 'เพิ่มรายการลาสำเร็จ', data: { ...data, attachments: attachments.map(mapAttachment) } });
@@ -133,7 +141,7 @@ exports.updateLeave = async (req, res) => {
     if (id === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
     const payload = { ...cleanLeavePayload(req.body, { partial: true }), ...auditFields(req) };
     Object.keys(payload).forEach((key) => payload[key] === undefined && delete payload[key]);
-    const { data, error } = await supabase.from(TABLES.leaves).update(payload).eq('id', id).select().single();
+    const { data, error } = await supabase.from(TABLES.leaves).update(payload).eq('id', id).select(LEAVE_SELECT).single();
     if (error) throw error;
     await insertLeaveAttachments(id, req.body.attachments);
     const attachments = await fetchLeaveAttachments([id]);
@@ -151,7 +159,7 @@ exports.updateLeaveStatus = async (req, res) => {
     }
     const id = parseInteger(req.params.id);
     if (id === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
-    const { data, error } = await supabase.from(TABLES.leaves).update({ status, ...auditFields(req) }).eq('id', id).select().single();
+    const { data, error } = await supabase.from(TABLES.leaves).update({ status, ...auditFields(req) }).eq('id', id).select(LEAVE_SELECT).single();
     if (error) throw error;
     res.json({ message: 'อัปเดตสถานะการลาเรียบร้อยแล้ว', data });
   } catch (error) {

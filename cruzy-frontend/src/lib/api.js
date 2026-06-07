@@ -41,7 +41,13 @@ export const api = {
     method: 'POST',
     body: JSON.stringify({ username, password })
   }),
-  consoleData: () => request('/console/data'),
+  consoleData: (filters = {}) => {
+    const query = new URLSearchParams();
+    if (filters.from) query.set('from', filters.from);
+    if (filters.to) query.set('to', filters.to);
+    const suffix = query.toString();
+    return request(`/console/data${suffix ? `?${suffix}` : ''}`);
+  },
 
   // Attendance alerts
   getAttendance: () => request('/attendance'),
@@ -92,6 +98,13 @@ export const api = {
   }),
   
   // Inspection
+  getInspectionDashboard: (filters = {}) => {
+    const query = new URLSearchParams();
+    if (filters.from) query.set('from', filters.from);
+    if (filters.to) query.set('to', filters.to);
+    const suffix = query.toString();
+    return request(`/store-inspections/dashboard${suffix ? `?${suffix}` : ''}`);
+  },
   getInspectionDetail: (id) => request(`/store-inspections/${id}`),
   createInspection: (body) => request('/store-inspections', {
     method: 'POST',
@@ -195,7 +208,13 @@ export const api = {
   }),
 
   // Attachments
-  getAttachments: () => request('/attachments'),
+  getAttachments: (filters = {}) => {
+    const query = new URLSearchParams();
+    if (filters.entityType) query.set('entityType', filters.entityType);
+    if (filters.entityId !== undefined && filters.entityId !== null) query.set('entityId', filters.entityId);
+    const suffix = query.toString();
+    return request(`/attachments${suffix ? `?${suffix}` : ''}`);
+  },
   createAttachment: (body) => request('/attachments', {
     method: 'POST',
     body: JSON.stringify(body)

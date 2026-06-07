@@ -17,7 +17,12 @@ function cleanBankAccountPayload(body) {
 
 exports.listBankAccounts = async (_req, res) => {
   try {
-    res.json(await fetchTable(TABLES.bankAccounts));
+    res.json(await fetchTable(TABLES.bankAccounts, '*', {
+      order: [
+        { column: 'is_active', ascending: false },
+        { column: 'bank_short', ascending: true }
+      ]
+    }));
   } catch (error) {
     sendError(res, error, 'ไม่สามารถดึงข้อมูลบัญชีธนาคารได้');
   }

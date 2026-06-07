@@ -1,9 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import { leaveService } from '../services/leaveService.js';
 
-export function useLeaves() {
-  const [leaves, setLeaves] = useState([]);
-  const [loading, setLoading] = useState(true);
+function normalizeLeaves(rows) {
+  return (Array.isArray(rows) ? rows : []).slice().sort((left, right) => {
+    const statusCompare = String(left.status || '').localeCompare(String(right.status || ''));
+    if (statusCompare !== 0) return statusCompare;
+    return String(right.start_date || '').localeCompare(String(left.start_date || ''));
+  });
+}
+
+export function useLeaves(initialLeaves = []) {
+  const [leaves, setLeaves] = useState(() => normalizeLeaves(initialLeaves));
+  const [loading, setLoading] = useState(() => !Array.isArray(initialLeaves) || initialLeaves.length === 0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -12,7 +20,7 @@ export function useLeaves() {
     setError('');
     try {
       const leavesData = await leaveService.getLeaves();
-      setLeaves(Array.isArray(leavesData) ? leavesData : []);
+      setLeaves(normalizeLeaves(leavesData));
     } catch (err) {
       setError(err.message || 'ไม่สามารถโหลดข้อมูลการลาได้');
     } finally {
@@ -21,15 +29,20 @@ export function useLeaves() {
   }, []);
 
   useEffect(() => {
-    fetchLeaves();
-  }, [fetchLeaves]);
+    if (!initialLeaves?.length) {
+      fetchLeaves();
+    }
+  }, [fetchLeaves, initialLeaves]);
 
   const createLeave = useCallback(async (payload) => {
     setSaving(true);
     setError('');
     try {
-      await leaveService.createLeave(payload);
-      await fetchLeaves();
+      const response = await leaveService.createLeave(payload);
+      if (response?.data) {
+        setLeaves((current) => normalizeLeaves([response.data, ...current]));
+      }
+      return response?.data;
     } catch (err) {
       setError(err.message || 'ไม่สามารถเพิ่มคำขอลาได้');
       throw err;
@@ -42,8 +55,11 @@ export function useLeaves() {
     setSaving(true);
     setError('');
     try {
-      await leaveService.updateLeave(id, payload);
-      await fetchLeaves();
+      const response = await leaveService.updateLeave(id, payload);
+      if (response?.data) {
+        setLeaves((current) => normalizeLeaves(current.map((leave) => String(leave.id) === String(id) ? response.data : leave)));
+      }
+      return response?.data;
     } catch (err) {
       setError(err.message || 'ไม่สามารถอัปเดตรายการลาได้');
       throw err;
@@ -57,14 +73,22 @@ export function useLeaves() {
     setError('');
     try {
       await leaveService.deleteLeave(id);
-      await fetchLeaves();
+      setLeaves((current) => current.filter((leave) => String(leave.id) !== String(id)));
     } catch (err) {
       setError(err.message || 'ไม่สามารถลบคำขอลาได้');
       throw err;
     } finally {
       setSaving(false);
     }
-  }, [fetchLeaves]);
+  }, []);
+
+  const getLeaveDetail = useCallback(async (id) => {
+    const response = await leaveService.getLeave(id);
+    if (response?.id !== undefined) {
+      setLeaves((current) => normalizeLeaves(current.map((leave) => String(leave.id) === String(id) ? response : leave)));
+    }
+    return response;
+  }, []);
 
   return {
     leaves,
@@ -74,6 +98,7 @@ export function useLeaves() {
     refreshLeaves: fetchLeaves,
     createLeave,
     updateLeave,
-    deleteLeave
+    deleteLeave,
+    getLeaveDetail
   };
 }

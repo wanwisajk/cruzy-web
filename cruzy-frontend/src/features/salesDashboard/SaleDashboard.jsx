@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Plus, Eye, Pencil, Check, Lock, Unlock, FileText, AlertCircle, Wallet, CreditCard, Landmark, User } from 'lucide-react';
-import { hydrateConsoleData } from '../../lib/hydrate';
 import { salesDashboardService } from './services/salesDashboardService';
 import {
   branchById,
@@ -33,7 +32,7 @@ function getMonthRange() {
   };
 }
 
-export default function SaleDashboard({ data, user, currentBranch, from, to, onRefreshData }) {
+export default function SaleDashboard({ data, user, currentBranch, from, to }) {
   const [activeTab, setActiveTab] = useState('sales');
   const [sales, setSales] = useState(data.sales);
   const [deposits, setDeposits] = useState(data.deposits);
@@ -68,18 +67,6 @@ export default function SaleDashboard({ data, user, currentBranch, from, to, onR
     window.setTimeout(() => setToast(null), 2600);
   }
 
-  async function refreshConsoleData() {
-    try {
-      const payload = await salesDashboardService.getConsoleData();
-      const refreshed = hydrateConsoleData(payload);
-      setSales(refreshed.sales);
-      setDeposits(refreshed.deposits);
-      setBankAccounts(refreshed.bankAccounts);
-    } catch (error) {
-      flash(error.message || 'ไม่สามารถรีเฟรชข้อมูลจาก DB ได้', 'err');
-    }
-  }
-
   async function confirmSale(sale) {
     try {
       await salesDashboardService.updateSale(sale.id, {
@@ -90,7 +77,6 @@ export default function SaleDashboard({ data, user, currentBranch, from, to, onR
       });
       setSales((rows) => rows.map((row) => row.id === sale.id ? { ...row, status: 'confirmed', confirmedBy: user.username, confirmTime: new Date().toISOString() } : row));
       flash('ยืนยันยอดเงินสำเร็จคลังจัดเก็บเข้าบัญชีหลักแล้ว');
-      await refreshConsoleData();
     } catch (error) {
       flash(error.message || 'ยืนยันยอดไม่สำเร็จ', 'err');
     }
@@ -105,7 +91,6 @@ export default function SaleDashboard({ data, user, currentBranch, from, to, onR
       });
       setDeposits((rows) => rows.map((row) => row.id === deposit.id ? { ...row, status: 'verified', verifiedBy: user.username, verifyTime: new Date().toISOString() } : row));
       flash('ตรวจสอบเอกสารและยืนยันรับยอดเรียบร้อย');
-      await refreshConsoleData();
     } catch (error) {
       flash(error.message || 'ยืนยันสลิปไม่สำเร็จ', 'err');
     }
@@ -116,7 +101,6 @@ export default function SaleDashboard({ data, user, currentBranch, from, to, onR
       await salesDashboardService.updateBankAccount(account.id, { isActive: !account.active });
       setBankAccounts((rows) => rows.map((row) => row.id === account.id ? { ...row, active: !row.active } : row));
       flash('เปลี่ยนแปลงสถานะการเปิดรับยอดของระบบธนาคารแล้ว');
-      await refreshConsoleData();
     } catch (error) {
       flash(error.message || 'เปลี่ยนสถานะไม่สำเร็จ', 'err');
     }
@@ -493,10 +477,10 @@ export default function SaleDashboard({ data, user, currentBranch, from, to, onR
       </div>
 
       <SalesLogModal data={localData} sale={modalSale} onClose={() => setModalSale(null)} />
-      {showAccountForm && <AccountFormModal onClose={() => setShowAccountForm(false)} onSaved={flash} onCreated={(acc) => setBankAccounts((rows) => [...rows, acc])} onUpdated={updateAccount} onRefresh={refreshConsoleData} />}
-      {editor?.type === 'sale' && <SalesEditorModal data={localData} sale={editor.item} mode={editor.mode} onClose={() => setEditor(null)} onSaved={flash} onUpsert={upsertSale} onRefresh={refreshConsoleData} />}
-      {editor?.type === 'deposit' && <DepositEditorModal data={localData} deposit={editor.item} mode={editor.mode} onClose={() => setEditor(null)} onSaved={flash} onUpsert={upsertDeposit} onRefresh={refreshConsoleData} />}
-      {editor?.type === 'account' && <AccountFormModal account={editor.item} mode={editor.mode} onClose={() => setEditor(null)} onSaved={flash} onCreated={(acc) => setBankAccounts((rows) => [...rows, acc])} onUpdated={updateAccount} onRefresh={refreshConsoleData} />}
+      {showAccountForm && <AccountFormModal onClose={() => setShowAccountForm(false)} onSaved={flash} onCreated={(acc) => setBankAccounts((rows) => [...rows, acc])} onUpdated={updateAccount} />}
+      {editor?.type === 'sale' && <SalesEditorModal data={localData} sale={editor.item} mode={editor.mode} onClose={() => setEditor(null)} onSaved={flash} onUpsert={upsertSale} />}
+      {editor?.type === 'deposit' && <DepositEditorModal data={localData} deposit={editor.item} mode={editor.mode} onClose={() => setEditor(null)} onSaved={flash} onUpsert={upsertDeposit} />}
+      {editor?.type === 'account' && <AccountFormModal account={editor.item} mode={editor.mode} onClose={() => setEditor(null)} onSaved={flash} onCreated={(acc) => setBankAccounts((rows) => [...rows, acc])} onUpdated={updateAccount} />}
 
       {toast && (
         <div className="fixed bottom-5 right-5 z-50 animate-in fade-in slide-in-from-bottom-5 duration-150">

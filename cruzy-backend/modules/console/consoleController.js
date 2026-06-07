@@ -1,4 +1,4 @@
-const { fetchOptionalTable, fetchTable } = require('../../shared/db');
+const { applyQueryOptions, fetchOptionalTable, fetchTable, MISSING_TABLE_CODES, supabase } = require('../../shared/db');
 const { sendError } = require('../../shared/http');
 const TABLES = require('../../shared/tables');
 const { normalizeUser } = require('../../shared/users');
@@ -15,13 +15,64 @@ const OPTIONAL_KEYS = [
   'systemAuditLogs'
 ];
 
-exports.getConsoleData = async (_req, res) => {
+const DATE_FILTERS = {
+  schedules: 'work_date',
+  leaves: 'start_date',
+  contracts: 'start_date',
+  sales: 'sell_date',
+  cashDeposits: 'deposit_date',
+  attendance: 'work_date',
+  attendanceAlerts: 'work_date',
+  storeInspections: 'work_date',
+  warningLetters: 'issue_date'
+};
+
+const DEFAULT_OPTIONS = {
+  schedules: { order: [{ column: 'work_date', ascending: false }, { column: 'branch_id', ascending: true }] },
+  leaves: { order: [{ column: 'status', ascending: true }, { column: 'start_date', ascending: false }] },
+  contracts: { order: [{ column: 'start_date', ascending: false }] },
+  sales: { order: [{ column: 'sell_date', ascending: false }, { column: 'branch_id', ascending: true }] },
+  salesLogs: { order: { column: 'created_at', ascending: false }, limit: 500 },
+  cashDeposits: { order: [{ column: 'deposit_date', ascending: false }, { column: 'branch_id', ascending: true }] },
+  attendance: { order: [{ column: 'work_date', ascending: false }, { column: 'branch_id', ascending: true }] },
+  attendanceAlerts: { order: [{ column: 'is_acknowledged', ascending: true }, { column: 'work_date', ascending: false }] },
+  storeInspections: { order: [{ column: 'work_date', ascending: false }, { column: 'branch_id', ascending: true }] },
+  inspectionLogs: { order: { column: 'created_at', ascending: false }, limit: 500 },
+  attachments: { order: { column: 'created_at', ascending: false } },
+  systemAuditLogs: { order: { column: 'created_at', ascending: false }, limit: 1000 },
+  warningLetters: { order: [{ column: 'issue_date', ascending: false }, { column: 'employee_id', ascending: true }] },
+  bankAccounts: { order: [{ column: 'is_active', ascending: false }, { column: 'bank_short', ascending: true }] }
+};
+
+async function fetchConsoleTable({ key, table, select, fromDate, toDate }) {
+  let query = supabase.from(table).select(select);
+  const dateColumn = DATE_FILTERS[key];
+  if (dateColumn && fromDate) query = query.gte(dateColumn, fromDate);
+  if (dateColumn && toDate) query = query.lte(dateColumn, toDate);
+  query = applyQueryOptions(query, DEFAULT_OPTIONS[key]);
+  const { data, error } = await query;
+  if (error) {
+    if (OPTIONAL_KEYS.includes(key) && (MISSING_TABLE_CODES.includes(error.code) || String(error.message || '').includes('does not exist'))) {
+      console.warn(`optional table skipped: ${table}`);
+      return [];
+    }
+    throw error;
+  }
+  return data || [];
+}
+
+exports.getConsoleData = async (req, res) => {
   try {
+    const fromDate = req.query.from || req.query.from_date;
+    const toDate = req.query.to || req.query.to_date;
     const entries = Object.entries(TABLES);
     const rows = await Promise.all(entries.map(([key, table]) => {
       const select = key === 'users'
         ? 'id, username, name, role, scope_type, scope_value, created_at'
         : '*';
+      if (fromDate || toDate || DEFAULT_OPTIONS[key]) {
+        return fetchConsoleTable({ key, table, select, fromDate, toDate });
+      }
       return OPTIONAL_KEYS.includes(key)
         ? fetchOptionalTable(table, select)
         : fetchTable(table, select);

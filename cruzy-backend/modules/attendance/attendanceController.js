@@ -22,7 +22,13 @@ function cleanAttendancePayload(body) {
 
 exports.listAttendance = async (_req, res) => {
   try {
-    res.json(await fetchTable(TABLES.attendance));
+    res.json(await fetchTable(TABLES.attendance, '*', {
+      order: [
+        { column: 'work_date', ascending: false },
+        { column: 'branch_id', ascending: true },
+        { column: 'employee_id', ascending: true }
+      ]
+    }));
   } catch (error) {
     sendError(res, error, 'ไม่สามารถดึงข้อมูลเข้างานได้');
   }

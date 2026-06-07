@@ -28,7 +28,12 @@ function cleanWarningLetterPayload(body) {
 
 exports.listWarningLetters = async (_req, res) => {
   try {
-    res.json(await fetchTable(TABLES.warningLetters));
+    res.json(await fetchTable(TABLES.warningLetters, '*', {
+      order: [
+        { column: 'issue_date', ascending: false },
+        { column: 'employee_id', ascending: true }
+      ]
+    }));
   } catch (error) {
     sendError(res, error, 'ไม่สามารถดึงข้อมูลหนังสือเตือนได้');
   }

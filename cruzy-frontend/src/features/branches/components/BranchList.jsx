@@ -29,9 +29,11 @@ export function BranchList({
     );
   }
 
+  const sameId = (left, right) => String(left ?? '') === String(right ?? '');
+
   return regions.map((region) => {
     const regionBranches = filtered.filter(
-      (branch) => branch.region_id === region.id,
+      (branch) => sameId(branch.region_id, region.id),
     );
     if (!regionBranches.length) return null;
 
