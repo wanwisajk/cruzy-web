@@ -126,9 +126,7 @@ export function useBranches() {
 
   async function openCreateModal() {
     try {
-      if (!branchRegions.length) {
-        await ensureRegionsLoaded();
-      }
+     await ensureRegionsLoaded();
       setModal('add');
     } catch (error) {
       push(error.message || 'ไม่สามารถดึงข้อมูลจังหวัดได้', 'err');
@@ -136,7 +134,7 @@ export function useBranches() {
   }
 
   const getModalRegions = (branch) => {
-    if (!branch) return branchRegions.length ? branchRegions : regions;
+    if (!branch) return regions.length ? regions : branchRegions;
     const hasCurrentRegion = branchRegions.some((region) => normalizeId(region.id) === normalizeId(branch.region_id));
     return hasCurrentRegion
       ? branchRegions
