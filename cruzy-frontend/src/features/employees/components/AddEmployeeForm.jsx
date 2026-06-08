@@ -408,15 +408,15 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
     fixed_per_day: "บาทต่อวัน"
   }[form.absDeduct] || "บาท";
 
-  const inputBaseStyle = "w-full border rounded-lg p-2.5 bg-white text-slate-800 transition-all outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/10 text-xs shadow-sm placeholder:text-slate-400";
-  const labelBaseStyle = "mb-1 flex items-end min-h-[40px] text-xs font-medium text-slate-600";
+  const inputBaseStyle = "w-full border rounded-lg p-2.5 bg-white text-slate-800 transition-all outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/10 caption shadow-sm placeholder:text-slate-400";
+  const labelBaseStyle = "mb-1 flex items-end min-h-[40px] caption-strong text-slate-600";
 
   return (
-    <div className="text-slate-700 text-xs space-y-6 max-w-6xl mx-auto p-1 sm:p-4">
+    <div className="text-slate-700 caption space-y-6 max-w-6xl mx-auto p-1 sm:p-4">
       {/* Toast Layer */}
       <div className="fixed top-4 right-4 z-[9999] flex flex-col gap-2 max-w-sm w-full">
         {toasts.map(t => (
-          <div key={t.id} className={`p-3.5 rounded-xl text-white shadow-xl text-xs font-semibold flex items-center justify-between animate-slide-in backdrop-blur-md ${t.error ? "bg-red-50/95 text-red-600 border border-red-200" : "bg-emerald-600/95"}`}>
+          <div key={t.id} className={`p-3.5 rounded-xl text-white shadow-xl caption-strong flex items-center justify-between animate-slide-in backdrop-blur-md ${t.error ? "bg-red-50/95 text-red-600 border border-red-200" : "bg-emerald-600/95"}`}>
             <span>{t.msg}</span>
           </div>
         ))}
@@ -425,15 +425,15 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
       {/* Info Tip */}
       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 p-4 rounded-xl text-blue-800 leading-relaxed shadow-sm flex items-start gap-2.5">
         <div>
-          <span className="font-bold">คำแนะนำระบบบัญชี:</span> ข้อมูลเงินเดือนฐาน อัตราหักการมาสาย และโควตาวันหยุด จะถูกกระจายไปบันทึกแยกตารางในระบบอัตโนมัติตามเงื่อนไขทางบัญชี
+          <span className="body-strong">คำแนะนำระบบบัญชี:</span> ข้อมูลเงินเดือนฐาน อัตราหักการมาสาย และโควตาวันหยุด จะถูกกระจายไปบันทึกแยกตารางในระบบอัตโนมัติตามเงื่อนไขทางบัญชี
         </div>
       </div>
 
       {/* SECTION 1: ข้อมูลพื้นฐานในระบบ */}
-      <div className="bg-white border border-slate-100 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
-        <div className="text-emerald-800 font-bold border-b border-slate-100 pb-2.5 text-sm flex items-center gap-2">
+      <div className="bg-white border border-slate-100 rounded-xl p-4 sm:p-6 shadow-sm space-y-4">
+        <div className="text-emerald-800 body-strong border-b border-slate-100 pb-2.5 body-text flex items-center gap-2">
           <ClipboardList size={16}/> 
-          ข้อมูลพื้นฐานในระบบ {isEdit && <span className="text-[10px] bg-amber-50 border border-amber-200 text-amber-700 px-2 py-0.5 rounded-md font-medium">กำลังแก้ไขข้อมูล</span>}
+          ข้อมูลพื้นฐานในระบบ {isEdit && <span className="caption bg-amber-50 border border-amber-200 text-amber-700 px-2 py-0.5 rounded-md body-emphasis">กำลังแก้ไขข้อมูล</span>}
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
@@ -476,23 +476,23 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
           </div>
 
           <div className="lg:col-span-2">
-            <label className={labelBaseStyle}>LINE User ID <span className="text-[10px] text-slate-400 font-normal">(ยิงสลิป/วินัย)</span></label>
+            <label className={labelBaseStyle}>LINE User ID <span className="caption text-slate-400 font-normal">(ยิงสลิป/วินัย)</span></label>
             <input type="text" value={form.lineUserId} onChange={set("lineUserId")} placeholder="Uxxxxxxxxxxxxxxxxxxxxxxx" className={`${inputBaseStyle} border-slate-200`} />
           </div>
 
           <div className="col-span-1 md:col-span-2 lg:col-span-6 bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2">
-            <label className={`${labelBaseStyle} text-slate-700 font-bold`}>
+            <label className={`${labelBaseStyle} text-slate-700 body-strong`}>
               สาขาที่พนักงานประจำการ / สลับไปช่วยงานได้ <span className="text-red-500">*</span>
             </label>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-[10px] text-slate-500">
+              <p className="caption text-slate-500">
                 เลือกได้หลายสาขา ระบบจะอนุญาตให้ลงตารางทุกสาขาที่เลือกไว้
               </p>
               <div className="flex gap-1.5">
-                <button type="button" onClick={selectAllBranches} className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-100 hover:bg-emerald-100">
+                <button type="button" onClick={selectAllBranches} className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 caption body-strong border border-emerald-100 hover:bg-emerald-100">
                   เลือกทุกสาขา
                 </button>
-                <button type="button" onClick={clearBranchSelection} className="px-2.5 py-1 rounded-lg bg-slate-50 text-slate-600 text-[10px] font-bold border border-slate-100 hover:bg-slate-100">
+                <button type="button" onClick={clearBranchSelection} className="px-2.5 py-1 rounded-lg bg-slate-50 text-slate-600 caption body-strong border border-slate-100 hover:bg-slate-100">
                   ล้าง
                 </button>
               </div>
@@ -510,21 +510,21 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
                       className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                     />
                     <div className="flex flex-col">
-                      <span className="font-bold text-[11px]">{b.code}</span>
-                      <span className="text-[10px] text-slate-500">{b.name}</span>
+                      <span className="body-strong caption">{b.code}</span>
+                      <span className="caption text-slate-500">{b.name}</span>
                     </div>
                   </label>
                 );
               })}
             </div>
-            {errors.selectedBranches && <p className="text-red-500 text-[10px]">⚠️ จำเป็นต้องเลือกอย่างน้อย 1 สาขาหลัก</p>}
+            {errors.selectedBranches && <p className="text-red-500 caption">⚠️ จำเป็นต้องเลือกอย่างน้อย 1 สาขาหลัก</p>}
           </div>
         </div>
       </div>
 
       {/* SECTION 2: สัญญาจ้างและรูปแบบงาน */}
-      <div className="bg-white border border-slate-100 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
-        <div className="text-emerald-800 font-bold border-b border-slate-100 pb-2.5 text-sm flex items-center gap-2">
+      <div className="bg-white border border-slate-100 rounded-xl p-4 sm:p-6 shadow-sm space-y-4">
+        <div className="text-emerald-800 body-strong border-b border-slate-100 pb-2.5 body-text flex items-center gap-2">
           สัญญาจ้างและรูปแบบงาน
         </div>
         
@@ -561,7 +561,7 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
                     key={day.value}
                     type="button"
                     onClick={toggleWeeklyOff(day.value)}
-                    className={`flex-1 min-w-[36px] h-9 rounded-lg border text-xs font-semibold transition-all ${active ? "bg-emerald-700 text-white border-emerald-700 shadow-sm shadow-emerald-700/20" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}
+                    className={`flex-1 min-w-[36px] h-9 rounded-lg border caption-strong transition-all ${active ? "bg-emerald-700 text-white border-emerald-700 shadow-sm shadow-emerald-700/20" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}
                   >
                     {day.label}
                   </button>
@@ -573,8 +573,8 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
       </div>
 
       {/* SECTION 3: รูปแบบรายได้และข้อบังคับทางการเงิน */}
-      <div className="bg-white border border-slate-100 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
-        <div className="text-emerald-800 font-bold border-b border-slate-100 pb-2.5 text-sm flex items-center gap-2">
+      <div className="bg-white border border-slate-100 rounded-xl p-4 sm:p-6 shadow-sm space-y-4">
+        <div className="text-emerald-800 body-strong border-b border-slate-100 pb-2.5 body-text flex items-center gap-2">
           รูปแบบรายได้และข้อบังคับทางการเงิน
         </div>
         
@@ -614,12 +614,12 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
           <div className="flex flex-col h-full">
             <label className={labelBaseStyle}>ได้ค่าคอม (%)</label>
             <input type="number" value={form.comPct} onChange={set("comPct")} placeholder="2" className={`${inputBaseStyle} ${errors.comPct ? "border-red-400 bg-red-50/20" : "border-slate-200"}`} />
-            {errors.comPct && <p className="text-red-500 text-[10px] mt-1">ต้องระบุเปอร์เซ็นต์ค่าคอมมากกว่า 0</p>}
+            {errors.comPct && <p className="text-red-500 caption mt-1">ต้องระบุเปอร์เซ็นต์ค่าคอมมากกว่า 0</p>}
           </div>
 
           {form.comType !== "actual_work_days_all_branches" && (
             <div className="lg:col-span-3 bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2">
-              <label className={`${labelBaseStyle} text-slate-700 font-bold`}>
+              <label className={`${labelBaseStyle} text-slate-700 body-strong`}>
                 {form.comType === "period_days_responsible_branches" ? "สาขาที่รับผิดชอบดูแลและได้ค่าคอม" : "สาขาที่ได้ค่าคอม"} <span className="text-red-500">*</span>
               </label>
               <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 p-3 rounded-lg bg-white border ${errors.commissionBranches ? "border-red-300" : "border-slate-100"}`}>
@@ -635,14 +635,14 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
                         className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                       />
                       <div className="flex flex-col">
-                        <span className="font-bold text-[11px]">{b.code}</span>
-                        <span className="text-[10px] text-slate-500">{b.name}</span>
+                        <span className="body-strong caption">{b.code}</span>
+                        <span className="caption text-slate-500">{b.name}</span>
                       </div>
                     </label>
                   );
                 })}
               </div>
-              {errors.commissionBranches && <p className="text-red-500 text-[10px]">ต้องเลือกอย่างน้อย 1 สาขาที่ได้ค่าคอม</p>}
+              {errors.commissionBranches && <p className="text-red-500 caption">ต้องเลือกอย่างน้อย 1 สาขาที่ได้ค่าคอม</p>}
             </div>
           )}
 
@@ -659,7 +659,7 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
                 onChange={(event) => setForm((current) => ({ ...current, socialSecurityEnabled: event.target.checked }))}
                 className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
               />
-              <span className="text-xs text-slate-600">มีประกันสังคม</span>
+              <span className="caption text-slate-600">มีประกันสังคม</span>
             </label>
           </div>
 
@@ -709,7 +709,7 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
           type="button" 
           onClick={handleReset} 
           disabled={loading} 
-          className="w-full sm:w-auto order-3 sm:order-1 px-5 py-2.5 rounded-xl border border-slate-200 hover:border-emerald-600 hover:bg-emerald-50 font-semibold text-slate-500 active:scale-95 transition-all text-xs"
+          className="w-full sm:w-auto order-3 sm:order-1 px-5 py-2.5 rounded-xl border border-slate-200 hover:border-emerald-600 hover:bg-emerald-50 body-strong text-slate-500 active:scale-95 transition-all caption"
         >
           {isEdit ? "คืนค่าข้อมูลเดิม" : "ล้างฟอร์ม"}
         </button>
@@ -719,7 +719,7 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
             type="button" 
             onClick={onCancel} 
             disabled={loading} 
-            className="w-full sm:w-auto order-2 sm:order-2 px-5 py-2.5 rounded-xl border border-slate-200 hover:border-emerald-600 hover:bg-emerald-50 font-semibold text-slate-500 active:scale-95 transition-all text-xs"
+            className="w-full sm:w-auto order-2 sm:order-2 px-5 py-2.5 rounded-xl border border-slate-200 hover:border-emerald-600 hover:bg-emerald-50 body-strong text-slate-500 active:scale-95 transition-all caption"
           >
             ยกเลิก
           </button>
@@ -729,7 +729,7 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
           type="button" 
           onClick={handleSubmit} 
           disabled={loading} 
-          className="w-full sm:w-auto order-1 sm:order-3 px-6 py-2.5 rounded-xl bg-emerald-700 text-white font-bold hover:bg-emerald-800 shadow-sm shadow-emerald-700/10 active:scale-95 disabled:bg-emerald-400 transition-all text-xs"
+          className="w-full sm:w-auto order-1 sm:order-3 px-6 py-2.5 rounded-xl bg-emerald-700 text-white body-strong hover:bg-emerald-800 shadow-sm shadow-emerald-700/10 active:scale-95 disabled:bg-emerald-400 transition-all caption"
         >
           {loading ? "กำลังบันทึกข้อมูล..." : isEdit ? "อัปเดตข้อมูลพนักงาน" : "บันทึก"}
         </button>
@@ -737,3 +737,4 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
     </div>
   );
 }
+

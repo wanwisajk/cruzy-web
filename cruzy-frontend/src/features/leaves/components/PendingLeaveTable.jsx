@@ -9,16 +9,16 @@ export function PendingLeaveTable({
   onEdit,
 }) {
   return (
-    <div className="tw pending-zone">
-      <div className="tw-head">
+    <div className="table-shell pending-zone">
+      <div className="table-toolbar">
         <div className="flex items-center gap-2">
           <Hourglass size={16} />
-          <h3>รายการขอลาที่ยังไม่ได้อนุมัติ</h3>
+          <h3 className="table-title">รายการขอลาที่ยังไม่ได้อนุมัติ</h3>
         </div>
-        <span className="count-badge">{leaves.length} รายการ</span>
+        <span className="count-pill">{leaves.length} รายการ</span>
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-full border-collapse text-sm">
+        <table className="min-w-full border-collapse body-text">
           <thead>
             <tr>
               <th className="px-4 py-3 text-left">พนักงาน</th>
@@ -47,10 +47,10 @@ export function PendingLeaveTable({
                   <tr key={leave.id} className="hover:bg-slate-50">
                     <td className="px-4 py-3">
                       <div className="flex flex-col gap-1">
-                        <span className="font-semibold">
+                        <span className="body-strong">
                           {employee?.name || leave.employee_id}
                         </span>
-                        <span className="text-xs text-slate-500">
+                        <span className="caption text-slate-500">
                           {employee?.position || "-"}
                         </span>
                       </div>
@@ -63,11 +63,12 @@ export function PendingLeaveTable({
                     <td className="px-4 py-3">
                       <Badge status="pending">Pending</Badge>
                     </td>
-                    <td className="px-4 py-3 text-center space-x-2">
+                    <td className="px-4 py-3 text-center">
+                      <div className="action-cluster">
                       {onEdit ? (
                         <button
                           type="button"
-                          className="action-btn view"
+                          className="icon-action"
                           onClick={() => onEdit(leave)}
                           title="ดูรายละเอียด / แก้ไข"
                         >
@@ -76,7 +77,7 @@ export function PendingLeaveTable({
                       ) : null}
                       <button
                         type="button"
-                        className="action-btn approve"
+                        className="icon-action success"
                         onClick={() => onApprove(leave)}
                         title="อนุมัติ"
                       >
@@ -84,12 +85,13 @@ export function PendingLeaveTable({
                       </button>
                       <button
                         type="button"
-                        className="action-btn reject"
+                        className="icon-action danger"
                         onClick={() => onReject(leave)}
                         title="ปฏิเสธ"
                       >
                         <X size={14} />
                       </button>
+                      </div>
                     </td>
                   </tr>
                 );

@@ -29,10 +29,10 @@ export function BranchModal({ branch, regions, onClose, onSave }) {
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[80vh]">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[80vh]">
         <div className="px-6 pt-6 pb-4 border-b border-slate-100 flex-shrink-0">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-slate-800">
+            <h2 className="heading-3 text-slate-800">
               {isNew ? 'เพิ่มสาขาใหม่' : `แก้ไข ${form.code}`}
             </h2>
             <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
@@ -44,7 +44,7 @@ export function BranchModal({ branch, regions, onClose, onSave }) {
               <button
                 key={label}
                 onClick={() => setStep(index)}
-                className={`flex-1 py-1.5 rounded-xl text-xs font-semibold transition-colors ${step === index ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                className={`flex-1 py-1.5 rounded-xl caption-strong transition-colors ${step === index ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
               >
                 {label}
               </button>
@@ -61,21 +61,21 @@ export function BranchModal({ branch, regions, onClose, onSave }) {
         <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between flex-shrink-0 bg-white">
           <div>
             {step > 0 ? (
-              <button onClick={() => setStep((current) => current - 1)} className="px-4 py-2 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 transition-colors font-medium">
+              <button onClick={() => setStep((current) => current - 1)} className="px-4 py-2 rounded-xl border border-slate-200 body-text text-slate-600 hover:bg-slate-50 transition-colors body-emphasis">
                 ก่อนหน้า
               </button>
             ) : null}
           </div>
           <div className="flex gap-2">
-            <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-slate-500 hover:bg-slate-100 transition-colors">
+            <button onClick={onClose} className="px-4 py-2 rounded-xl body-text text-slate-500 hover:bg-slate-100 transition-colors">
               ยกเลิก
             </button>
             {step < 2 ? (
-              <button onClick={() => setStep((current) => current + 1)} disabled={step === 0 && !valid} className="px-5 py-2 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              <button onClick={() => setStep((current) => current + 1)} disabled={step === 0 && !valid} className="px-5 py-2 rounded-xl bg-emerald-600 text-white body-strong hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                 ถัดไป
               </button>
             ) : (
-              <button onClick={() => onSave(form)} disabled={!valid} className="px-5 py-2 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              <button onClick={() => onSave(form)} disabled={!valid} className="px-5 py-2 rounded-xl bg-emerald-600 text-white body-strong hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                 บันทึก
               </button>
             )}
@@ -91,29 +91,29 @@ function BranchIdentityStep({ form, regions, set }) {
     <>
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2">
-          <label className="block text-xs font-semibold text-slate-500 mb-1.5">ชื่อสาขา <span className="text-red-400">*</span></label>
-          <input value={form.name} onChange={(event) => set('name', event.target.value)} placeholder="เช่น Central Chiang Rai" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition" />
+          <label className="block caption-strong text-slate-500 mb-1.5">ชื่อสาขา <span className="text-red-400">*</span></label>
+          <input value={form.name} onChange={(event) => set('name', event.target.value)} placeholder="เช่น Central Chiang Rai" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 body-text focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition" />
         </div>
         <div>
-          <label className="block text-xs font-semibold text-slate-500 mb-1.5">รหัสสาขา <span className="text-red-400">*</span></label>
-          <input value={form.code} onChange={(event) => set('code', event.target.value.toUpperCase().slice(0, 4))} placeholder="CCR" maxLength={4} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-mono font-bold tracking-widest focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition" />
+          <label className="block caption-strong text-slate-500 mb-1.5">รหัสสาขา <span className="text-red-400">*</span></label>
+          <input value={form.code} onChange={(event) => set('code', event.target.value.toUpperCase().slice(0, 4))} placeholder="CCR" maxLength={4} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 body-text font-mono body-strong tracking-widest focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition" />
         </div>
         <div>
-          <label className="block text-xs font-semibold text-slate-500 mb-1.5">จังหวัด<span className="text-red-400">*</span></label>
-          <select value={form.region_id} onChange={(event) => set('region_id', event.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition bg-white">
+          <label className="block caption-strong text-slate-500 mb-1.5">จังหวัด<span className="text-red-400">*</span></label>
+          <select value={form.region_id} onChange={(event) => set('region_id', event.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 body-text focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition bg-white">
             <option value="">เลือกจังหวัด</option>
             {regions.map((region) => <option key={region.id} value={region.id}>{region.name}</option>)}
           </select>
         </div>
       </div>
       {form.code && form.name ? (
-        <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center gap-3">
+        <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-sm">
-            <span className="text-emerald-700 font-bold text-sm">{form.code}</span>
+            <span className="text-emerald-700 body-strong">{form.code}</span>
           </div>
           <div>
-            <p className="font-semibold text-emerald-800 text-sm">{form.name}</p>
-            <p className="text-xs text-emerald-600">{regions.find((region) => sameId(region.id, form.region_id))?.name}</p>
+            <p className="body-strong text-emerald-800 body-text">{form.name}</p>
+            <p className="caption text-emerald-600">{regions.find((region) => sameId(region.id, form.region_id))?.name}</p>
           </div>
         </div>
       ) : null}
@@ -124,7 +124,7 @@ function BranchIdentityStep({ form, regions, set }) {
 function BranchStaffStep({ form, set }) {
   return (
     <div className="space-y-4">
-      <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 text-xs text-blue-700">
+      <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 caption text-blue-700">
         กำหนดจำนวนพนักงานขั้นต่ำที่ต้องมีในแต่ละประเภทวัน
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -143,11 +143,11 @@ function StaffInput({ label, keyName, sub, tone, value, set }) {
 
   return (
     <div className="text-center">
-      <div className={`p-4 rounded-2xl border-2 ${styles[tone]}`}>
-        <p className={`text-xs font-bold mb-1 ${tone === 'amber' ? 'text-amber-700' : 'text-emerald-700'}`}>{label}</p>
-        <p className={`text-[10px] mb-3 ${tone === 'amber' ? 'text-amber-500' : 'text-emerald-500'}`}>{sub}</p>
-        <input type="number" min="1" value={value ?? ''} onChange={(event) => set(keyName, Number(event.target.value))} className={`w-full text-center text-2xl font-bold bg-white border rounded-xl py-2 focus:outline-none focus:ring-2 transition ${tone === 'amber' ? 'focus:ring-amber-400 border-amber-200' : 'focus:ring-emerald-400 border-emerald-200'}`} />
-        <p className="text-[10px] text-slate-400 mt-1">คน</p>
+      <div className={`p-4 rounded-xl border-2 ${styles[tone]}`}>
+        <p className={`caption-bold mb-1 ${tone === 'amber' ? 'text-amber-700' : 'text-emerald-700'}`}>{label}</p>
+        <p className={`caption mb-3 ${tone === 'amber' ? 'text-amber-500' : 'text-emerald-500'}`}>{sub}</p>
+        <input type="number" min="1" value={value ?? ''} onChange={(event) => set(keyName, Number(event.target.value))} className={`w-full text-center stat-number bg-white border rounded-xl py-2 focus:outline-none focus:ring-2 transition ${tone === 'amber' ? 'focus:ring-amber-400 border-amber-200' : 'focus:ring-emerald-400 border-emerald-200'}`} />
+        <p className="caption text-slate-400 mt-1">คน</p>
       </div>
     </div>
   );
@@ -156,21 +156,21 @@ function StaffInput({ label, keyName, sub, tone, value, set }) {
 function BranchHoursStep({ form, setHour, applyPreset }) {
   return (
     <div className="space-y-3">
-      <div className="p-3 bg-blue-50 rounded-xl border border-blue-100 text-xs text-blue-700">
+      <div className="p-3 bg-blue-50 rounded-xl border border-blue-100 caption text-blue-700">
         กำหนดเวลาเปิด–ปิดแต่ละวันในสัปดาห์
       </div>
       <div className="flex gap-2 flex-wrap">
         {presets.map((preset) => (
-          <button key={preset.label} onClick={() => applyPreset(preset)} className="text-[11px] px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-emerald-100 hover:text-emerald-700 text-slate-600 font-semibold transition-colors">
+          <button key={preset.label} onClick={() => applyPreset(preset)} className="caption px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-emerald-100 hover:text-emerald-700 text-slate-600 body-strong transition-colors">
             {preset.label} (ทุกวัน)
           </button>
         ))}
       </div>
-      <div className="rounded-2xl border border-slate-100 overflow-hidden">
+      <div className="rounded-xl border border-slate-100 overflow-hidden">
         <div className="grid grid-cols-3 bg-slate-50 px-4 py-2.5">
-          <p className="text-xs font-semibold text-slate-500">วัน</p>
-          <p className="text-xs font-semibold text-slate-500 text-center">เปิด</p>
-          <p className="text-xs font-semibold text-slate-500 text-center">ปิด</p>
+          <p className="caption-strong text-slate-500">วัน</p>
+          <p className="caption-strong text-slate-500 text-center">เปิด</p>
+          <p className="caption-strong text-slate-500 text-center">ปิด</p>
         </div>
         {DAYS.map((day, index) => <BranchHourRow key={day} day={day} index={index} form={form} setHour={setHour} />)}
       </div>
@@ -184,11 +184,12 @@ function BranchHourRow({ day, index, form, setHour }) {
   return (
     <div className={`grid grid-cols-3 items-center px-4 py-2 gap-2 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} ${isWeekend ? 'bg-amber-50/40' : ''}`}>
       <div className="flex items-center gap-2">
-        <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold ${isWeekend ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>{day}</span>
-        <span className="text-xs text-slate-500 hidden sm:block">{DAY_LABELS[day]}</span>
+        <span className={`w-7 h-7 rounded-lg flex items-center justify-center caption-bold ${isWeekend ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>{day}</span>
+        <span className="caption text-slate-500 hidden sm:block">{DAY_LABELS[day]}</span>
       </div>
-      <input type="time" value={form.hours?.[day] || '10:00'} onChange={(event) => setHour('hours', day, event.target.value)} className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition text-center" />
-      <input type="time" value={form.hoursEnd?.[day] || '21:00'} onChange={(event) => setHour('hoursEnd', day, event.target.value)} className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition text-center" />
+      <input type="time" value={form.hours?.[day] || '10:00'} onChange={(event) => setHour('hours', day, event.target.value)} className="caption border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition text-center" />
+      <input type="time" value={form.hoursEnd?.[day] || '21:00'} onChange={(event) => setHour('hoursEnd', day, event.target.value)} className="caption border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition text-center" />
     </div>
   );
 }
+

@@ -1,9 +1,28 @@
 import { useCallback, useEffect, useState } from 'react';
 import { accessService } from '../services/accessService.js';
 
-export function useAccess() {
-  const [accessData, setAccessData] = useState({ users: [], branches: [], regions: [], employees: [] });
-  const [loading, setLoading] = useState(true);
+function normalizeInitialData(data = {}) {
+  const regionRows = Array.isArray(data.regions)
+    ? data.regions
+    : Object.entries(data.regions || {}).map(([id, region]) => ({
+        id,
+        name: region.name,
+        branches: region.branches || [],
+      }));
+
+  return {
+    users: Array.isArray(data.users) ? data.users : [],
+    branches: Array.isArray(data.branches) ? data.branches : [],
+    regions: regionRows,
+    employees: Array.isArray(data.employees) ? data.employees : []
+  };
+}
+
+export function useAccess(initialData) {
+  const initialAccessData = normalizeInitialData(initialData);
+  const hasInitialUsers = initialAccessData.users.length > 0;
+  const [accessData, setAccessData] = useState(() => initialAccessData);
+  const [loading, setLoading] = useState(!hasInitialUsers);
   const [error, setError] = useState('');
 
   const fetchAccessData = useCallback(async () => {
@@ -25,8 +44,13 @@ export function useAccess() {
   }, []);
 
   useEffect(() => {
+    if (hasInitialUsers) {
+      setAccessData(initialAccessData);
+      setLoading(false);
+      return;
+    }
     fetchAccessData();
-  }, [fetchAccessData]);
+  }, [fetchAccessData, hasInitialUsers, initialData]);
 
   return {
     accessData,

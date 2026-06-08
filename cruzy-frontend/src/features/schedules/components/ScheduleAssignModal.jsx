@@ -18,11 +18,11 @@ export function ScheduleAssignModal({ target, data, user, from, to, onClose, onA
       onClick={(event) => event.target === event.currentTarget && onClose()}
     >
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-sm overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl">
+      <div className="relative w-full max-w-sm overflow-hidden rounded-t-xl bg-white shadow-2xl sm:rounded-xl">
         <div className="flex items-center justify-between border-b border-gray-100 bg-gradient-to-r from-emerald-700 to-emerald-600 px-5 py-4">
           <div>
-            <p className="text-sm font-bold text-white">จัดคนเข้า {branch?.code || ""}</p>
-            <p className="mt-0.5 text-xs text-emerald-200">
+            <p className="body-strong text-white">จัดคนเข้า {branch?.code || ""}</p>
+            <p className="mt-0.5 caption text-emerald-200">
               {new Date(`${target.date}T00:00:00`).toLocaleDateString("th-TH", {
                 weekday: "short",
                 day: "numeric",
@@ -42,7 +42,7 @@ export function ScheduleAssignModal({ target, data, user, from, to, onClose, onA
 
         <div className="max-h-64 divide-y divide-gray-50 overflow-y-auto">
           {candidates.length === 0 ? (
-            <p className="py-8 text-center text-sm text-gray-400">ไม่มีพนักงานที่ว่าง</p>
+            <p className="py-8 text-center body-text text-gray-400">ไม่มีพนักงานที่ว่าง</p>
           ) : null}
           {candidates.map((candidate) => (
             <button
@@ -59,8 +59,8 @@ export function ScheduleAssignModal({ target, data, user, from, to, onClose, onA
             >
               <ScheduleAvatar employee={candidate.employee} size="md" />
               <div>
-                <p className="text-sm font-semibold text-gray-800">{candidate.employee.name}</p>
-                <p className="text-xs text-gray-400">
+                <p className="body-strong text-gray-800">{candidate.employee.name}</p>
+                <p className="caption text-gray-400">
                   {candidate.disabled
                     ? scheduleCandidateReason(candidate)
                     : candidate.employee.nickname || candidate.employee.position}
@@ -73,3 +73,4 @@ export function ScheduleAssignModal({ target, data, user, from, to, onClose, onA
     </div>
   );
 }
+

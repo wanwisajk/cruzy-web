@@ -50,7 +50,7 @@ function isInspectionAttachment(attachment, id) {
   return ['inspection', 'store_inspection'].includes(entityType) && String(entityId) === String(id);
 }
 
-export function useInspection({ user, from, to }) {
+export function useInspection({ user, from, to, currentBranch }) {
   const [branches, setBranches] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [inspections, setInspections] = useState([]);
@@ -70,7 +70,7 @@ export function useInspection({ user, from, to }) {
     setLoading(true);
     setError('');
     try {
-      const data = await inspectionService.fetchDashboardData({ from, to });
+      const data = await inspectionService.fetchDashboardData({ from, to, branch: currentBranch });
       setBranches(mergeBranchHours(data.branches || [], data.branchStaffingRules || data.branch_staffing_rules || []));
       setEmployees(data.employees || []);
       setInspections((data.storeInspections || []).filter((item) => {
@@ -88,7 +88,7 @@ export function useInspection({ user, from, to }) {
     } finally {
       setLoading(false);
     }
-  }, [from, to]);
+  }, [from, to, currentBranch]);
 
   useEffect(() => {
     loadAllData();

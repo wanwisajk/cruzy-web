@@ -61,7 +61,7 @@ export function Shell({ data, user, currentTab, setCurrentTab, currentBranch, se
     <div className="min-h-screen bg-[#f5f5f5]">
       <nav className="nav">
         <div className="flex items-center gap-2">
-          <h1 className="text-sm font-bold">Cruzy Admin</h1>
+          <h1 className="body-strong">Cruzy Admin</h1>
           <span className="nav-badge">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
             {user.label || user.role}
@@ -88,7 +88,7 @@ export function Shell({ data, user, currentTab, setCurrentTab, currentBranch, se
                     <Icon size={17} />
                     <span className="hidden md:inline">
                       {menu.label}
-                      {menu.id === 'alerts' && alertCount ? <span className="ml-1 rounded-full bg-danger px-1.5 py-0.5 text-[10px] text-white">{alertCount}</span> : null}
+                      {menu.id === 'alerts' && alertCount ? <span className="ml-1 rounded-full bg-danger px-1.5 py-0.5 caption text-white">{alertCount}</span> : null}
                     </span>
                   </button>
                 );

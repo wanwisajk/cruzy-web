@@ -251,10 +251,16 @@ export function hydrateConsoleData(data = {}) {
     status: letter.status || 'draft'
   }));
   state.users = (data.users || []).map((user) => ({
+    id: user.id,
     username: user.username,
     name: user.name,
     role: user.role,
-    scope: user.scope || user.scope_value || user.scopeType || user.scope_type,
+    scope: user.scope || user.scope_value || user.scopeValue || user.scopeType || user.scope_type,
+    scopeType: user.scopeType || user.scope_type || (user.scope === 'all' ? 'all' : undefined),
+    scopeValue: user.scopeValue ?? user.scope_value ?? user.scope,
+    scope_type: user.scope_type || user.scopeType || (user.scope === 'all' ? 'all' : undefined),
+    scope_value: user.scope_value ?? user.scopeValue ?? user.scope,
+    created_at: user.created_at || user.createdAt,
     label: user.label || user.role
   }));
   state.auditLogs = buildAuditLogs(state.sales, state.inspections, state.deposits);

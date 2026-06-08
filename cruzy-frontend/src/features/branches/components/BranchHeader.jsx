@@ -6,9 +6,9 @@ export function BranchHeader({ onAdd }) {
       <div>
         <div className="flex items-center gap-2">
           <Settings className="w-5 h-5 text-slate-400" />
-          <h1 className="text-xl font-semibold text-slate-800"> ตั้งค่าสาขา</h1>
+          <h1 className="heading-2 text-slate-800"> ตั้งค่าสาขา</h1>
         </div>
-        <p className="text-xs text-slate-400 mt-0.5">
+        <p className="caption text-slate-400 mt-0.5">
           Branch Management — กำหนดคน เวลา และเงื่อนไขแต่ละสาขา
         </p>
       </div>

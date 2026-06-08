@@ -37,7 +37,7 @@ export default function OverviewSection({ data, branches, date, onAssign }) {
           return (
             <div key={branch.id} className="card overflow-hidden">
               <div
-                className={`flex items-center justify-between px-4 py-2 text-xs font-bold text-white ${ids.length ? "bg-cruzy" : "bg-danger"}`}
+                className={`flex items-center justify-between px-4 py-2 caption-bold text-white ${ids.length ? "bg-cruzy" : "bg-danger"}`}
               >
                 <span>{branch.code}</span>
                 <span>
@@ -53,7 +53,7 @@ export default function OverviewSection({ data, branches, date, onAssign }) {
                     return (
                       <div
                         key={id}
-                        className="flex items-center gap-2 border-b border-slate-100 py-1.5 text-xs last:border-0"
+                        className="flex items-center gap-2 border-b border-slate-100 py-1.5 caption last:border-0"
                       >
                         <Avatar employee={employee} />
                         {employee?.nickname || employee?.name}
@@ -61,7 +61,7 @@ export default function OverviewSection({ data, branches, date, onAssign }) {
                     );
                   })
                 ) : (
-                  <div className="text-center text-sm font-semibold text-danger">
+                  <div className="text-center body-strong text-danger">
                     ว่าง{" "}
                     <button
                       className="btn ml-2 bg-cruzy-50 text-cruzy hover:bg-emerald-600 hover:text-white"
@@ -84,10 +84,10 @@ function Stat({ icon: Icon, value, label, tone }) {
   return (
     <div className={`stat ${tone.split(" ")[0]}`}>
       <Icon className={`mx-auto mb-1 ${tone.split(" ")[1]}`} size={18} />
-      <div className={`text-xl font-bold leading-none ${tone.split(" ")[1]}`}>
+      <div className={`heading-2 leading-none ${tone.split(" ")[1]}`}>
         {value}
       </div>
-      <div className="mt-1 text-[11px] text-slate-500">{label}</div>
+      <div className="mt-1 caption text-slate-500">{label}</div>
     </div>
   );
 }

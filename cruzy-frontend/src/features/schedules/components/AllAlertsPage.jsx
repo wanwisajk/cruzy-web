@@ -15,7 +15,7 @@ export default function AllAlertsPage({ alerts, onAssign, onClose }) {
         {/* <div className="flex items-center gap-2">
           <button
             onClick={onClose}
-            className="flex items-center gap-1 text-xs font-semibold bg-white/15 hover:bg-white/25 px-3 py-1.5 rounded-md"
+            className="flex items-center gap-1 caption-strong bg-white/15 hover:bg-white/25 px-3 py-1.5 rounded-md"
           >
             <svg
               width="12"
@@ -31,10 +31,10 @@ export default function AllAlertsPage({ alerts, onAssign, onClose }) {
             </svg>
             กลับ
           </button>
-          <span className="text-sm font-semibold">การแจ้งเตือนทั้งหมด</span>
+          <span className="body-strong">การแจ้งเตือนทั้งหมด</span>
         </div> */}
         {/* <div className="flex items-center gap-2">
-          <span className="text-[10px] bg-white/15 px-2 py-1 rounded-full">
+          <span className="caption bg-white/15 px-2 py-1 rounded-full">
             {alerts.length} รายการ
           </span>
         </div> */}
@@ -65,10 +65,10 @@ export default function AllAlertsPage({ alerts, onAssign, onClose }) {
               key={label}
               className={`bg-white rounded-xl shadow-sm border-l-4 ${color} p-3 text-center`}
             >
-              <div className={`text-xl font-bold ${color.split(" ")[1]}`}>
+              <div className={`heading-2 ${color.split(" ")[1]}`}>
                 {count}
               </div>
-              <div className="text-[11px] text-gray-400 mt-1">{label}</div>
+              <div className="caption text-gray-400 mt-1">{label}</div>
             </div>
           ))}
         </div>
@@ -95,7 +95,7 @@ export default function AllAlertsPage({ alerts, onAssign, onClose }) {
             <button
               key={key}
               onClick={() => setFilter(key)}
-              className={`text-[11px] font-semibold px-3 py-1 rounded-full border transition-colors ${
+              className={`caption body-strong px-3 py-1 rounded-full border transition-colors ${
                 filter === key
                   ? active
                   : "bg-white text-gray-500 border-gray-200 hover:border-green-800 hover:text-green-800"
@@ -104,7 +104,7 @@ export default function AllAlertsPage({ alerts, onAssign, onClose }) {
               {label}
             </button>
           ))}
-          <span className="ml-auto text-[11px] text-gray-400">
+          <span className="ml-auto caption text-gray-400">
             แสดง {filtered.length} จาก {alerts.length} รายการ
           </span>
         </div>
@@ -112,15 +112,15 @@ export default function AllAlertsPage({ alerts, onAssign, onClose }) {
         {/* Table */}
         <div className="bg-white rounded-xl shadow-sm overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-            <h3 className="text-sm font-bold text-gray-700">รายการแจ้งเตือน</h3>
-            <span className="text-[10px] font-bold bg-blue-500 text-white px-2 py-0.5 rounded-full">
+            <h3 className="body-strong text-gray-700">รายการแจ้งเตือน</h3>
+            <span className="caption body-strong bg-blue-500 text-white px-2 py-0.5 rounded-full">
               {filtered.length} รายการ
             </span>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-xs">
+            <table className="w-full caption">
               <thead>
-                <tr className="bg-gray-50 text-gray-400 text-[11px] font-semibold">
+                <tr className="bg-gray-50 text-gray-400 caption body-strong">
                   <th className="text-left px-4 py-2.5 border-b border-gray-100">
                     #
                   </th>
@@ -158,7 +158,7 @@ export default function AllAlertsPage({ alerts, onAssign, onClose }) {
                       <td className="px-4 py-2.5 text-gray-400">{i + 1}</td>
                       <td className="px-4 py-2.5">
                         <span
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full caption body-strong ${
                             alert.type === "danger"
                               ? "bg-red-50 text-red-600"
                               : "bg-amber-50 text-amber-600"
@@ -167,7 +167,7 @@ export default function AllAlertsPage({ alerts, onAssign, onClose }) {
                           ● {alert.type === "danger" ? "สาขาว่าง" : "คนไม่พอ"}
                         </span>
                       </td>
-                      <td className="px-4 py-2.5 font-bold text-green-800">
+                      <td className="px-4 py-2.5 body-strong text-green-800">
                         {alert.branch.name}
                       </td>
                       <td className="px-4 py-2.5 text-gray-500 whitespace-nowrap">
@@ -184,7 +184,7 @@ export default function AllAlertsPage({ alerts, onAssign, onClose }) {
                               date: alert.date,
                             })
                           }
-                          className={`text-xs font-semibold px-3 py-1.5 rounded-lg flex-shrink-0 transition-colors ${
+                          className={`caption-strong px-3 py-1.5 rounded-lg flex-shrink-0 transition-colors ${
                             alert.type === "danger"
                               ? "bg-red-600 hover:bg-red-700 text-white"
                               : "bg-amber-500 hover:bg-amber-600 text-white"

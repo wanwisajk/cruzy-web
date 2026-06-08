@@ -66,7 +66,7 @@ export function SchedulePlanner({
           <table className="w-full table-fixed border-collapse" style={{ minWidth: `${tableMinWidth}px` }}>
             <thead>
               <tr>
-                <th className="w-[72px] border-b border-r-2 border-gray-100 border-r-emerald-500 bg-gray-50 px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                <th className="w-[72px] border-b border-r-2 border-gray-100 border-r-emerald-500 bg-gray-50 px-3 py-2.5 text-left caption body-strong uppercase tracking-wide text-gray-400">
                   สาขา
                 </th>
                 {days.map((date) => {
@@ -79,10 +79,10 @@ export function SchedulePlanner({
                         isToday ? "border-b-emerald-200 bg-emerald-50" : "bg-gray-50"
                       }`}
                     >
-                      <div className={`text-[10px] font-semibold uppercase tracking-wide ${isToday ? "text-emerald-600" : "text-gray-400"}`}>
+                      <div className={`caption body-strong uppercase tracking-wide ${isToday ? "text-emerald-600" : "text-gray-400"}`}>
                         {day.toLocaleDateString("th-TH", { weekday: "short" })}
                       </div>
-                      <div className={`mt-0.5 text-[15px] font-bold ${isToday ? "text-emerald-600" : "text-gray-700"}`}>
+                      <div className={`mt-0.5 body-text body-strong ${isToday ? "text-emerald-600" : "text-gray-700"}`}>
                         {day.getDate()}
                       </div>
                     </th>
@@ -130,7 +130,7 @@ function ScheduleRow({
 }) {
   return (
     <tr>
-      <td className="w-[72px] whitespace-nowrap border-b border-r-2 border-gray-100 border-r-emerald-500 bg-white px-3 py-2 align-middle text-[11px] font-bold text-gray-800">
+      <td className="w-[72px] whitespace-nowrap border-b border-r-2 border-gray-100 border-r-emerald-500 bg-white px-3 py-2 align-middle caption body-strong text-gray-800">
         {branch.code}
       </td>
       {days.map((date) => {
@@ -166,9 +166,9 @@ function ScheduleRow({
             onDrop={(event) => onCellDrop(event, branch.id, date)}
           >
             <div className="mb-1.5 flex flex-wrap items-center justify-between gap-1">
-              <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${needBadgeClass}`}>{need} คน</span>
+              <span className={`rounded-full px-2 py-0.5 caption body-strong ${needBadgeClass}`}>{need} คน</span>
               {shift.start ? (
-                <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] text-gray-500">
+                <span className="rounded-full bg-gray-100 px-1.5 py-0.5 caption text-gray-500">
                   {shift.start}
                   {shift.end ? ` - ${shift.end}` : ""}
                 </span>
@@ -188,13 +188,13 @@ function ScheduleRow({
                     className="flex items-center gap-1 rounded-full border border-gray-100 bg-white px-2 py-0.5 shadow-sm"
                   >
                     <ScheduleAvatar employee={employee} size="sm" />
-                    <span className="flex-1 truncate text-[10px] font-semibold text-gray-800">
+                    <span className="flex-1 truncate caption body-strong text-gray-800">
                       {employee.nickname || employee.name}
                     </span>
                     <button
                       type="button"
                       onClick={() => onRemove(branch.id, date, empId)}
-                      className="text-[11px] leading-none text-red-300 hover:text-red-500"
+                      className="caption leading-none text-red-300 hover:text-red-500"
                       aria-label="ลบ"
                     >
                       ×
@@ -207,13 +207,13 @@ function ScheduleRow({
             <button
               type="button"
               onClick={() => onAssign({ branchId: branch.id, date })}
-              className="mt-1.5 w-full rounded-lg bg-emerald-50 py-1 text-[10px] font-bold text-emerald-700 transition-colors hover:bg-emerald-100"
+              className="mt-1.5 w-full rounded-lg bg-emerald-50 py-1 caption body-strong text-emerald-700 transition-colors hover:bg-emerald-100"
             >
               + เพิ่ม
             </button>
 
             <div className="mt-1 flex justify-end">
-              <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold text-white ${ok ? "bg-emerald-600" : "bg-red-500"}`}>
+              <span className={`rounded-full px-2 py-0.5 caption body-strong text-white ${ok ? "bg-emerald-600" : "bg-red-500"}`}>
                 {employeeIds.length}/{need}
               </span>
             </div>
@@ -230,11 +230,11 @@ function AlertStack({ alerts, onAssign, onViewAllAlerts }) {
   return (
     <div>
       <div className="mb-2 flex items-center gap-2">
-        <h3 className="text-lg font-semibold text-gray-700">แจ้งเตือน</h3>
+        <h3 className="heading-3 text-gray-700">แจ้งเตือน</h3>
         <button
           type="button"
           onClick={onViewAllAlerts}
-          className="flex flex-shrink-0 items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold text-green-800 hover:bg-gray-200"
+          className="flex flex-shrink-0 items-center gap-1 rounded-lg px-3 py-1.5 caption-strong text-green-800 hover:bg-gray-200"
         >
           ดูทั้งหมด
           <span aria-hidden="true">→</span>
@@ -245,7 +245,7 @@ function AlertStack({ alerts, onAssign, onViewAllAlerts }) {
         {alerts.slice(0, 5).map((alert) => (
           <div
             key={`${alert.type}_${alert.branch.id}_${alert.date}`}
-            className={`flex items-center gap-3 rounded-xl border px-4 py-2.5 text-sm ${
+            className={`flex items-center gap-3 rounded-xl border px-4 py-2.5 body-text ${
               alert.type === "danger" ? "border-red-100 bg-red-50 text-red-700" : "border-amber-100 bg-orange-50 text-amber-700"
             }`}
           >
@@ -253,7 +253,7 @@ function AlertStack({ alerts, onAssign, onViewAllAlerts }) {
             <button
               type="button"
               onClick={() => onAssign({ branchId: alert.branch.id, date: alert.date })}
-              className={`flex-shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition-colors ${
+              className={`flex-shrink-0 rounded-lg px-3 py-1.5 caption-strong text-white transition-colors ${
                 alert.type === "danger" ? "bg-red-600 hover:bg-red-700" : "bg-amber-500 hover:bg-amber-600"
               }`}
             >
@@ -271,10 +271,10 @@ function RecommendationBox({ data, branches, days, from, to, user, onQuickAdd, o
     <div className="rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-blue-50 p-4">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
-          <h3 className="flex items-center gap-1.5 text-sm font-bold text-emerald-800">
+          <h3 className="flex items-center gap-1.5 body-strong text-emerald-800">
             แนะนำจัดตารางตามกติกา
           </h3>
-          <p className="mt-0.5 text-[11px] text-gray-500">
+          <p className="mt-0.5 caption text-gray-500">
             กรองจากสาขาที่ลงได้ วันว่าง ไม่ชนตารางเดิม และกระจายจำนวนวันทำงาน
           </p>
         </div>
@@ -294,8 +294,8 @@ function RecommendationBox({ data, branches, days, from, to, user, onQuickAdd, o
             .slice(0, 5);
 
           return (
-            <div key={branch.id} className="flex flex-wrap items-center gap-1 text-xs">
-              <span className="w-10 font-bold text-gray-700">{branch.code}</span>
+            <div key={branch.id} className="flex flex-wrap items-center gap-1 caption">
+              <span className="w-10 body-strong text-gray-700">{branch.code}</span>
               <span className="text-gray-400">→</span>
               {recs.length ? (
                 recs.map((rec) => (
@@ -303,7 +303,7 @@ function RecommendationBox({ data, branches, days, from, to, user, onQuickAdd, o
                     key={`${rec.employee.id}_${rec.date}`}
                     type="button"
                     onClick={() => onQuickAdd(branch.id, rec.date, rec.employee.id)}
-                    className="flex items-center gap-1 rounded-full border border-gray-200 bg-white px-2.5 py-0.5 font-semibold text-gray-700 transition-colors hover:border-emerald-400 hover:bg-emerald-50"
+                    className="flex items-center gap-1 rounded-full border border-gray-200 bg-white px-2.5 py-0.5 body-strong text-gray-700 transition-colors hover:border-emerald-400 hover:bg-emerald-50"
                   >
                     <ScheduleAvatar employee={rec.employee} size="sm" />
                     {rec.employee.nickname || rec.employee.name} · {thaiShortDate(rec.date)}

@@ -2,16 +2,16 @@ import { Eye,ClipboardList } from 'lucide-react';
 
 export function LeaveHistoryTable({ rows, onView }) {
   return (
-    <div className="tw">
-      <div className="tw-head processed-head">
+    <div className="table-shell">
+      <div className="table-toolbar">
         <div className="flex items-center gap-2">
           <ClipboardList size={16}/>
-        <h3 style={{ color: '#1b5e20' }}>สรุปวันลา (Approved)</h3>
+        <h3 className="table-title">สรุปวันลา (Approved)</h3>
         </div>
-        <span className="count-badge">{rows.length} รายการ</span>
+        <span className="count-pill">{rows.length} รายการ</span>
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-full border-collapse text-sm">
+        <table className="min-w-full border-collapse body-text">
           <thead>
             <tr>
               <th className="px-4 py-3 text-left">พนักงาน</th>
@@ -37,7 +37,7 @@ export function LeaveHistoryTable({ rows, onView }) {
                   <td className="px-4 py-3">{row.summary.personalUsed}</td>
                   <td className="px-4 py-3 text-left">
                     {onView ? (
-                      <button type="button" className="action-btn view" onClick={() => onView(row)} title="ดูรายละเอียด">
+                      <button type="button" className="icon-action" onClick={() => onView(row)} title="ดูรายละเอียด">
                         <Eye size={14} />
                       </button>
                     ) : null}

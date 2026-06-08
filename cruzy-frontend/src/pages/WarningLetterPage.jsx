@@ -71,7 +71,7 @@ const levelConfig = {
 function Avatar({ emp, size = 8 }) {
   return (
     <div
-      className={`w-${size} h-${size} rounded-full flex items-center justify-center text-white font-medium text-xs shrink-0`}
+      className={`w-${size} h-${size} rounded-full flex items-center justify-center text-white caption-strong shrink-0`}
       style={{ background: emp?.color || '#888', width: size * 4, height: size * 4, fontSize: size * 1.5 }}
     >
       {emp?.name?.[0] || '?'}
@@ -82,7 +82,7 @@ function Avatar({ emp, size = 8 }) {
 function LevelBadge({ level }) {
   const cfg = levelConfig[level] || levelConfig.verbal;
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${cfg.bg} ${cfg.text} border ${cfg.border}`}>
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full caption-strong ${cfg.bg} ${cfg.text} border ${cfg.border}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`}></span>
       {cfg.label}
     </span>
@@ -90,9 +90,9 @@ function LevelBadge({ level }) {
 }
 
 function StatusBadge({ signedByEmp, status }) {
-  if (status === 'draft') return <span className="px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-500 border border-gray-200">แบบร่าง</span>;
-  if (signedByEmp) return <span className="px-2 py-0.5 rounded text-xs bg-green-50 text-green-700 border border-green-200">เซ็นแล้ว</span>;
-  return <span className="px-2 py-0.5 rounded text-xs bg-yellow-50 text-yellow-700 border border-yellow-200">รอเซ็น</span>;
+  if (status === 'draft') return <span className="badge inactive">แบบร่าง</span>;
+  if (signedByEmp) return <span className="badge approved">เซ็นแล้ว</span>;
+  return <span className="badge pending">รอเซ็น</span>;
 }
 
 function templateIdFromValue(value) {
@@ -108,9 +108,9 @@ function templateValueFromId(value) {
 
 function DetailItem({ label, value }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-      <div className="text-[11px] font-semibold text-slate-400">{label}</div>
-      <div className="mt-1 text-sm font-bold text-slate-800 break-words">{value || '-'}</div>
+    <div className="section-card-soft">
+      <div className="caption body-strong text-slate-400">{label}</div>
+      <div className="mt-1 body-strong text-slate-800 break-words">{value || '-'}</div>
     </div>
   );
 }
@@ -118,7 +118,7 @@ function DetailItem({ label, value }) {
 function PreviewModal({ letter, employees, branches, onClose, onEdit, onDelete }) {
   if (!letter) return null;
   
-  const emp = employees.find(e => e.id === letter.employee_id);
+  const emp = employees.find((e) => String(e.id) === String(letter.employee_id));
   const branch = branches.find((item) => String(item.id) === String(letter.branch_id));
   const tpl = TEMPLATES.find(t => t.id === templateValueFromId(letter.template_id)) || TEMPLATES.find(t => t.level === letter.level);
   if (!emp || !tpl) return null;
@@ -132,21 +132,21 @@ function PreviewModal({ letter, employees, branches, onClose, onEdit, onDelete }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(15, 23, 42, 0.45)' }}>
-      <div className="w-full max-w-5xl max-h-[92vh] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+      <div className="surface-modal max-w-5xl max-h-[92vh] overflow-hidden">
         <div className="border-b border-slate-100 bg-white px-5 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Avatar emp={emp} size={8} />
             <div>
               <div className="flex items-center gap-2">
-                <p className="font-bold text-slate-900 text-base">รายละเอียดหนังสือเตือน</p>
+                <p className="body-strong text-slate-900 body-text">รายละเอียดหนังสือเตือน</p>
                 <Badge tone={letter.status === 'issued' ? 'green' : 'blue'}>{letter.status || 'issued'}</Badge>
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">{emp.name} · {emp.id}</p>
+              <p className="caption text-slate-500 mt-0.5">{emp.name} · {emp.id}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <LevelBadge level={letter.level} />
-            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
+            <button onClick={onClose} className="icon-btn">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M12 4L4 12M4 4l8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
             </button>
           </div>
@@ -155,8 +155,8 @@ function PreviewModal({ letter, employees, branches, onClose, onEdit, onDelete }
         <div className="max-h-[calc(92vh-132px)] overflow-y-auto bg-slate-50/70 p-5">
           <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
             <div className="space-y-4">
-              <div className="card rounded-2xl border border-slate-200 bg-white p-4">
-                <div className="text-xs font-bold uppercase tracking-wide text-slate-400">ข้อมูลทั้งหมด</div>
+              <div className="card section-card-sm">
+                <div className="caption-bold uppercase tracking-wide text-slate-400">ข้อมูลทั้งหมด</div>
                 <div className="mt-3 grid gap-2">
                   <DetailItem label="พนักงาน" value={`${emp.name} (${emp.id})`} />
                   <DetailItem label="ตำแหน่ง" value={emp.position} />
@@ -169,22 +169,22 @@ function PreviewModal({ letter, employees, branches, onClose, onEdit, onDelete }
                 </div>
               </div>
 
-              <div className="card rounded-2xl border border-slate-200 bg-white p-4">
-                <div className="text-xs font-bold uppercase tracking-wide text-slate-400">สาเหตุ</div>
-                <p className="mt-2 text-sm leading-relaxed text-slate-700">{letter.reason || '-'}</p>
+              <div className="card section-card-sm">
+                <div className="caption-bold uppercase tracking-wide text-slate-400">สาเหตุ</div>
+                <p className="mt-2 body-text leading-relaxed text-slate-700">{letter.reason || '-'}</p>
               </div>
             </div>
 
-            <div className="card rounded-2xl border border-slate-200 bg-white p-5">
+            <div className="card section-card-lg">
               <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
                 <div>
-                  <div className="text-sm font-bold text-slate-900">{tpl.name}</div>
-                  <div className="mt-0.5 text-xs text-slate-500">ตัวอย่างเนื้อหาหนังสือจากข้อมูลล่าสุด</div>
+                  <div className="body-strong text-slate-900">{tpl.name}</div>
+                  <div className="mt-0.5 caption text-slate-500">ตัวอย่างเนื้อหาหนังสือจากข้อมูลล่าสุด</div>
                 </div>
                 <StatusBadge signedByEmp={letter.is_signed_by_emp} status={letter.status} />
               </div>
 
-              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-5 font-serif text-sm leading-7 text-slate-800 whitespace-pre-wrap">
+              <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-5 font-serif body-text leading-7 text-slate-800 whitespace-pre-wrap">
                 {body}
               </div>
 
@@ -192,7 +192,7 @@ function PreviewModal({ letter, employees, branches, onClose, onEdit, onDelete }
                 {['ผู้ออกหนังสือ (นายจ้าง)', `ผู้รับหนังสือ (${emp.name})`, 'พยาน'].map(label => (
                   <div key={label} className="text-center">
                     <div className="h-10 border-b border-dashed border-slate-300 mb-1"></div>
-                    <p className="text-xs text-slate-400">{label}</p>
+                    <p className="caption text-slate-400">{label}</p>
                   </div>
                 ))}
               </div>
@@ -204,7 +204,7 @@ function PreviewModal({ letter, employees, branches, onClose, onEdit, onDelete }
           <button type="button" onClick={() => onEdit(letter)} className="btn btn-primary">
             แก้ไข
           </button>
-          <button type="button" onClick={() => onDelete(letter)} className="rounded-lg border border-red-100 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100">
+          <button type="button" onClick={() => onDelete(letter)} className="btn btn-danger">
             ลบ
           </button>
           <button onClick={onClose} className="btn btn-ghost">
@@ -217,29 +217,29 @@ function PreviewModal({ letter, employees, branches, onClose, onEdit, onDelete }
 }
 
 function LetterCard({ letter, employees, onPreview, onEdit, onDelete }) {
-  const emp = employees.find(e => e.id === letter.employee_id);
+  const emp = employees.find((e) => String(e.id) === String(letter.employee_id));
   const cfg = levelConfig[letter.level] || levelConfig.verbal;
   return (
     <div
       key={letter.id}
       onClick={() => onPreview(letter)}
-      className={`bg-white rounded-xl border-l-4 ${cfg.border} border border-gray-100 p-5 cursor-pointer hover:shadow-md transition-all group`}
+      className={`section-card-lg border-l-4 ${cfg.border} cursor-pointer transition-all group hover:shadow-md`}
     >
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3">
           <Avatar emp={emp} size={9} />
           <div>
-            <p className="font-semibold text-gray-900 text-sm">{emp?.name}</p>
-            <p className="text-xs text-gray-400">{emp?.id}</p>
+            <p className="body-strong text-gray-900 body-text">{emp?.name}</p>
+            <p className="caption text-gray-400">{emp?.id}</p>
           </div>
         </div>
         <LevelBadge level={letter.level} />
       </div>
 
-      <div className="space-y-1.5 text-xs text-gray-500">
+      <div className="space-y-1.5 caption text-gray-500">
         <div className="flex justify-between">
           <span>สาเหตุ</span>
-          <span className="text-gray-700 font-medium">{letter.reason}</span>
+          <span className="text-gray-700 body-emphasis">{letter.reason}</span>
         </div>
         <div className="flex justify-between">
           <span>วันที่</span>
@@ -259,7 +259,7 @@ function LetterCard({ letter, employees, onPreview, onEdit, onDelete }) {
               event.stopPropagation();
               onEdit(letter);
             }}
-            className="px-2 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-bold"
+            className="btn btn-secondary btn-sm"
           >
             แก้ไข
           </button>
@@ -269,12 +269,12 @@ function LetterCard({ letter, employees, onPreview, onEdit, onDelete }) {
               event.stopPropagation();
               onDelete(letter);
             }}
-            className="px-2 py-1 rounded-md bg-red-50 text-red-700 text-xs font-bold"
+            className="btn btn-danger btn-sm"
           >
             ลบ
           </button>
         </div>
-        <span className="text-xs text-gray-400 group-hover:text-gray-600 transition-colors">คลิกเพื่อดูรายละเอียด →</span>
+        <span className="caption text-gray-400 group-hover:text-gray-600 transition-colors">คลิกเพื่อดูรายละเอียด →</span>
       </div>
     </div>
   );
@@ -383,17 +383,17 @@ export default function WarningLetterPage({ data, user }) {
   }, [warningLetters, tab, searchTerm, employees]);
 
   return (
-    <div className="max-w-7xl  p-4 sm:p-6 space-y-4">
-      {/* Header */}
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+    <div className="app-page page-body max-w-7xl space-y-4">
+      <div className="page-header flex-col items-start sm:flex-row sm:items-center">
+        <div className="page-heading">
           <FileText size={24} />
-          หนังสือเตือน
-        </h1>
-        <p className="text-sm text-gray-500">จัดการหนังสือเตือน สร้างหนังสือใหม่ และดูเทมเพลต</p>
+          <div className="page-heading-text">
+            <h1 className="page-title">หนังสือเตือน</h1>
+            <p className="page-subtitle">จัดการหนังสือเตือน สร้างหนังสือใหม่ และดูเทมเพลต</p>
+          </div>
+        </div>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           { label: 'ทั้งหมด', value: stats.total, icon: '📄' },
@@ -401,16 +401,15 @@ export default function WarningLetterPage({ data, user }) {
           { label: 'หนังสือเตือน', value: stats.written, icon: '⚠️' },
           { label: 'รอเซ็น', value: stats.unsigned, icon: '✍️' }
         ].map(s => (
-          <div key={s.label} className="rounded-lg bg-white border border-gray-100 p-3 text-center">
-            <div className="text-2xl mb-1">{s.icon}</div>
-            <div className="text-xs text-gray-500">{s.label}</div>
-            <div className="text-lg font-bold text-gray-900 mt-1">{s.value}</div>
+          <div key={s.label} className="section-card-sm text-center">
+            <div className="stat-number mb-1">{s.value}</div>
+            <div className="stat-label">{s.label}</div>
+            <div className="caption text-gray-400 mt-1">{s.icon}</div>
           </div>
         ))}
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 rounded-lg bg-white border border-gray-100 p-1">
+      <div className="page-tabs">
         {[
           { id: 'issued', label: 'หนังสือที่ออก' },
           { id: 'templates', label: 'เทมเพลต' },
@@ -419,30 +418,26 @@ export default function WarningLetterPage({ data, user }) {
           <button
             key={t.id}
             onClick={() => { setTab(t.id); resetForm(); }}
-            className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
-              tab === t.id 
-                ? 'bg-gray-900 text-white' 
-                : 'bg-white text-gray-600 hover:bg-gray-50'
-            }`}
+            className={`page-tab ${tab === t.id ? 'active' : ''}`}
           >
             {t.label}
           </button>
         ))}
       </div>
 
-      {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{error}</div>}
+      {error && <div className="surface-danger px-4 py-3 body-text">{error}</div>}
 
       {/* Tab: หนังสือที่ออก */}
       {tab === 'issued' && (
         <div className="space-y-4">
-          <div className="flex items-center gap-2 bg-white border border-gray-100 rounded-lg px-3 py-2">
+          <div className="filter-box">
             <span className="text-gray-400">🔍</span>
             <input
               type="text"
               placeholder="ค้นหา พนักงาน หรือ สาเหตุ..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1 bg-transparent text-sm outline-none placeholder:text-gray-400"
+              className="flex-1 bg-transparent body-text outline-none placeholder:text-gray-400"
             />
           </div>
 
@@ -451,7 +446,7 @@ export default function WarningLetterPage({ data, user }) {
               {[1, 2, 3].map(i => <div key={i} className="h-24 bg-gray-100 rounded-lg animate-pulse"></div>)}
             </div>
           ) : filteredLetters.length ? (
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="card-grid md:grid-cols-2">
               {filteredLetters.map(letter => (
                 <LetterCard
                   key={letter.id}
@@ -464,7 +459,7 @@ export default function WarningLetterPage({ data, user }) {
               ))}
             </div>
           ) : (
-            <div className="text-center py-8 text-gray-500">
+            <div className="surface-muted py-8 text-center body-text">
               <p>ไม่พบหนังสือเตือน</p>
             </div>
           )}
@@ -473,19 +468,19 @@ export default function WarningLetterPage({ data, user }) {
 
       {/* Tab: เทมเพลต */}
       {tab === 'templates' && (
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="card-grid md:grid-cols-2">
           {TEMPLATES.map(tpl => (
-            <div key={tpl.id} className={`rounded-lg border p-4 bg-white cursor-pointer hover:shadow-md transition-all ${
+            <div key={tpl.id} className={`section-card-sm cursor-pointer hover:shadow-md transition-all ${
               levelConfig[tpl.level]?.border
             } border-l-4`}>
               <div className="flex items-start justify-between mb-2">
                 <div>
-                  <h3 className="font-semibold text-gray-900">{tpl.name}</h3>
-                  <p className="text-xs text-gray-500 mt-1">{tpl.desc}</p>
+                  <h3 className="body-strong text-gray-900">{tpl.name}</h3>
+                  <p className="caption text-gray-500 mt-1">{tpl.desc}</p>
                 </div>
                 <LevelBadge level={tpl.level} />
               </div>
-              <div className="text-xs text-gray-600 mt-3 p-3 bg-gray-50 rounded border border-gray-100 line-clamp-2">
+              <div className="caption text-gray-600 mt-3 p-3 bg-gray-50 rounded border border-gray-100 line-clamp-2">
                 {tpl.body}
               </div>
             </div>
@@ -493,17 +488,15 @@ export default function WarningLetterPage({ data, user }) {
         </div>
       )}
 
-      {/* Tab: ออกหนังสือใหม่ */}
       {tab === 'create' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Form Panel */}
-          <div className="card rounded-2xl border border-slate-200 bg-white p-5">
+          <div className="card section-card-lg">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <h3 className="font-bold text-slate-900 text-lg">{editingLetter ? 'แก้ไขหนังสือเตือน' : 'ออกหนังสือเตือนใหม่'}</h3>
-                <p className="mt-1 text-xs text-slate-500">เลือกพนักงานก่อน แล้วระบบจะแสดงประวัติเตือนก่อนเลือกเทมเพลต</p>
+                <h3 className="body-strong text-slate-900 heading-3">{editingLetter ? 'แก้ไขหนังสือเตือน' : 'ออกหนังสือเตือนใหม่'}</h3>
+                <p className="mt-1 caption text-slate-500">เลือกพนักงานก่อน แล้วระบบจะแสดงประวัติเตือนก่อนเลือกเทมเพลต</p>
               </div>
-              <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1 text-xs font-bold">
+              <div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1 caption-bold">
                 <span className={`rounded-lg px-2.5 py-1 ${stepCreating === 0 ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400'}`}>1 พนักงาน</span>
                 <span className={`rounded-lg px-2.5 py-1 ${stepCreating === 1 ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400'}`}>2 เทมเพลต</span>
               </div>
@@ -512,7 +505,7 @@ export default function WarningLetterPage({ data, user }) {
             {stepCreating === 0 ? (
               <div className="space-y-4">
                 <label className="block">
-                  <span className="text-sm font-bold text-slate-900 block mb-1.5">เลือกพนักงาน</span>
+                  <span className="body-strong text-slate-900 block mb-1.5">เลือกพนักงาน</span>
                   <select
                     value={selectedEmp}
                     onChange={(e) => setSelectedEmp(e.target.value)}
@@ -526,16 +519,16 @@ export default function WarningLetterPage({ data, user }) {
                 </label>
 
                 {previewEmp ? (
-                  <div className={`rounded-2xl border p-4 ${selectedEmployeeHasWarning ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}>
+                  <div className={`section-card-sm ${selectedEmployeeHasWarning ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3">
                         <Avatar emp={previewEmp} size={10} />
                         <div>
-                          <div className="text-sm font-bold text-slate-900">{previewEmp.name}</div>
-                          <div className="text-xs text-slate-500">{previewEmp.id} · {previewEmp.position || 'พนักงาน'}</div>
+                          <div className="body-strong text-slate-900">{previewEmp.name}</div>
+                          <div className="caption text-slate-500">{previewEmp.id} · {previewEmp.position || 'พนักงาน'}</div>
                         </div>
                       </div>
-                      <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${selectedEmployeeHasWarning ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                      <span className={`rounded-full px-2.5 py-1 caption-bold ${selectedEmployeeHasWarning ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
                         {selectedEmployeeHasWarning ? `เคยโดนเตือนแล้ว ${selectedEmployeeWarningLetters.length} ครั้ง` : 'ยังไม่มีประวัติเตือน'}
                       </span>
                     </div>
@@ -553,22 +546,22 @@ export default function WarningLetterPage({ data, user }) {
             ) : (
               <div className="space-y-4">
                 {previewEmp ? (
-                  <div className={`rounded-2xl border p-4 ${selectedEmployeeHasWarning ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}>
+                  <div className={`section-card-sm ${selectedEmployeeHasWarning ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}>
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="text-sm font-bold text-slate-900">{previewEmp.name} ({previewEmp.id})</div>
-                        <div className="mt-0.5 text-xs text-slate-500">{previewEmp.position || 'พนักงาน'} · {branches.find((branch) => String(branch.id) === String(previewEmp.branch))?.code || 'ไม่ระบุสาขา'}</div>
+                        <div className="body-strong text-slate-900">{previewEmp.name} ({previewEmp.id})</div>
+                        <div className="mt-0.5 caption text-slate-500">{previewEmp.position || 'พนักงาน'} · {branches.find((branch) => String(branch.id) === String(previewEmp.branch))?.code || 'ไม่ระบุสาขา'}</div>
                       </div>
-                      <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${selectedEmployeeHasWarning ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                      <span className={`rounded-full px-2.5 py-1 caption-bold ${selectedEmployeeHasWarning ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
                         {selectedEmployeeHasWarning ? `เคยโดนเตือนแล้ว ${selectedEmployeeWarningLetters.length} ครั้ง` : 'ยังไม่มีประวัติเตือน'}
                       </span>
                     </div>
                     {selectedEmployeeHasWarning ? (
                       <div className="mt-3 space-y-2">
                         {selectedEmployeeWarningLetters.slice(0, 3).map((letter) => (
-                          <div key={letter.id} className="rounded-xl border border-amber-100 bg-white px-3 py-2 text-xs">
+                          <div key={letter.id} className="rounded-xl border border-amber-100 bg-white px-3 py-2 caption">
                             <div className="flex items-center justify-between gap-2">
-                              <span className="font-bold text-slate-800">{levelConfig[letter.level]?.label || letter.level}</span>
+                              <span className="body-strong text-slate-800">{levelConfig[letter.level]?.label || letter.level}</span>
                               <span className="text-slate-400">{thaiShortDate(letter.issue_date)}</span>
                             </div>
                             <div className="mt-1 text-slate-600 line-clamp-2">{letter.reason || '-'}</div>
@@ -580,19 +573,19 @@ export default function WarningLetterPage({ data, user }) {
                 ) : null}
 
                 <div>
-                  <span className="text-sm font-bold text-slate-900 block mb-2">เลือกเทมเพลต</span>
+                  <span className="body-strong text-slate-900 block mb-2">เลือกเทมเพลต</span>
                   <div className="grid gap-2">
                     {TEMPLATES.map((tpl) => (
                       <button
                         key={tpl.id}
                         type="button"
                         onClick={() => setSelectedTpl(tpl.id)}
-                        className={`rounded-2xl border p-3 text-left transition-all ${selectedTpl === tpl.id ? 'border-slate-900 bg-slate-50 shadow-sm' : 'border-slate-200 bg-white hover:bg-slate-50'}`}
+                        className={`section-card-sm text-left transition-all ${selectedTpl === tpl.id ? 'border-slate-900 bg-slate-50 shadow-sm' : 'border-slate-200 bg-white hover:bg-slate-50'}`}
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <div className="text-sm font-bold text-slate-900">{tpl.name}</div>
-                            <div className="mt-1 text-xs text-slate-500">{tpl.desc}</div>
+                            <div className="body-strong text-slate-900">{tpl.name}</div>
+                            <div className="mt-1 caption text-slate-500">{tpl.desc}</div>
                           </div>
                           <LevelBadge level={tpl.level} />
                         </div>
@@ -602,7 +595,7 @@ export default function WarningLetterPage({ data, user }) {
                 </div>
 
                 <label className="block">
-                  <span className="text-sm font-bold text-slate-900 block mb-1.5">สาเหตุ</span>
+                  <span className="body-strong text-slate-900 block mb-1.5">สาเหตุ</span>
                   <textarea
                     rows="3"
                     value={formData.reason}
@@ -614,7 +607,7 @@ export default function WarningLetterPage({ data, user }) {
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="block">
-                    <span className="text-sm font-bold text-slate-900 block mb-1.5">วันที่</span>
+                    <span className="body-strong text-slate-900 block mb-1.5">วันที่</span>
                     <input
                       type="date"
                       value={formData.issue_date}
@@ -624,7 +617,7 @@ export default function WarningLetterPage({ data, user }) {
                   </label>
 
                   <label className="block">
-                    <span className="text-sm font-bold text-slate-900 block mb-1.5">สาขา (ไม่บังคับ)</span>
+                    <span className="body-strong text-slate-900 block mb-1.5">สาขา (ไม่บังคับ)</span>
                     <select
                       value={formData.branch_id}
                       onChange={(e) => setFormData(prev => ({ ...prev, branch_id: e.target.value }))}
@@ -657,54 +650,53 @@ export default function WarningLetterPage({ data, user }) {
             )}
           </div>
 
-          {/* Preview Panel */}
-          <div className="card rounded-2xl border border-slate-200 bg-white p-5 h-fit">
+          <div className="card section-card-lg h-fit">
             {stepCreating === 0 ? (
               <div>
-                <h3 className="font-bold text-slate-900 mb-2 text-lg">ลำดับการออกหนังสือ</h3>
-                <div className="space-y-3 text-sm text-slate-600">
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="font-bold text-slate-900">1. เลือกพนักงาน</div>
-                    <div className="mt-1 text-xs text-slate-500">ระบบจะแสดงทันทีว่าคนนี้เคยโดนเตือนหรือไม่</div>
+                <h3 className="body-strong text-slate-900 mb-2 heading-3">ลำดับการออกหนังสือ</h3>
+                <div className="space-y-3 body-text text-slate-600">
+                  <div className="section-card-soft">
+                    <div className="body-strong text-slate-900">1. เลือกพนักงาน</div>
+                    <div className="mt-1 caption text-slate-500">ระบบจะแสดงทันทีว่าคนนี้เคยโดนเตือนหรือไม่</div>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                    <div className="font-bold text-slate-900">2. เลือกเทมเพลตและกรอกสาเหตุ</div>
-                    <div className="mt-1 text-xs text-slate-500">ดูตัวอย่างหนังสือก่อนบันทึกได้ทางด้านนี้</div>
+                  <div className="section-card-sm">
+                    <div className="body-strong text-slate-900">2. เลือกเทมเพลตและกรอกสาเหตุ</div>
+                    <div className="mt-1 caption text-slate-500">ดูตัวอย่างหนังสือก่อนบันทึกได้ทางด้านนี้</div>
                   </div>
                 </div>
               </div>
             ) : currentTemplate && previewEmp ? (
               <div>
-                <h3 className="font-bold text-slate-900 mb-4 text-lg">ตัวอย่างหนังสือ</h3>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs leading-relaxed text-slate-800 whitespace-pre-wrap font-serif max-h-96 overflow-y-auto">
+                <h3 className="body-strong text-slate-900 mb-4 heading-3">ตัวอย่างหนังสือ</h3>
+                <div className="section-card-soft caption leading-relaxed text-slate-800 whitespace-pre-wrap font-serif max-h-96 overflow-y-auto">
                   {previewBody}
                 </div>
                 <div className="flex gap-4 mt-6 pt-4 border-t border-dashed border-slate-300">
                   {['ผู้ออก', 'ผู้รับ', 'พยาน'].map(label => (
                     <div key={label} className="flex-1 text-center">
                       <div className="h-8 border-b border-dashed border-slate-400 mb-1"></div>
-                      <p className="text-xs text-slate-400">{label}</p>
+                      <p className="caption text-slate-400">{label}</p>
                     </div>
                   ))}
                 </div>
               </div>
             ) : previewEmp ? (
               <div>
-                <h3 className="font-bold text-slate-900 mb-4 text-lg">ประวัติของ {previewEmp.name}</h3>
+                <h3 className="body-strong text-slate-900 mb-4 heading-3">ประวัติของ {previewEmp.name}</h3>
                 {selectedEmployeeHasWarning ? (
                   <div className="space-y-2">
                     {selectedEmployeeWarningLetters.map((letter) => (
-                      <div key={letter.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm">
+                      <div key={letter.id} className="section-card-soft body-text">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="font-bold text-slate-900">{levelConfig[letter.level]?.label || letter.level}</span>
-                          <span className="text-xs text-slate-400">{thaiShortDate(letter.issue_date)}</span>
+                          <span className="body-strong text-slate-900">{levelConfig[letter.level]?.label || letter.level}</span>
+                          <span className="caption text-slate-400">{thaiShortDate(letter.issue_date)}</span>
                         </div>
-                        <div className="mt-1 text-xs text-slate-600">{letter.reason || '-'}</div>
+                        <div className="mt-1 caption text-slate-600">{letter.reason || '-'}</div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">ยังไม่มีประวัติหนังสือเตือน</div>
+                  <div className="surface-success p-4 body-strong">ยังไม่มีประวัติหนังสือเตือน</div>
                 )}
               </div>
             ) : null}
@@ -712,7 +704,6 @@ export default function WarningLetterPage({ data, user }) {
         </div>
       )}
 
-      {/* Preview Modal */}
       {previewLetter && (
         <PreviewModal
           letter={previewLetter}
@@ -732,3 +723,4 @@ export default function WarningLetterPage({ data, user }) {
     </div>
   );
 }
+

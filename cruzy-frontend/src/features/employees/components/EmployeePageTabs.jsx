@@ -7,7 +7,7 @@ export function EmployeePageTabs({ activeTab, tabs, onChange }) {
             key={tab.id}
             type="button"
             onClick={() => onChange(tab.id)}
-            className={`whitespace-nowrap border-b-2 px-5 py-3.5 text-sm font-bold transition-all ${
+            className={`whitespace-nowrap border-b-2 px-5 py-3.5 body-strong transition-all ${
               activeTab === tab.id
                 ? "border-emerald-600 text-emerald-700"
                 : "border-transparent text-gray-400 hover:text-gray-600"

@@ -15,12 +15,12 @@ export function EmployeePayrollTab({
 }) {
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-4 rounded-xl border border-gray-100 bg-white p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-4 section-card-sm lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <span className="text-xl font-semibold text-gray-700">
+          <span className="heading-2 text-gray-700">
             รายการคำนวณรอบจ่ายปัจจุบัน
           </span>
-          <div className="mt-0.5 text-[11px] text-gray-400">
+          <div className="mt-0.5 caption text-gray-400">
             {payrollPeriod.label} · ช่วงวันที่ {payrollPeriodDays[0] || "-"} ถึง{" "}
             {payrollPeriodDays.at(-1) || "-"}
           </div>
@@ -31,7 +31,7 @@ export function EmployeePayrollTab({
               key={item.id}
               type="button"
               onClick={() => onPayCycleChange(item.id)}
-              className={`rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+              className={`rounded-xl border px-3 py-2 caption-strong transition ${
                 payCycleFilter === item.id
                   ? "border-emerald-700 bg-emerald-700 text-white shadow-sm"
                   : "border-gray-200 bg-white text-gray-600 hover:border-emerald-500 hover:bg-gray-50"
@@ -45,9 +45,9 @@ export function EmployeePayrollTab({
 
       <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-left text-xs">
+          <table className="w-full border-collapse text-left caption">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50 font-semibold uppercase text-gray-400">
+              <tr className="border-b border-gray-100 bg-gray-50 body-strong uppercase text-gray-400">
                 <th className="px-3 py-2.5">พนักงาน</th>
                 <th className="px-3 py-2.5">ประเภท</th>
                 <th className="px-3 py-2.5 text-right">วันทำงาน</th>
@@ -59,7 +59,7 @@ export function EmployeePayrollTab({
                 <th className="px-3 py-2.5 text-right">สุทธิ</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50 font-medium text-gray-700">
+            <tbody className="divide-y divide-gray-50 body-emphasis text-gray-700">
               {payrollRows.map((row) => (
                 <EmployeePayrollRow key={row.id} row={row} />
               ))}
@@ -81,12 +81,12 @@ export function EmployeePayrollTab({
 function EmployeePayrollRow({ row }) {
   return (
     <tr className="hover:bg-gray-50/30">
-      <td className="px-3 py-2.5 font-semibold text-gray-900">
+      <td className="px-3 py-2.5 body-strong text-gray-900">
         {row.name} ({row.nickname || ""})
       </td>
       <td className="px-3 py-2.5 text-gray-500">
         {payCycleLabel(row.payCycle)}
-        <div className="text-[10px] text-gray-400">{payTypeLabel(row.payType)}</div>
+        <div className="caption text-gray-400">{payTypeLabel(row.payType)}</div>
       </td>
       <td className="px-3 py-2.5 text-right">
         {row.payType === "monthly" ? "-" : nf(row.workDays)}
@@ -94,19 +94,19 @@ function EmployeePayrollRow({ row }) {
       <td className="px-3 py-2.5">฿{nf(row.baseWage)}</td>
       <td className="px-3 py-2.5 text-emerald-600">
         +฿{nf(row.comm)}
-        <div className="text-[10px] text-gray-400">
+        <div className="caption text-gray-400">
           {row.commissionTypeLabel} · {row.commissionDays} วัน
         </div>
       </td>
       <td className="px-3 py-2.5 text-blue-600">+฿{nf(row.allowance)}</td>
       <td className="px-3 py-2.5 text-red-500">
         -฿{nf(row.lateDeduct)}
-        <div className="text-[10px] text-gray-400">
+        <div className="caption text-gray-400">
           {row.lateCount} ครั้ง · {row.lateMinutes} นาที
         </div>
       </td>
       <td className="px-3 py-2.5 text-gray-400">-฿{nf(row.sso)}</td>
-      <td className="px-3 py-2.5 text-right text-sm font-bold text-emerald-700">
+      <td className="px-3 py-2.5 text-right body-strong text-emerald-700">
         ฿{nf(row.net)}
       </td>
     </tr>

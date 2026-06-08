@@ -1,18 +1,24 @@
 export function Content({ title, icon: Icon, stats, action, children }) {
   return (
-    <div>
-      <div className="mb-6 flex items-center justify-between pb-4">
-        <div className="flex items-center gap-3">
-          {Icon && <Icon size={24} className="text-cruzy" />}
-          <h1 className="text-xl font-bold">{title}</h1>
+    <div className="app-page">
+      <div className="page-header">
+        <div className="page-heading">
+          {Icon ? (
+            <div className="page-icon">
+              <Icon size={22} />
+            </div>
+          ) : null}
+          <div className="page-heading-text">
+            <h1 className="page-title">{title}</h1>
+          </div>
         </div>
         {action}
         {stats?.length > 0 && (
           <div className="flex gap-6">
             {stats.map(([label, value]) => (
               <div key={label} className="text-right">
-                <div className="text-2xl font-bold text-cruzy">{value}</div>
-                <div className="text-xs text-slate-500">{label}</div>
+                <div className="stat-number text-cruzy">{value}</div>
+                <div className="stat-label text-slate-500">{label}</div>
               </div>
             ))}
           </div>
@@ -25,19 +31,21 @@ export function Content({ title, icon: Icon, stats, action, children }) {
 
 export function Table({ headers, children }) {
   return (
-    <table className="w-full border-collapse">
-      <thead>
-        <tr className="bg-slate-100">
-          {headers.map((header) => (
-            <th key={header} className="border border-slate-200 px-3 py-2 text-left text-xs font-bold text-slate-700">
-              {header}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {children}
-      </tbody>
-    </table>
+    <div className="table-shell">
+      <table className="w-full border-collapse">
+        <thead>
+          <tr>
+            {headers.map((header) => (
+              <th key={header} className="px-3 py-3 text-left table-head text-slate-500">
+                {header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {children}
+        </tbody>
+      </table>
+    </div>
   );
 }

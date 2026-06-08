@@ -31,7 +31,7 @@ export function EmployeeContractsTab({
               key={type}
               type="button"
               onClick={() => onFilterChange(type)}
-              className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold ${
+              className={`whitespace-nowrap rounded-lg px-3 py-1.5 caption-strong ${
                 contractFilter === type
                   ? "bg-gray-900 text-white"
                   : "bg-gray-100 text-gray-500 hover:bg-gray-200"
@@ -44,7 +44,7 @@ export function EmployeeContractsTab({
         <button
           type="button"
           onClick={onOpenForm}
-          className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-800"
+          className="btn btn-primary"
         >
           เพิ่มสัญญาจ้าง
         </button>
@@ -76,7 +76,7 @@ export function EmployeeContractsTab({
           />
         ))}
         {contractRows.length === 0 ? (
-          <div className="col-span-full rounded-xl border border-dashed border-gray-200 bg-white py-10 text-center text-sm font-semibold text-gray-400">
+          <div className="col-span-full rounded-xl border border-dashed border-gray-200 bg-white py-10 text-center body-strong text-gray-400">
             ไม่พบสัญญาจ้างในสาขา/ชุดข้อมูลนี้
           </div>
         ) : null}
@@ -99,21 +99,21 @@ function ContractForm({
     <form onSubmit={onSave} className="rounded-xl border border-emerald-100 bg-white p-4 shadow-sm">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <h3 className="text-sm font-bold text-gray-900">
+          <h3 className="body-strong text-gray-900">
             {editingContractId ? "แก้ไขสัญญาจ้าง" : "เพิ่มสัญญาจ้างใหม่"}
           </h3>
-          <p className="mt-0.5 text-2xs text-gray-400">
+          <p className="mt-0.5 caption text-gray-400">
             บันทึกข้อมูลสัญญาและแนบไฟล์ PDF ไปยัง Supabase Storage
           </p>
         </div>
       </div>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-        <label className="text-xs font-bold text-gray-500">
+        <label className="caption-bold text-gray-500">
           พนักงาน
           <select
             value={contractForm.employeeId}
             onChange={onFieldChange("employeeId")}
-            className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-xs outline-none focus:border-emerald-500"
+            className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 caption outline-none focus:border-emerald-500"
           >
             <option value="">เลือกพนักงาน</option>
             {employees.map((employee) => (
@@ -123,46 +123,46 @@ function ContractForm({
             ))}
           </select>
         </label>
-        <label className="text-xs font-bold text-gray-500">
+        <label className="caption-bold text-gray-500">
           ประเภทสัญญา
           <select
             value={contractForm.contractType}
             onChange={onFieldChange("contractType")}
-            className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-xs outline-none focus:border-emerald-500"
+            className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 caption outline-none focus:border-emerald-500"
           >
             <option value="fulltime">Full time ประจำ</option>
             <option value="parttime">Part time</option>
             <option value="freelance">Freelance</option>
           </select>
         </label>
-        <label className="text-xs font-bold text-gray-500">
+        <label className="caption-bold text-gray-500">
           วันที่เริ่ม
           <input
             type="date"
             value={contractForm.startDate}
             onChange={onFieldChange("startDate")}
-            className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-xs outline-none focus:border-emerald-500"
+            className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 caption outline-none focus:border-emerald-500"
           />
         </label>
-        <label className="text-xs font-bold text-gray-500">
+        <label className="caption-bold text-gray-500">
           วันที่สิ้นสุด
           <input
             type="date"
             value={contractForm.endDate}
             onChange={onFieldChange("endDate")}
-            className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-xs outline-none focus:border-emerald-500"
+            className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 caption outline-none focus:border-emerald-500"
           />
         </label>
-        <label className="text-xs font-bold text-gray-500 md:col-span-4">
+        <label className="caption-bold text-gray-500 md:col-span-4">
           ไฟล์สัญญา PDF
           <input
             type="file"
             accept="application/pdf,.pdf"
             onChange={onFileChange}
-            className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-xs outline-none file:mr-3 file:rounded-md file:border-0 file:bg-emerald-50 file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-emerald-700"
+            className="input-file mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 caption outline-none"
           />
           {contractForm.file ? (
-            <div className="mt-1 text-2xs font-semibold text-emerald-700">
+            <div className="mt-1 caption-strong text-emerald-700">
               เลือกไฟล์แล้ว: {contractForm.file.name}
             </div>
           ) : null}
@@ -172,14 +172,14 @@ function ContractForm({
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-lg bg-gray-100 px-4 py-2 text-xs font-bold text-gray-600"
+          className="rounded-lg bg-gray-100 px-4 py-2 caption-bold text-gray-600"
         >
           ยกเลิก
         </button>
         <button
           type="submit"
           disabled={contractSaving}
-          className="rounded-lg bg-emerald-700 px-4 py-2 text-xs font-bold text-white disabled:bg-emerald-300"
+          className="rounded-lg bg-emerald-700 px-4 py-2 caption-bold text-white disabled:bg-emerald-300"
         >
           {contractSaving ? "กำลังบันทึก..." : editingContractId ? "อัปเดตสัญญา" : "บันทึกสัญญา"}
         </button>
@@ -195,16 +195,16 @@ function ContractCard({ contract, employee, file, onDelete, onEdit, onSelect }) 
     <div className="space-y-4 rounded-xl border border-gray-100 bg-white p-4 shadow-2xs">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h4 className="text-sm font-bold text-gray-800">{contract.label || "สัญญาจ้าง"}</h4>
-          <p className="text-2xs text-gray-400">
+          <h4 className="body-strong text-gray-800">{contract.label || "สัญญาจ้าง"}</h4>
+          <p className="caption text-gray-400">
             พนักงาน: {employee?.name || "-"} · ประเภท: {statusLabel(contract.type)}
           </p>
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 caption text-gray-500">
             ระยะเวลา: {thDate(contract.start)} ถึง {thDate(contract.end)}
           </p>
         </div>
         <span
-          className={`rounded-full px-2 py-1 text-2xs font-bold ${
+          className={`rounded-full px-2 py-1 caption-bold ${
             fileUrl ? "bg-emerald-50 text-emerald-700" : "bg-gray-100 text-gray-500"
           }`}
         >
@@ -220,7 +220,7 @@ function ContractCard({ contract, employee, file, onDelete, onEdit, onSelect }) 
             className="h-40 w-full bg-white pointer-events-none"
           />
         ) : (
-          <div className="text-xs font-semibold text-gray-400">ไม่มีไฟล์ PDF สำหรับ preview</div>
+          <div className="caption-strong text-gray-400">ไม่มีไฟล์ PDF สำหรับ preview</div>
         )}
       </div>
 
@@ -230,7 +230,7 @@ function ContractCard({ contract, employee, file, onDelete, onEdit, onSelect }) 
             href={fileUrl}
             target="_blank"
             rel="noreferrer"
-            className="rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-bold text-white hover:bg-gray-800"
+            className="rounded-lg bg-gray-900 px-3 py-1.5 caption-bold text-white hover:bg-gray-800"
           >
             เปิดไฟล์
           </a>
@@ -238,21 +238,21 @@ function ContractCard({ contract, employee, file, onDelete, onEdit, onSelect }) 
         <button
           type="button"
           onClick={() => onSelect(contract.id)}
-          className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100"
+          className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-1.5 caption-bold text-emerald-700 hover:bg-emerald-100"
         >
           ดูรายละเอียด
         </button>
         <button
           type="button"
           onClick={() => onEdit(contract)}
-          className="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100"
+          className="rounded-lg bg-blue-50 px-3 py-1.5 caption-bold text-blue-700 hover:bg-blue-100"
         >
           แก้ไข
         </button>
         <button
           type="button"
           onClick={() => onDelete(contract)}
-          className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-100"
+          className="rounded-lg bg-red-50 px-3 py-1.5 caption-bold text-red-700 hover:bg-red-100"
         >
           ลบ
         </button>

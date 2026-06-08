@@ -4,7 +4,7 @@ export function BranchToasts({ toasts }) {
       {toasts.map((toast) => (
         <div
           key={toast.id}
-          className={`px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-lg ${toast.type === 'err' ? 'bg-red-500' : 'bg-emerald-600'}`}
+          className={`px-4 py-2.5 rounded-xl body-strong text-white shadow-lg ${toast.type === 'err' ? 'bg-red-500' : 'bg-emerald-600'}`}
           style={{ animation: 'slideIn .2s ease' }}
         >
           {toast.msg}

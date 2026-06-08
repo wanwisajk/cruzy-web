@@ -694,14 +694,14 @@ function fileToDataUrl(file) {
   const selectedContractFile = selectedContractFiles[selectedContractFiles.length - 1] || null;
   const selectedContractFileUrl = selectedContractFile?.fileUrl || selectedContract?.file;
   return (
-    <div className="min-h-screen bg-gray-50/50 font-sans antialiased text-gray-600">
+    <div className="app-page min-h-screen font-sans antialiased text-gray-600">
       <EmployeePageTabs
         activeTab={activeTab}
         tabs={tabList}
         onChange={setActiveTab}
       />
 
-      <div className="px-6 py-5 max-w-7xl">
+      <div className="page-body max-w-7xl">
         {activeTab === "info" && (
           <EmployeeInfoTab
             branches={props.data.branches}
@@ -753,10 +753,10 @@ function fileToDataUrl(file) {
 
         {activeTab === "attendance_discipline" && (
           <div className="space-y-6">
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+            <div className="section-card-lg">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 mb-1">
+                  <label className="block caption-bold text-gray-500 mb-1">
                     วันที่
                   </label>
                   <input
@@ -769,16 +769,16 @@ function fileToDataUrl(file) {
                         workDate: event.target.value,
                       }));
                     }}
-                    className="border border-gray-200 rounded-lg px-3 py-2 text-xs outline-none focus:border-emerald-500"
+                    className="input"
                   />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 flex-1">
-                  <label className="text-xs font-bold text-gray-500">
+                  <label className="caption-bold text-gray-500">
                     พนักงาน
                     <select
                       value={attendanceForm.employeeId}
                       onChange={setAttendanceEmployee}
-                      className="mt-1 w-full border border-gray-200 rounded-lg px-2 py-2 text-xs outline-none"
+                      className="input mt-1"
                     >
                      <option value="">เลือกพนักงาน</option>
                       {filteredEmployees.map((employee) => (
@@ -788,12 +788,12 @@ function fileToDataUrl(file) {
                       ))}
                     </select>
                   </label>
-                  <label className="text-xs font-bold text-gray-500">
+                  <label className="caption-bold text-gray-500">
                     สาขา
                     <select
                       value={attendanceForm.branchId}
                       onChange={setAttendanceField("branchId")}
-                      className="mt-1 w-full border border-gray-200 rounded-lg px-2 py-2 text-xs outline-none"
+                      className="input mt-1"
                     >
                       <option value="">เลือกสาขา</option>
                       {props.data.branches.map((branch) => (
@@ -803,79 +803,79 @@ function fileToDataUrl(file) {
                       ))}
                     </select>
                   </label>
-                  <label className="text-xs font-bold text-gray-500">
+                  <label className="caption-bold text-gray-500">
                     เข้างาน
                     <input
                       type="time"
                       value={attendanceForm.clockIn}
                       onChange={setAttendanceField("clockIn")}
-                      className="mt-1 w-full border border-gray-200 rounded-lg px-2 py-2 text-xs outline-none"
+                      className="input mt-1"
                     />
                   </label>
-                  <label className="text-xs font-bold text-gray-500">
+                  <label className="caption-bold text-gray-500">
                     ออกงาน
                     <input
                       type="time"
                       value={attendanceForm.clockOut}
                       onChange={setAttendanceField("clockOut")}
-                      className="mt-1 w-full border border-gray-200 rounded-lg px-2 py-2 text-xs outline-none"
+                      className="input mt-1"
                     />
                   </label>
-                  <label className="text-xs font-bold text-gray-500">
+                  <label className="caption-bold text-gray-500">
                     เริ่มพัก
                     <input
                       type="time"
                       value={attendanceForm.breakStart}
                       onChange={setAttendanceField("breakStart")}
-                      className="mt-1 w-full border border-gray-200 rounded-lg px-2 py-2 text-xs outline-none"
+                      className="input mt-1"
                     />
                   </label>
-                  <label className="text-xs font-bold text-gray-500">
+                  <label className="caption-bold text-gray-500">
                     พักเสร็จ
                     <input
                       type="time"
                       value={attendanceForm.breakEnd}
                       onChange={setAttendanceField("breakEnd")}
-                      className="mt-1 w-full border border-gray-200 rounded-lg px-2 py-2 text-xs outline-none"
+                      className="input mt-1"
                     />
                   </label>
-                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
-                    <div className="font-bold text-gray-500">เวลาสาขา</div>
+                  <div className="section-card-soft caption text-gray-600">
+                    <div className="body-strong text-gray-500">เวลาสาขา</div>
                     <div>
                       {attendanceFormMetrics.shiftStart} -{" "}
                       {attendanceFormMetrics.shiftEnd}
                     </div>
-                    <div className="mt-0.5 text-[10px] text-gray-400">
+                    <div className="mt-0.5 caption text-gray-400">
                       {attendanceFormMetrics.shiftSource === "branch_db" ||
                       attendanceFormMetrics.shiftSource === "branch_rule"
                         ? "จากเวลาสาขาใน DB"
                         : "ค่าเริ่มต้น"}
                     </div>
                   </div>
-                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
-                    <div className="font-bold text-gray-500">พักที่กำหนด</div>
+                  <div className="section-card-soft caption text-gray-600">
+                    <div className="body-strong text-gray-500">พักที่กำหนด</div>
                     <div>{attendanceFormMetrics.allowedBreak} นาที</div>
                   </div>
-                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
-                    <div className="font-bold text-gray-500">พักจริง</div>
+                  <div className="section-card-soft caption text-gray-600">
+                    <div className="body-strong text-gray-500">พักจริง</div>
                     <div>{attendanceFormMetrics.actualBreakMinutes} นาที</div>
                   </div>
-                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
-                    <div className="font-bold text-gray-500">สาย</div>
+                  <div className="section-card-soft caption text-gray-600">
+                    <div className="body-strong text-gray-500">สาย</div>
                     <div>{attendanceFormMetrics.lateMinutes} นาที</div>
                   </div>
-                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
-                    <div className="font-bold text-gray-500">ปิดก่อน</div>
+                  <div className="section-card-soft caption text-gray-600">
+                    <div className="body-strong text-gray-500">ปิดก่อน</div>
                     <div>{attendanceFormMetrics.earlyMinutes} นาที</div>
                   </div>
-                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
-                    <div className="font-bold text-gray-500">พักเกิน</div>
+                  <div className="section-card-soft caption text-gray-600">
+                    <div className="body-strong text-gray-500">พักเกิน</div>
                     <div>{attendanceFormMetrics.breakOverMinutes} นาที</div>
                   </div>
                   <div
-                    className={`rounded-lg border px-3 py-2 text-xs ${attendanceFormMetrics.status === "ปกติ" ? "bg-emerald-50 border-emerald-100 text-emerald-700" : "bg-red-50 border-red-100 text-red-700"}`}
+                    className={`${attendanceFormMetrics.status === "ปกติ" ? "surface-success" : "surface-danger"} px-3 py-2 caption`}
                   >
-                    <div className="font-bold">สถานะ</div>
+                    <div className="body-strong">สถานะ</div>
                     <div>{attendanceFormMetrics.status}</div>
                   </div>
                 </div>
@@ -886,7 +886,7 @@ function fileToDataUrl(file) {
                     size="sm"
                     onClick={saveAttendance}
                     disabled={attendanceSaving}
-                    className="font-semibold"
+                    className="body-strong"
                   >
                     {attendanceForm.id ? "อัปเดต" : "เพิ่ม"}
                   </Button>
@@ -895,7 +895,7 @@ function fileToDataUrl(file) {
                     variant="ghost"
                     size="sm"
                     onClick={() => resetAttendanceForm()}
-                    className="font-semibold"
+                    className="body-strong"
                   >
                     ล้าง
                   </Button>
@@ -903,14 +903,14 @@ function fileToDataUrl(file) {
               </div>
             </div>
 
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="table-shell">
               <div className="px-4 py-3 bg-white border-b border-gray-100">
-                <h3 className="text-sm font-bold text-gray-700">สรุปวินัย</h3>
+                <h3 className="body-strong text-gray-700">สรุปวินัย</h3>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm border-collapse text-left">
+                <table className="w-full body-text border-collapse text-left">
                   <thead>
-                    <tr className="bg-gray-50/50 border-b border-gray-100 text-xs text-gray-400 font-semibold uppercase">
+                    <tr className="bg-gray-50/50 border-b border-gray-100 caption text-gray-400 body-strong uppercase">
                       <th className="p-3">พนักงาน</th>
                       <th className="p-3">สาขา</th>
                       <th className="p-3">วันทำงาน</th>
@@ -920,7 +920,7 @@ function fileToDataUrl(file) {
                       <th className="p-3">วินัย</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50 text-gray-700 font-medium">
+                  <tbody className="divide-y divide-gray-50 text-gray-700 body-emphasis">
                     {attendanceSummaryRows.map((row) => {
                       const employee = filteredEmployees.find(
                         (item) => item.id === row.empId,
@@ -930,7 +930,7 @@ function fileToDataUrl(file) {
                       );
                       return (
                         <tr key={`${row.empId}_${row.branchId}`}>
-                          <td className="p-3 font-bold text-gray-900">
+                          <td className="p-3 body-strong text-gray-900">
                             {employee?.name || row.empId}
                           </td>
                           <td className="p-3">
@@ -948,7 +948,7 @@ function fileToDataUrl(file) {
                       <tr>
                         <td
                           colSpan={7}
-                          className="text-center py-8 text-gray-400 text-xs"
+                          className="text-center py-8 text-gray-400 caption"
                         >
                           ไม่มีข้อมูลสรุปวินัยในช่วงวันที่เลือก
                         </td>
@@ -959,16 +959,16 @@ function fileToDataUrl(file) {
               </div>
             </div>
 
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="table-shell">
               <div className="px-4 py-3 bg-white border-b border-gray-100">
-                <h3 className="text-sm font-bold text-gray-700">
+                <h3 className="body-strong text-gray-700">
                   รายละเอียดรายวัน
                 </h3>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm border-collapse text-left">
+                <table className="w-full body-text border-collapse text-left">
                   <thead>
-                    <tr className="bg-gray-50/50 border-b border-gray-100 text-xs text-gray-400 font-semibold uppercase">
+                    <tr className="bg-gray-50/50 border-b border-gray-100 caption text-gray-400 body-strong uppercase">
                       <th className="p-3">วันที่</th>
                       <th className="p-3">พนักงาน</th>
                       <th className="p-3">สาขา</th>
@@ -982,7 +982,7 @@ function fileToDataUrl(file) {
                       <th className="p-3 text-center">จัดการ</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50 text-gray-700 font-medium">
+                  <tbody className="divide-y divide-gray-50 text-gray-700 body-emphasis">
                     {attendanceDisciplineRows.map((row) => {
                       const employee = props.data.employees?.find(
                         (item) => item.id === row.empId,
@@ -1003,7 +1003,7 @@ function fileToDataUrl(file) {
                       return (
                         <tr key={row.id}>
                           <td className="p-3">{thDate(row.date)}</td>
-                          <td className="p-3 font-bold text-gray-900">
+                          <td className="p-3 body-strong text-gray-900">
                             {employee?.name || row.empId}
                           </td>
                           <td className="p-3">{branch?.code || row.branch}</td>
@@ -1015,7 +1015,7 @@ function fileToDataUrl(file) {
                           <td className="p-3">{metrics.actualBreakMinutes}</td>
                           <td className="p-3">
                             <span
-                              className={`inline-flex px-2 py-0.5 rounded-full text-2xs font-semibold ${status === "ปกติ" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}
+                              className={`inline-flex px-2 py-0.5 rounded-full caption-strong ${status === "ปกติ" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}
                             >
                               {status}
                             </span>
@@ -1025,7 +1025,7 @@ function fileToDataUrl(file) {
                               <button
                                 type="button"
                                 onClick={() => editAttendance(row)}
-                                className="px-2 py-1 rounded-md border border-blue-100 bg-blue-50 text-blue-700 text-xs font-bold transition hover:border-blue-500"
+                                className="px-2 py-1 rounded-md border border-blue-100 bg-blue-50 text-blue-700 caption-bold transition hover:border-blue-500"
                               >
                                 แก้ไข
                               </button>
@@ -1033,7 +1033,7 @@ function fileToDataUrl(file) {
                               <button
                                 type="button"
                                 onClick={() => deleteAttendance(row)}
-                                className="px-2 py-1 rounded-md border border-red-100 bg-red-50 text-red-700 text-xs font-bold transition hover:border-red-500"
+                                className="px-2 py-1 rounded-md border border-red-100 bg-red-50 text-red-700 caption-bold transition hover:border-red-500"
                               >
                                 ลบ
                               </button>
@@ -1046,7 +1046,7 @@ function fileToDataUrl(file) {
                       <tr>
                         <td
                           colSpan={11}
-                          className="text-center py-8 text-gray-400 text-xs"
+                          className="text-center py-8 text-gray-400 caption"
                         >
                           ไม่มีรายละเอียดเข้างานในช่วงวันที่เลือก
                         </td>

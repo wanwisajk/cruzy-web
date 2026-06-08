@@ -27,17 +27,11 @@ export function DateBar({ from, to, setFrom, setTo }) {
 
   function updateFrom(value) {
     const start = new Date(`${value}T00:00:00`);
-    const end = new Date(start);
-    end.setDate(start.getDate() + 6);
     setFrom(fmtDate(start));
-    setTo(fmtDate(end));
   }
 
   function updateTo(value) {
     const end = new Date(`${value}T00:00:00`);
-    const start = new Date(end);
-    start.setDate(end.getDate() - 6);
-    setFrom(fmtDate(start));
     setTo(fmtDate(end));
   }
 
@@ -78,14 +72,14 @@ export function DateBar({ from, to, setFrom, setTo }) {
         type="date"
         value={from}
         onChange={(event) => updateFrom(event.target.value)}
-        className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs outline-none focus:border-cruzy"
+        className="rounded-lg border border-slate-200 px-3 py-1.5 caption outline-none focus:border-cruzy"
       />
-      <span className="text-xs text-slate-400">ถึง</span>
+      <span className="caption text-slate-400">ถึง</span>
       <input
         type="date"
         value={to}
         onChange={(event) => updateTo(event.target.value)}
-        className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs outline-none focus:border-cruzy"
+        className="rounded-lg border border-slate-200 px-3 py-1.5 caption outline-none focus:border-cruzy"
       />
       <Button
         variant="ghost"

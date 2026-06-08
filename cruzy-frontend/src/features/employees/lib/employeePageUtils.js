@@ -242,12 +242,19 @@ export function countCommissionDays(data, employee, responsibleBranches, periodD
 }
 
 export function employeeCommissionForPeriod(data, employee, periodDays, selectedBranch = "all") {
+  return calculateDailyCommissionForPeriod(data, employee, periodDays, selectedBranch);
+}
+
+export function calculateDailyCommissionForPeriod(data, employee, periodDays, selectedBranch = "all") {
   if (employee.commissionEnabled === false) {
     return {
       commission: 0,
       commissionSales: 0,
       commissionDays: 0,
       commissionTypeLabel: "ไม่คิดค่าคอม",
+      dailyBreakdown: [],
+      responsibleBranches: [],
+      rate: 0,
     };
   }
 
@@ -257,8 +264,21 @@ export function employeeCommissionForPeriod(data, employee, periodDays, selected
     if (selectedBranch !== "all" && String(sale.bid) !== String(selectedBranch)) return false;
     return saleMatchesCommissionType(data, employee, sale, responsibleBranches, periodDays);
   });
-  const commissionSales = eligibleSales.reduce((sum, sale) => sum + Number(sale.total || 0), 0);
-  const commission = Math.round(commissionSales * (Number(employee.commissionRate || 0) / 100));
+  const salesByDate = eligibleSales.reduce((map, sale) => {
+    const date = sale.date;
+    map.set(date, (map.get(date) || 0) + Number(sale.total || 0));
+    return map;
+  }, new Map());
+  const rate = Number(employee.commissionRate || 0) / 100;
+  const dailyBreakdown = Array.from(salesByDate.entries())
+    .sort(([a], [b]) => String(a).localeCompare(String(b)))
+    .map(([date, sales]) => ({
+      date,
+      sales,
+      commission: Math.round(sales * rate),
+    }));
+  const commissionSales = dailyBreakdown.reduce((sum, day) => sum + day.sales, 0);
+  const commission = dailyBreakdown.reduce((sum, day) => sum + day.commission, 0);
   const commissionDays = countCommissionDays(data, employee, responsibleBranches, periodDays, selectedBranch);
 
   return {
@@ -266,6 +286,9 @@ export function employeeCommissionForPeriod(data, employee, periodDays, selected
     commissionSales,
     commissionDays,
     commissionTypeLabel: COMMISSION_TYPE_LABELS[employee.commissionCalcType] || COMMISSION_TYPE_LABELS.scheduled_assigned_branch_days,
+    dailyBreakdown,
+    responsibleBranches,
+    rate,
   };
 }
 

@@ -52,9 +52,12 @@ exports.getDashboardData = async (req, res) => {
   try {
     const fromDate = req.query.from || req.query.from_date;
     const toDate = req.query.to || req.query.to_date;
+    const branchId = req.query.branch || req.query.branch_id;
     let inspectionsQuery = supabase.from(TABLES.storeInspections).select(INSPECTION_SELECT);
     if (fromDate) inspectionsQuery = inspectionsQuery.gte('work_date', fromDate);
     if (toDate) inspectionsQuery = inspectionsQuery.lte('work_date', toDate);
+    const parsedBranchId = branchId && branchId !== 'all' ? parseInteger(branchId) : null;
+    if (parsedBranchId !== null) inspectionsQuery = inspectionsQuery.eq('branch_id', parsedBranchId);
     inspectionsQuery = inspectionsQuery
       .order('work_date', { ascending: false })
       .order('branch_id', { ascending: true });

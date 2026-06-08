@@ -17,7 +17,7 @@ const SEVERITY_CONFIG = {
 };
 
 function Badge({ children, className = '' }) {
-  return <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold ${className}`}>{children}</span>;
+  return <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 caption body-strong ${className}`}>{children}</span>;
 }
 
 function AlertCard({ alert, employee, branch, isOpen, onToggle, onAck, onEdit, onDelete, acking }) {
@@ -29,21 +29,21 @@ function AlertCard({ alert, employee, branch, isOpen, onToggle, onAck, onEdit, o
   return (
     <div
       onClick={onToggle}
-      className={`cursor-pointer rounded-3xl border bg-white shadow-sm transition hover:shadow-md ${
+      className={`cursor-pointer section-card-lg transition hover:shadow-md ${
         acknowledged ? 'border-emerald-200 bg-emerald-50/35' : 'border-slate-200'
       }`}
     >
       <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-3">
-          <div className={`grid h-11 w-11 place-items-center rounded-3xl border text-[11px] font-black ${config.badge}`}>{config.icon}</div>
+          <div className={`grid h-11 w-11 place-items-center rounded-xl border caption body-strong ${config.badge}`}>{config.icon}</div>
           <div className="min-w-0">
-            <div className="flex flex-wrap gap-2 text-sm font-bold text-slate-900">
+            <div className="flex flex-wrap gap-2 body-strong text-slate-900">
               <span>{alert.title}</span>
               <Badge className={severity.className}>{severity.label}</Badge>
               {isDerived ? <Badge className="bg-emerald-100 text-emerald-800">จากข้อมูลวินัยจริง</Badge> : null}
             </div>
-            <div className="mt-1 text-sm text-slate-500">{employee?.name || alert.employee_id} · {branch?.code || alert.branch_id} · {thaiShortDate(alert.work_date)}</div>
-            <div className="mt-2 text-sm text-slate-700">{alert.detail || '-'}</div>
+            <div className="mt-1 body-text text-slate-500">{employee?.name || alert.employee_id} · {branch?.code || alert.branch_id} · {thaiShortDate(alert.work_date)}</div>
+            <div className="mt-2 body-text text-slate-700">{alert.detail || '-'}</div>
           </div>
         </div>
 
@@ -58,29 +58,29 @@ function AlertCard({ alert, employee, branch, isOpen, onToggle, onAck, onEdit, o
               ) : 'ยังไม่รับทราบ'}
             </Badge>
           </div>
-          <div className="text-right text-xs text-slate-500">{formatDbTime(alert.alert_time) || 'ไม่ระบุเวลา'}</div>
+          <div className="text-right caption text-slate-500">{formatDbTime(alert.alert_time) || 'ไม่ระบุเวลา'}</div>
           <div className="flex gap-2 pt-2">
             {!acknowledged ? (
               <button
                 type="button"
                 onClick={(event) => { event.stopPropagation(); onAck(alert); }}
                 disabled={acking}
-                className="inline-flex items-center gap-1 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:cursor-wait disabled:opacity-60"
+                className="btn btn-success btn-sm disabled:cursor-wait disabled:opacity-60"
               >
                 {acking ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
                 {acking ? 'กำลังบันทึก...' : 'รับทราบ'}
               </button>
             ) : (
-              <button type="button" disabled className="inline-flex items-center gap-1 rounded-2xl border border-emerald-200 bg-emerald-600 px-3 py-1 text-xs font-bold text-white">
+              <button type="button" disabled className="btn btn-primary btn-sm">
                 <CheckCircle2 size={14} /> รับทราบแล้ว
               </button>
             )}
             {!isDerived ? (
               <>
-                <button type="button" onClick={(event) => { event.stopPropagation(); onEdit(alert); }} className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100">
+                <button type="button" onClick={(event) => { event.stopPropagation(); onEdit(alert); }} className="btn btn-secondary btn-sm">
                   แก้ไข
                 </button>
-                <button type="button" onClick={(event) => { event.stopPropagation(); onDelete(alert); }} className="rounded-2xl border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-100">
+                <button type="button" onClick={(event) => { event.stopPropagation(); onDelete(alert); }} className="btn btn-danger btn-sm">
                   <Trash2 size={14} />
                 </button>
               </>
@@ -90,21 +90,21 @@ function AlertCard({ alert, employee, branch, isOpen, onToggle, onAck, onEdit, o
       </div>
       <div className={`border-t border-slate-100 px-4 py-3 ${isOpen ? 'block' : 'hidden'}`}>
         <div className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-3xl bg-slate-50 p-3 text-sm text-slate-700">
-            <div className="text-xs text-slate-500">สาขา</div>
-            <div className="mt-2 font-semibold text-slate-900">{branch?.name || '-'}</div>
+          <div className="section-card-soft body-text text-slate-700">
+            <div className="caption text-slate-500">สาขา</div>
+            <div className="mt-2 body-strong text-slate-900">{branch?.name || '-'}</div>
           </div>
-          <div className="rounded-3xl bg-slate-50 p-3 text-sm text-slate-700">
-            <div className="text-xs text-slate-500">พนักงาน</div>
-            <div className="mt-2 font-semibold text-slate-900">{employee?.name || '-'}</div>
+          <div className="section-card-soft body-text text-slate-700">
+            <div className="caption text-slate-500">พนักงาน</div>
+            <div className="mt-2 body-strong text-slate-900">{employee?.name || '-'}</div>
           </div>
-          <div className="rounded-3xl bg-slate-50 p-3 text-sm text-slate-700">
-            <div className="text-xs text-slate-500">ประเภท</div>
-            <div className="mt-2 font-semibold text-slate-900">{config.label}</div>
+          <div className="section-card-soft body-text text-slate-700">
+            <div className="caption text-slate-500">ประเภท</div>
+            <div className="mt-2 body-strong text-slate-900">{config.label}</div>
           </div>
-          <div className="rounded-3xl bg-slate-50 p-3 text-sm text-slate-700">
-            <div className="text-xs text-slate-500">แหล่งข้อมูล</div>
-            <div className="mt-2 font-semibold text-slate-900">{isDerived ? 'คำนวณจากวินัย/เข้างาน' : 'บันทึกในระบบแจ้งเตือน'}</div>
+          <div className="section-card-soft body-text text-slate-700">
+            <div className="caption text-slate-500">แหล่งข้อมูล</div>
+            <div className="mt-2 body-strong text-slate-900">{isDerived ? 'คำนวณจากวินัย/เข้างาน' : 'บันทึกในระบบแจ้งเตือน'}</div>
           </div>
         </div>
       </div>
@@ -117,10 +117,10 @@ function AlertSection({ title, subtitle, alerts, children }) {
     <section className="space-y-3">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <h2 className="text-sm font-bold text-slate-900">{title}</h2>
-          {subtitle ? <p className="mt-1 text-xs text-slate-500">{subtitle}</p> : null}
+          <h2 className="body-strong text-slate-900">{title}</h2>
+          {subtitle ? <p className="mt-1 caption text-slate-500">{subtitle}</p> : null}
         </div>
-        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{alerts.length} รายการ</span>
+        <span className="count-pill">{alerts.length} รายการ</span>
       </div>
       {children}
     </section>
@@ -328,66 +328,66 @@ function EditAlertModal({ open, onClose, onSave, employees, branches, initialDat
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/20 p-4 pt-20">
-      <div className="w-full max-w-2xl rounded-[28px] bg-white p-6 shadow-2xl">
+      <div className="surface-modal max-w-2xl p-6">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">{initialData ? 'แก้ไขแจ้งเตือน' : 'สร้างแจ้งเตือนใหม่'}</h2>
-            <p className="mt-1 text-sm text-slate-500">เชื่อมข้อมูลกับ backend โดยตรง</p>
+            <h2 className="heading-3 text-slate-900">{initialData ? 'แก้ไขแจ้งเตือน' : 'สร้างแจ้งเตือนใหม่'}</h2>
+            <p className="mt-1 body-text text-slate-500">เชื่อมข้อมูลกับ backend โดยตรง</p>
           </div>
-          <button type="button" className="rounded-full bg-slate-100 p-2 text-slate-600 hover:bg-slate-200" onClick={onClose}>×</button>
+          <button type="button" className="icon-btn" onClick={onClose}>×</button>
         </div>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
-          <label className="space-y-2 text-sm">
+          <label className="space-y-2 body-text">
             <span>ผู้แจ้งเตือน</span>
             <select value={form.employee_id} onChange={(event) => setForm((prev) => ({ ...prev, employee_id: event.target.value }))} className="input w-full">
               <option value="">เลือกพนักงาน</option>
               {employeeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </label>
-          <label className="space-y-2 text-sm">
+          <label className="space-y-2 body-text">
             <span>สาขา</span>
             <select value={form.branch_id} onChange={(event) => setForm((prev) => ({ ...prev, branch_id: Number(event.target.value) }))} className="input w-full">
               <option value="">เลือกสาขา</option>
               {branchOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </label>
-          <label className="space-y-2 text-sm">
+          <label className="space-y-2 body-text">
             <span>ประเภทแจ้งเตือน</span>
             <select value={form.alert_type} onChange={(event) => setForm((prev) => ({ ...prev, alert_type: event.target.value }))} className="input w-full">
               {Object.entries(TYPE_CONFIG).map(([key, value]) => <option key={key} value={key}>{value.label}</option>)}
             </select>
           </label>
-          <label className="space-y-2 text-sm">
+          <label className="space-y-2 body-text">
             <span>ความร้ายแรง</span>
             <select value={form.severity} onChange={(event) => setForm((prev) => ({ ...prev, severity: event.target.value }))} className="input w-full">
               {Object.entries(SEVERITY_CONFIG).map(([key, value]) => <option key={key} value={key}>{value.label}</option>)}
             </select>
           </label>
-          <label className="space-y-2 text-sm">
+          <label className="space-y-2 body-text">
             <span>วันที่</span>
             <input type="date" value={form.work_date} onChange={(event) => setForm((prev) => ({ ...prev, work_date: event.target.value }))} className="input w-full" />
           </label>
-          <label className="space-y-2 text-sm">
+          <label className="space-y-2 body-text">
             <span>เวลา</span>
             <input type="time" value={form.alert_time} onChange={(event) => setForm((prev) => ({ ...prev, alert_time: event.target.value }))} className="input w-full" />
           </label>
         </div>
 
         <div className="mt-4 grid gap-4">
-          <label className="space-y-2 text-sm">
+          <label className="space-y-2 body-text">
             <span>หัวข้อ</span>
             <input type="text" value={form.title} onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))} className="input w-full" />
           </label>
-          <label className="space-y-2 text-sm">
+          <label className="space-y-2 body-text">
             <span>รายละเอียด</span>
             <textarea rows="4" value={form.detail} onChange={(event) => setForm((prev) => ({ ...prev, detail: event.target.value }))} className="input w-full resize-none" />
           </label>
         </div>
 
         <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
-          <button type="button" onClick={onClose} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100">ยกเลิก</button>
-          <button type="button" onClick={() => onSave(form)} disabled={saving} className="rounded-2xl bg-[#1B5E20] px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600 disabled:opacity-60">บันทึก</button>
+          <button type="button" onClick={onClose} className="btn btn-secondary btn-lg">ยกเลิก</button>
+          <button type="button" onClick={() => onSave(form)} disabled={saving} className="btn btn-primary btn-lg disabled:opacity-60">บันทึก</button>
         </div>
       </div>
     </div>
@@ -395,7 +395,7 @@ function EditAlertModal({ open, onClose, onSave, employees, branches, initialDat
 }
 
 export default function AlertPage({ data, currentBranch }) {
-  const { alerts, loading, saving, error, createAlert, updateAlert, acknowledgeAlert, deleteAlert } = useAlerts();
+  const { alerts, loading, saving, error, createAlert, updateAlert, acknowledgeAlert, deleteAlert } = useAlerts(data?.attendanceAlerts || []);
   const [tab, setTab] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [editorOpen, setEditorOpen] = useState(false);
@@ -523,53 +523,55 @@ export default function AlertPage({ data, currentBranch }) {
   };
 
   return (
-    <div className="space-y-4 p-4 sm:p-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <div className="flex items-center gap-2 text-base font-bold text-slate-900">
+    <div className="app-page page-body space-y-4">
+      <div className="page-header flex-col items-start md:flex-row md:items-center">
+        <div className="page-heading">
+          <div className="page-icon">
             <AlertTriangle size={20} />
-            <span>แจ้งเตือนวินัย</span>
           </div>
-          <div className="mt-1 text-sm text-slate-500">แสดงคนขาดงาน มาสาย และพักเกินจากข้อมูลเข้างานจริง</div>
+          <div className="page-heading-text">
+            <div className="page-title">แจ้งเตือนวินัย</div>
+            <div className="page-subtitle">แสดงคนขาดงาน มาสาย และพักเกินจากข้อมูลเข้างานจริง</div>
+          </div>
         </div>
-        <button type="button" onClick={() => openEditor(null)} className="inline-flex items-center gap-2 rounded-2xl bg-[#1B5E20] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-600">
+        <button type="button" onClick={() => openEditor(null)} className="btn btn-primary">
           <Plus size={16} /> สร้างแจ้งเตือน
         </button>
       </div>
 
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-7">
-        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="text-sm text-slate-500">ทั้งหมด</div>
-          <div className="mt-3 text-3xl font-bold text-slate-900">{stats.total}</div>
+        <div className="section-card-sm">
+          <div className="body-text text-slate-500">ทั้งหมด</div>
+          <div className="mt-3 stat-number text-slate-900">{stats.total}</div>
         </div>
-        <div className="rounded-3xl border border-red-100 bg-red-50 p-4 shadow-sm">
-          <div className="text-sm text-red-700">ขาดงาน</div>
-          <div className="mt-3 text-3xl font-bold text-red-800">{stats.absent}</div>
+        <div className="surface-danger p-4">
+          <div className="body-text text-red-700">ขาดงาน</div>
+          <div className="mt-3 stat-number text-red-800">{stats.absent}</div>
         </div>
-        <div className="rounded-3xl border border-orange-100 bg-orange-50 p-4 shadow-sm">
-          <div className="text-sm text-orange-700">มาสาย</div>
-          <div className="mt-3 text-3xl font-bold text-orange-800">{stats.late}</div>
+        <div className="surface-warning p-4">
+          <div className="body-text text-orange-700">มาสาย</div>
+          <div className="mt-3 stat-number text-orange-800">{stats.late}</div>
         </div>
-        <div className="rounded-3xl border border-amber-100 bg-amber-50 p-4 shadow-sm">
-          <div className="text-sm text-amber-700">พักเกิน</div>
-          <div className="mt-3 text-3xl font-bold text-amber-800">{stats.breakOver}</div>
+        <div className="surface-warning p-4">
+          <div className="body-text text-amber-700">พักเกิน</div>
+          <div className="mt-3 stat-number text-amber-800">{stats.breakOver}</div>
         </div>
-        <div className="rounded-3xl border border-yellow-100 bg-yellow-50 p-4 shadow-sm">
-          <div className="text-sm text-yellow-700">ปิดก่อนเวลา</div>
-          <div className="mt-3 text-3xl font-bold text-yellow-800">{stats.early}</div>
+        <div className="surface-warning p-4">
+          <div className="body-text text-yellow-700">ปิดก่อนเวลา</div>
+          <div className="mt-3 stat-number text-yellow-800">{stats.early}</div>
         </div>
-        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="text-sm text-slate-500">ยังไม่รับทราบ</div>
-          <div className="mt-3 text-3xl font-bold text-orange-700">{stats.unack}</div>
+        <div className="section-card-sm">
+          <div className="body-text text-slate-500">ยังไม่รับทราบ</div>
+          <div className="mt-3 stat-number text-orange-700">{stats.unack}</div>
         </div>
-        <div className="rounded-3xl border border-emerald-100 bg-emerald-50 p-4 shadow-sm">
-          <div className="text-sm text-emerald-700">รับทราบแล้ว</div>
-          <div className="mt-3 text-3xl font-bold text-emerald-800">{stats.ack}</div>
+        <div className="surface-success p-4">
+          <div className="body-text text-emerald-700">รับทราบแล้ว</div>
+          <div className="mt-3 stat-number text-emerald-800">{stats.ack}</div>
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-3xl bg-white p-3 shadow-sm">
-        <div className="flex flex-wrap gap-2">
+      <div className="section-card-scroll">
+        <div className="page-tabs border-0">
           {[
             { id: 'all', label: 'ทั้งหมด' },
             { id: 'unack', label: 'ยังไม่รับทราบ' },
@@ -579,7 +581,7 @@ export default function AlertPage({ data, currentBranch }) {
             { id: 'break_over', label: 'พักเกิน' },
             { id: 'early', label: 'ปิดก่อนเวลา' }
           ].map((item) => (
-            <button key={item.id} type="button" onClick={() => setTab(item.id)} className={`rounded-2xl px-4 py-2 text-sm font-semibold ${tab === item.id ? 'bg-[#1B5E20] text-white shadow' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>
+            <button key={item.id} type="button" onClick={() => setTab(item.id)} className={`page-tab ${tab === item.id ? 'active' : ''}`}>
               {item.label}
             </button>
           ))}
@@ -588,12 +590,12 @@ export default function AlertPage({ data, currentBranch }) {
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap gap-2">
-          <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-600">สาขา: {currentBranch === 'all' ? 'ทั้งหมด' : branches.find((branch) => branch.id === currentBranch)?.code || currentBranch}</span>
+          <span className="count-pill body-text">สาขา: {currentBranch === 'all' ? 'ทั้งหมด' : branches.find((branch) => branch.id === currentBranch)?.code || currentBranch}</span>
         </div>
-        <div className="flex flex-1 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm sm:max-w-md">
+        <div className="filter-box sm:max-w-md">
           <Search size={16} className="text-slate-400" />
           <input
-            className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
+            className="w-full bg-transparent body-text outline-none placeholder:text-slate-400"
             placeholder="ค้นหา title, detail, พนักงาน หรือสาขา"
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
@@ -601,12 +603,12 @@ export default function AlertPage({ data, currentBranch }) {
         </div>
       </div>
 
-      {error ? <div className="rounded-3xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
+      {error ? <div className="surface-danger p-4 body-text">{error}</div> : null}
 
       {loading ? (
         <div className="space-y-4">
-          <div className="h-24 rounded-3xl bg-slate-200" />
-          <div className="h-24 rounded-3xl bg-slate-200" />
+          <div className="h-24 rounded-xl bg-slate-200" />
+          <div className="h-24 rounded-xl bg-slate-200" />
         </div>
       ) : (
         <div className="space-y-4">
@@ -632,7 +634,7 @@ export default function AlertPage({ data, currentBranch }) {
                       }}
                     />
                   )) : (
-                    <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 text-center text-sm font-semibold text-emerald-700">ไม่มีรายการค้างรับทราบ</div>
+                    <div className="surface-success p-5 text-center body-strong">ไม่มีรายการค้างรับทราบ</div>
                   )}
                 </AlertSection>
                 <AlertSection title="รับทราบแล้ว" subtitle="รายการที่ถูกบันทึกลงฐานข้อมูลแล้ว รีเฟรชหน้าก็ยังคงสถานะเดิม" alerts={groupedAlerts.acknowledged}>
@@ -654,7 +656,7 @@ export default function AlertPage({ data, currentBranch }) {
                       }}
                     />
                   )) : (
-                    <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-center text-sm text-slate-500">ยังไม่มีรายการที่รับทราบแล้ว</div>
+                    <div className="surface-muted p-5 text-center body-text">ยังไม่มีรายการที่รับทราบแล้ว</div>
                   )}
                 </AlertSection>
               </>
@@ -677,7 +679,7 @@ export default function AlertPage({ data, currentBranch }) {
               />
             ))
           ) : (
-            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-8 text-center text-slate-500">ไม่พบแจ้งเตือนที่ตรงกับเงื่อนไข</div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-8 text-center text-slate-500">ไม่พบแจ้งเตือนที่ตรงกับเงื่อนไข</div>
           )}
         </div>
       )}
@@ -694,3 +696,4 @@ export default function AlertPage({ data, currentBranch }) {
     </div>
   );
 }
+

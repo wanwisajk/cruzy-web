@@ -5,8 +5,8 @@ export function LeaveFilters({ filters, leaveTypes, months, onChange }) {
         <h3 style={{ fontSize: '14px', fontWeight: 600 }}>ฟิลเตอร์</h3>
       </div>
       <div className="m-body grid gap-4 md:grid-cols-4">
-        <label className="space-y-2 text-sm">
-          <div className="font-semibold text-slate-700">ประเภทการลา</div>
+        <label className="space-y-2 body-text">
+          <div className="body-strong text-slate-700">ประเภทการลา</div>
           <select value={filters.leaveType} onChange={(e) => onChange('leaveType', e.target.value)} className="input">
             <option value="">ทั้งหมด</option>
             {leaveTypes.map((type) => (
@@ -15,8 +15,8 @@ export function LeaveFilters({ filters, leaveTypes, months, onChange }) {
           </select>
         </label>
 
-        <label className="space-y-2 text-sm">
-          <div className="font-semibold text-slate-700">สถานะ</div>
+        <label className="space-y-2 body-text">
+          <div className="body-strong text-slate-700">สถานะ</div>
           <select value={filters.status} onChange={(e) => onChange('status', e.target.value)} className="input">
             <option value="">ทั้งหมด</option>
             <option value="pending">Pending</option>
@@ -25,8 +25,8 @@ export function LeaveFilters({ filters, leaveTypes, months, onChange }) {
           </select>
         </label>
 
-        <label className="space-y-2 text-sm">
-          <div className="font-semibold text-slate-700">เดือน</div>
+        <label className="space-y-2 body-text">
+          <div className="body-strong text-slate-700">เดือน</div>
           <select value={filters.month} onChange={(e) => onChange('month', e.target.value)} className="input">
             <option value="">ทั้งหมด</option>
             {months.map((month) => (
@@ -35,8 +35,8 @@ export function LeaveFilters({ filters, leaveTypes, months, onChange }) {
           </select>
         </label>
 
-        <label className="space-y-2 text-sm">
-          <div className="font-semibold text-slate-700">ค้นหา</div>
+        <label className="space-y-2 body-text">
+          <div className="body-strong text-slate-700">ค้นหา</div>
           <input
             type="search"
             value={filters.search}

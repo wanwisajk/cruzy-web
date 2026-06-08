@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Activity, CalendarDays, Database, FileClock, Filter, RefreshCw, Search } from 'lucide-react';
 import { useAuditLogs } from './hooks/useAuditLogs.js';
 import {
@@ -17,6 +17,8 @@ import {
 } from './auditLogUtils.js';
 import { StatCard, SelectFilter, LogRow } from './components/AuditLogComponents.jsx';
 
+const LOG_BATCH_SIZE = 80;
+
 export default function AuditLogPage() {
   const { auditLogs, loading, error, refreshAuditLogs } = useAuditLogs();
   const [fromDate, setFromDate] = useState(() => dateInput(-7));
@@ -26,6 +28,7 @@ export default function AuditLogPage() {
   const [activeModule, setActiveModule] = useState('all');
   const [activeTable, setActiveTable] = useState('all');
   const [activeSource, setActiveSource] = useState('all');
+  const [visibleCount, setVisibleCount] = useState(LOG_BATCH_SIZE);
 
   const normalizedLogs = useMemo(() => {
     return auditLogs.map((log) => ({
@@ -96,6 +99,15 @@ export default function AuditLogPage() {
     return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 4);
   }, [filteredLogs]);
 
+  const visibleLogs = useMemo(
+    () => filteredLogs.slice(0, visibleCount),
+    [filteredLogs, visibleCount]
+  );
+
+  useEffect(() => {
+    setVisibleCount(LOG_BATCH_SIZE);
+  }, [searchTerm, activeAction, activeModule, activeTable, activeSource, fromDate, toDate]);
+
   const handleSearch = useCallback(() => {
     refreshAuditLogs({
       from_date: fromDate,
@@ -124,18 +136,18 @@ export default function AuditLogPage() {
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white shadow-sm">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
               <FileClock size={22} />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-slate-950">บันทึกกิจกรรมระบบ</h1>
-              <p className="text-sm text-slate-500">ดูเหตุการณ์และการเปลี่ยนแปลงสำคัญจากระบบทั้งหมด</p>
+              <h1 className="heading-3 text-slate-950">บันทึกกิจกรรมระบบ</h1>
+              <p className="body-text text-slate-500">ดูเหตุการณ์และการเปลี่ยนแปลงสำคัญจากระบบทั้งหมด</p>
             </div>
           </div>
           <button
             type="button"
             onClick={handleSearch}
-            className="inline-flex h-11 items-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+            className="btn btn-primary btn-lg"
           >
             <RefreshCw size={16} />
             รีเฟรชข้อมูล
@@ -151,24 +163,24 @@ export default function AuditLogPage() {
           <StatCard icon={CalendarDays} label="ช่วงวันที่" value={`${fromDate} - ${toDate}`} tone="bg-amber-50 text-amber-700" />
         </section>
 
-        <section className="mt-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="mt-4 section-card section-card-body">
           <div className="flex flex-wrap items-end gap-3">
-            <label className="flex flex-col gap-2 text-xs font-semibold text-slate-500">
+            <label className="flex flex-col gap-2 caption-strong text-slate-500">
               เริ่มวันที่
               <input
                 type="date"
                 value={fromDate}
                 onChange={(event) => setFromDate(event.target.value)}
-                className="h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                className="field body-strong"
               />
             </label>
-            <label className="flex flex-col gap-2 text-xs font-semibold text-slate-500">
+            <label className="flex flex-col gap-2 caption-strong text-slate-500">
               ถึงวันที่
               <input
                 type="date"
                 value={toDate}
                 onChange={(event) => setToDate(event.target.value)}
-                className="h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                className="field body-strong"
               />
             </label>
             <div className="relative min-w-[240px] flex-1">
@@ -178,13 +190,13 @@ export default function AuditLogPage() {
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 placeholder="ค้นหาชื่อผู้ใช้, รายละเอียด, สาขา, โมดูล"
-                className="h-11 w-full rounded-2xl border border-slate-200 bg-white pl-11 pr-3 text-sm font-medium text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                className="field-search body-emphasis"
               />
             </div>
             <button
               type="button"
               onClick={handleSearch}
-              className="inline-flex h-11 items-center gap-2 rounded-2xl bg-emerald-700 px-4 text-sm font-semibold text-white transition hover:bg-emerald-800"
+              className="btn btn-primary btn-lg"
             >
               <Search size={16} />
               ค้นหา
@@ -192,7 +204,7 @@ export default function AuditLogPage() {
             <button
               type="button"
               onClick={resetFilters}
-              className="h-11 rounded-2xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="btn btn-secondary btn-lg"
             >
               ล้างตัวกรอง
             </button>
@@ -207,80 +219,91 @@ export default function AuditLogPage() {
         </section>
 
         {error ? (
-          <div className="mt-4 rounded-3xl border border-rose-200 bg-rose-50 px-4 py-4 text-sm font-semibold text-rose-700">
+          <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-4 body-strong text-rose-700">
             {error}
           </div>
         ) : null}
 
         <section className="mt-4 grid gap-4 lg:grid-cols-[1fr_300px]">
-          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <div className="table-shell">
             <div className="flex items-center justify-between border-b border-slate-200 px-4 py-4">
               <div>
-                <h2 className="text-sm font-bold text-slate-950">ประวัติการทำงานทั้งหมด</h2>
-                <p className="text-xs font-medium text-slate-500">แสดงรายการล่าสุดจากทุกระบบที่เก็บบันทึกไว้</p>
+                <h2 className="body-strong text-slate-950">ประวัติการทำงานทั้งหมด</h2>
+                <p className="caption-strong text-slate-500">แสดงรายการล่าสุดจากทุกระบบที่เก็บบันทึกไว้</p>
               </div>
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                {filteredLogs.length.toLocaleString('th-TH')} รายการ
+              <span className="count-pill">
+                {visibleLogs.length.toLocaleString('th-TH')} / {filteredLogs.length.toLocaleString('th-TH')} รายการ
               </span>
             </div>
 
             {loading ? (
-              <div className="flex min-h-[260px] items-center justify-center text-sm font-semibold text-slate-500">
+              <div className="flex min-h-[260px] items-center justify-center body-strong text-slate-500">
                 กำลังโหลดข้อมูล...
               </div>
             ) : filteredLogs.length ? (
               <div>
-                {filteredLogs.map((log) => (
+                {visibleLogs.map((log) => (
                   <LogRow key={log.id || `${log.table_name}-${log.raw_id}-${log.created_at}`} log={log} />
                 ))}
+                {visibleLogs.length < filteredLogs.length ? (
+                  <div className="border-t border-slate-100 bg-white px-4 py-4 text-center">
+                    <button
+                      type="button"
+                      onClick={() => setVisibleCount((current) => current + LOG_BATCH_SIZE)}
+                      className="btn btn-secondary"
+                    >
+                      แสดงเพิ่มอีก {Math.min(LOG_BATCH_SIZE, filteredLogs.length - visibleLogs.length).toLocaleString('th-TH')} รายการ
+                    </button>
+                  </div>
+                ) : null}
               </div>
             ) : (
               <div className="flex min-h-[260px] flex-col items-center justify-center px-4 text-center">
                 <FileClock size={36} className="text-slate-300" />
-                <div className="mt-3 text-sm font-bold text-slate-700">ไม่พบประวัติในเงื่อนไขที่เลือก</div>
-                <div className="mt-1 text-xs font-medium text-slate-500">ลองขยายช่วงวันที่ หรือล้างตัวกรอง</div>
+                <div className="mt-3 body-strong text-slate-700">ไม่พบประวัติในเงื่อนไขที่เลือก</div>
+                <div className="mt-1 caption-strong text-slate-500">ลองขยายช่วงวันที่ หรือล้างตัวกรอง</div>
               </div>
             )}
           </div>
 
           <aside className="space-y-4">
-            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-              <h3 className="text-sm font-bold text-slate-950">โมดูลยอดนิยม</h3>
+            <div className="section-card-sm">
+              <h3 className="body-strong text-slate-950">โมดูลยอดนิยม</h3>
               <div className="mt-3 space-y-2">
                 {topModules.length ? topModules.map(([moduleName, count]) => (
                   <button
                     type="button"
                     key={moduleName}
                     onClick={() => setActiveModule(moduleName)}
-                    className="flex w-full items-center justify-between rounded-2xl border border-slate-200 px-4 py-3 text-left text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                    className="flex w-full items-center justify-between rounded-xl border border-slate-200 px-4 py-3 text-left body-strong text-slate-700 transition hover:bg-slate-50"
                   >
                     <span className="truncate">{moduleName}</span>
-                    <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700">{count}</span>
+                    <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 caption-bold text-emerald-700">{count}</span>
                   </button>
                 )) : (
-                  <div className="text-xs font-medium text-slate-500">ยังไม่มีข้อมูล</div>
+                  <div className="caption-strong text-slate-500">ยังไม่มีข้อมูล</div>
                 )}
               </div>
             </div>
 
-            <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-              <h3 className="text-sm font-bold text-slate-950">ภาพรวมการรวมบันทึก</h3>
-              <div className="mt-3 space-y-3 text-sm text-slate-600">
+            <div className="section-card-sm">
+              <h3 className="body-strong text-slate-950">ภาพรวมการรวมบันทึก</h3>
+              <div className="mt-3 space-y-3 body-text text-slate-600">
                 <div className="flex items-center justify-between gap-2">
                   <span>DB trigger</span>
-                  <span className="font-semibold text-emerald-700">เปิดใช้</span>
+                  <span className="body-strong text-emerald-700">เปิดใช้</span>
                 </div>
                 <div className="flex items-center justify-between gap-2">
                   <span>System audit</span>
-                  <span className="font-semibold text-emerald-700">เปิดใช้</span>
+                  <span className="body-strong text-emerald-700">เปิดใช้</span>
                 </div>
                 <div className="flex items-center justify-between gap-2">
                   <span>Sales edit log</span>
-                  <span className="font-semibold text-emerald-700">เปิดใช้</span>
+                  <span className="body-strong text-emerald-700">เปิดใช้</span>
                 </div>
                 <div className="flex items-center justify-between gap-2">
                   <span>Inspection log</span>
-                  <span className="font-semibold text-emerald-700">เปิดใช้</span>
+                  <span className="body-strong text-emerald-700">เปิดใช้</span>
                 </div>
               </div>
             </div>
@@ -290,3 +313,4 @@ export default function AuditLogPage() {
     </div>
   );
 }
+

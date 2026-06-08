@@ -96,7 +96,7 @@ export default function LeaveDashboard({ data, currentBranch }) {
   }
 
   return (
-    <div className="content p-6">
+    <div className="app-page page-body content">
       <LeaveDashboardHeader onCreate={openCreateModal} />
 
       {error ? <div className="alert-bar warn">{error}</div> : null}

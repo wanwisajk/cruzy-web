@@ -114,7 +114,7 @@ export function EmployeeViewModal({ employee, branches, onClose }) {
         <div className="m-head">
           <div>
             <h2>ดูข้อมูลพนักงาน</h2>
-            <p className="text-[11px] text-slate-100 mt-0.5">{employee.name || '-'} · {employee.id || '-'}</p>
+            <p className="caption text-slate-100 mt-0.5">{employee.name || '-'} · {employee.id || '-'}</p>
           </div>
           <button type="button" className="m-close" onClick={onClose} aria-label="ปิด">
             <X size={18} />
@@ -167,7 +167,7 @@ export function EmployeeViewModal({ employee, branches, onClose }) {
 function Section({ title, children }) {
   return (
     <section>
-      <h4 className="mb-3 text-xs font-bold text-emerald-800">{title}</h4>
+      <h4 className="mb-3 caption-bold text-emerald-800">{title}</h4>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{children}</div>
     </section>
   );
@@ -176,8 +176,8 @@ function Section({ title, children }) {
 function Info({ label, value }) {
   return (
     <div className="rounded-lg border border-slate-200 p-3 bg-slate-50 min-h-[76px]">
-      <div className="text-slate-500 text-[11px] mb-2">{label}</div>
-      <div className="font-semibold text-slate-800 break-words">{valueOrDash(value)}</div>
+      <div className="text-slate-500 caption mb-2">{label}</div>
+      <div className="body-strong text-slate-800 break-words">{valueOrDash(value)}</div>
     </div>
   );
 }

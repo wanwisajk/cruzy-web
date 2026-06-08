@@ -7,7 +7,7 @@ export function BranchFilters({ search, onSearch, regions, filterRegion, onFilte
           value={search}
           onChange={(event) => onSearch(event.target.value)}
           placeholder="ค้นหาสาขา..."
-          className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 transition bg-white"
+          className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl body-text focus:outline-none focus:ring-2 focus:ring-emerald-400 transition bg-white"
         />
       </div>
       <div className="flex gap-1.5 overflow-x-auto pb-1">
@@ -15,7 +15,7 @@ export function BranchFilters({ search, onSearch, regions, filterRegion, onFilte
           <button
             key={region.id}
             onClick={() => onFilterRegion(region.id)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${filterRegion === region.id ? 'bg-emerald-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+            className={`px-3 py-1.5 rounded-xl caption-strong transition-colors ${filterRegion === region.id ? 'bg-emerald-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
           >
             {region.label}
           </button>

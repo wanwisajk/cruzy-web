@@ -23,8 +23,8 @@ export function BranchList({
     return (
       <div className="text-center py-16 text-slate-400">
         <Store className="w-10 h-10 mx-auto mb-3" />
-        <p className="font-semibold">ไม่พบสาขา</p>
-        <p className="text-sm mt-1">ลองเปลี่ยนตัวกรอง หรือเพิ่มสาขาใหม่</p>
+        <p className="body-strong">ไม่พบสาขา</p>
+        <p className="body-text mt-1">ลองเปลี่ยนตัวกรอง หรือเพิ่มสาขาใหม่</p>
       </div>
     );
   }
@@ -41,11 +41,11 @@ export function BranchList({
       <div key={region.id} className="mb-8">
         <div className="flex items-center gap-2 mb-3">
           <span
-            className={`text-xs font-bold px-2.5 py-1 rounded-full ${regionColor[region.id] || regionColor.default}`}
+            className={`caption-bold px-2.5 py-1 rounded-full ${regionColor[region.id] || regionColor.default}`}
           >
             {region.name}
           </span>
-          <span className="text-xs text-slate-400">
+          <span className="caption text-slate-400">
             {regionBranches.length} สาขา
           </span>
         </div>

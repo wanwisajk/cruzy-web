@@ -102,6 +102,7 @@ export const api = {
     const query = new URLSearchParams();
     if (filters.from) query.set('from', filters.from);
     if (filters.to) query.set('to', filters.to);
+    if (filters.branch && filters.branch !== 'all') query.set('branch', filters.branch);
     const suffix = query.toString();
     return request(`/store-inspections/dashboard${suffix ? `?${suffix}` : ''}`);
   },

@@ -188,7 +188,7 @@ export default function ScheduleDashboard({
   ];
 
   return (
-    <div id="content-area" className="relative flex-1 flex flex-col">
+    <div id="content-area" className="app-page relative flex-1 flex flex-col">
       <SchedulePageTabs activeView={view} tabs={tabs} onChange={setView} />
 
       {error ? <div className="mx-5 mt-5 alert-bar warn">{error}</div> : null}

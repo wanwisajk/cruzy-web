@@ -24,10 +24,10 @@ export function StatCard({ tone = 'green', value, label, icon: Icon }) {
   };
 
   return (
-    <div className={`p-4 rounded-xl border flex items-center justify-between shadow-sm ${toneClasses[tone] || toneClasses.green}`}>
+    <div className={`section-card-sm border flex items-center justify-between ${toneClasses[tone] || toneClasses.green}`}>
       <div>
-        <div className="text-2xl font-bold tracking-tight">{value}</div>
-        <div className="text-xs font-medium opacity-80 mt-0.5">{label}</div>
+        <div className="stat-number tracking-tight">{value}</div>
+        <div className="caption-strong opacity-80 mt-0.5">{label}</div>
       </div>
       {Icon && <Icon className="w-8 h-8 opacity-40 stroke-[1.5]" />}
     </div>
@@ -42,9 +42,9 @@ export function StatusBadge({ status }) {
     confirmed: 'bg-emerald-100 text-emerald-800 border-emerald-200'
   };
   return (
-    <span className={`px-2.5 py-1 text-xs font-medium rounded-full border ${colorMap[badge.className] || 'bg-gray-100'}`}>
-      {badge.label}
-    </span>
+      <span className={`badge ${badge.className === 'draft' ? 'pending' : badge.className === 'edited' ? 'info' : 'approved'} border ${colorMap[badge.className] || 'bg-gray-100'}`}>
+        {badge.label}
+      </span>
   );
 }
 
@@ -57,7 +57,7 @@ export function DepositStatusBadge({ deposit }) {
   if (status.className === 'mismatch') colorClass = 'bg-rose-50 text-rose-700 border-rose-200';
 
   return (
-    <span className={`px-2 py-0.5 text-xs font-medium rounded border ${colorClass}`}>
+    <span className={`badge ${status.className === 'waiting' ? 'pending' : status.className === 'mismatch' ? 'danger' : 'approved'} border ${colorClass}`}>
       {status.label}
     </span>
   );
@@ -67,14 +67,14 @@ export function EmployeeChip({ data, employeeId, time }) {
   const employee = employeeById(data, employeeId);
   if (!employee) {
     return (
-      <span className="inline-flex items-center text-xs text-gray-500 font-medium">
+      <span className="inline-flex items-center caption text-gray-500 body-emphasis">
         {employeeId || '—'}{time ? ` • ${timeText(time)}` : ''}
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs text-gray-700 font-medium bg-gray-50 px-2 py-1 rounded-md border border-gray-100">
-      <span className="w-4 h-4 rounded-full text-[9px] text-white flex items-center justify-center font-bold" style={{ background: employee.color }}>
+    <span className="inline-flex items-center gap-1.5 caption text-gray-700 body-emphasis section-card-soft px-2 py-1 rounded-md">
+      <span className="w-4 h-4 rounded-full caption text-white flex items-center justify-center body-strong" style={{ background: employee.color }}>
         {(employee.nickname || employee.name || '?')[0]}
       </span>
       <span className="truncate max-w-[80px]">{employee.nickname || employee.name}</span>
@@ -85,9 +85,9 @@ export function EmployeeChip({ data, employeeId, time }) {
 
 export function BankChip({ data, accountId }) {
   const account = accountById(data, accountId);
-  if (!account) return <span className="text-xs text-gray-400">—</span>;
+  if (!account) return <span className="caption text-gray-400">—</span>;
   return (
-    <span className="inline-flex items-center text-xs px-2 py-0.5 rounded text-white font-semibold tracking-wide shadow-sm" style={{ background: account.color }}>
+    <span className="inline-flex items-center caption px-2 py-0.5 rounded-full text-white body-strong tracking-wide shadow-sm" style={{ background: account.color }}>
       {account.bankShort} *{String(account.accNo || '').slice(-3)}
     </span>
   );
@@ -96,10 +96,10 @@ export function BankChip({ data, accountId }) {
 export function ModalFrame({ title, onClose, children, footer }) {
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <div className="surface-modal w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-          <h2 className="text-lg font-bold text-gray-800">{title}</h2>
-          <button className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors" onClick={onClose} aria-label="ปิด">
+          <h2 className="heading-3 text-gray-800">{title}</h2>
+          <button className="icon-btn" onClick={onClose} aria-label="ปิด">
             <X size={18} />
           </button>
         </div>
@@ -112,11 +112,11 @@ export function ModalFrame({ title, onClose, children, footer }) {
 
 export function ViewRows({ rows }) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-gray-50 p-4 rounded-xl border border-gray-100">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 section-card-soft">
       {rows.map(([label, value]) => (
         <div key={label} className="flex justify-between border-b border-gray-200/60 pb-1.5 sm:border-none sm:pb-0">
-          <span className="text-sm text-gray-500 font-medium">{label}</span>
-          <span className="text-sm text-gray-900 font-bold">{value || '—'}</span>
+          <span className="body-text text-gray-500 body-emphasis">{label}</span>
+          <span className="body-text text-gray-900 body-strong">{value || '—'}</span>
         </div>
       ))}
     </div>
@@ -128,7 +128,7 @@ export function ImagePreviewGrid({ images = [] }) {
     return (
       <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 bg-gray-50">
         <AlertCircle size={24} className="stroke-[1.5] mb-1" />
-        <span className="text-xs font-medium">ไม่มีรูปภาพหรือหลักฐานแนบ</span>
+        <span className="caption-strong">ไม่มีรูปภาพหรือหลักฐานแนบ</span>
       </div>
     );
   }
@@ -150,8 +150,8 @@ export function SalesLogModal({ data, sale, onClose }) {
   if (!sale) return null;
   const branch = branchById(data, sale.bid);
   return (
-    <ModalFrame title={`เส้นทางธุรกรรม LINE Webhook — ${branch?.code || sale.bid}`} onClose={onClose} footer={<button className="px-4 py-2 text-sm font-semibold bg-gray-900 hover:bg-gray-800 text-white rounded-xl transition-colors" onClick={onClose}>ปิดหน้าต่าง</button>}>
-      <div className="flex items-center gap-2 text-sm text-gray-600 bg-blue-50 border border-blue-100 rounded-xl p-3 font-medium">
+      <ModalFrame title={`เส้นทางธุรกรรม LINE Webhook — ${branch?.code || sale.bid}`} onClose={onClose} footer={<button className="btn btn-secondary" onClick={onClose}>ปิดหน้าต่าง</button>}>
+      <div className="flex items-center gap-2 body-text text-gray-600 bg-blue-50 border border-blue-100 rounded-xl p-3 body-emphasis">
         <Calendar size={16} className="text-blue-500" />
         <span><b>สาขา:</b> {branch?.code || sale.bid}</span>
         <span className="text-gray-300">|</span>
@@ -161,38 +161,38 @@ export function SalesLogModal({ data, sale, onClose }) {
       <div className="relative border-l-2 border-gray-200 ml-3 pl-5 space-y-6 py-2">
         <div className="relative">
           <span className="absolute -left-[27px] top-0 w-3 h-3 rounded-full bg-blue-500 ring-4 ring-white" />
-          <div className="text-xs font-bold text-blue-600 tracking-wide mb-0.5">{timeText(sale.submitTime) || '—'}</div>
-          <div className="text-sm font-bold text-gray-800">ระบบได้รับยอดขายอัตโนมัติ</div>
-          <div className="text-xs text-gray-500 mt-0.5">ส่งโดย: {employeeById(data, sale.submittedBy)?.nickname || employeeById(data, sale.submittedBy)?.name || sale.submittedBy || '—'}</div>
+          <div className="caption-bold text-blue-600 tracking-wide mb-0.5">{timeText(sale.submitTime) || '—'}</div>
+          <div className="body-strong text-gray-800">ระบบได้รับยอดขายอัตโนมัติ</div>
+          <div className="caption text-gray-500 mt-0.5">ส่งโดย: {employeeById(data, sale.submittedBy)?.nickname || employeeById(data, sale.submittedBy)?.name || sale.submittedBy || '—'}</div>
         </div>
 
         {(sale.editLog || []).map((log, index) => (
           <div className="relative" key={log.id || `${log.field}_${log.time}_${index}`}>
             <span className="absolute -left-[27px] top-0 w-3 h-3 rounded-full bg-amber-500 ring-4 ring-white" />
-            <div className="text-xs font-bold text-amber-600 tracking-wide mb-0.5">{timeText(log.time) || '—'}</div>
-            <div className="text-sm font-bold text-gray-800">แก้ไขฟิลด์ข้อมูล <span className="px-1.5 py-0.5 bg-amber-50 border border-amber-200 text-amber-800 rounded text-xs font-mono">[{log.field}]</span></div>
-            <div className="flex items-center gap-2 text-xs text-gray-500 mt-1 bg-gray-50 p-2 rounded-lg border border-gray-100 w-fit">
+            <div className="caption-bold text-amber-600 tracking-wide mb-0.5">{timeText(log.time) || '—'}</div>
+            <div className="body-strong text-gray-800">แก้ไขฟิลด์ข้อมูล <span className="px-1.5 py-0.5 bg-amber-50 border border-amber-200 text-amber-800 rounded caption font-mono">[{log.field}]</span></div>
+            <div className="flex items-center gap-2 caption text-gray-500 mt-1 bg-gray-50 p-2 rounded-lg border border-gray-100 w-fit">
               <span className="line-through text-gray-400">{log.from || '—'}</span>
               <ArrowRight size={12} />
-              <span className="text-gray-700 font-semibold">{log.to || '—'}</span>
+              <span className="text-gray-700 body-strong">{log.to || '—'}</span>
             </div>
-            {log.reason && <div className="text-xs italic text-amber-700 mt-1">เหตุผล: "{log.reason}"</div>}
+            {log.reason && <div className="caption italic text-amber-700 mt-1">เหตุผล: "{log.reason}"</div>}
           </div>
         ))}
 
         {sale.confirmedBy && (
           <div className="relative">
             <span className="absolute -left-[27px] top-0 w-3 h-3 rounded-full bg-emerald-500 ring-4 ring-white" />
-            <div className="text-xs font-bold text-emerald-600 tracking-wide mb-0.5">{timeText(sale.confirmTime) || '—'}</div>
-            <div className="text-sm font-bold text-emerald-700 flex items-center gap-1">ตรวจสอบและยืนยันยอดเรียบร้อย <Check size={14} /></div>
-            <div className="text-xs text-gray-500 mt-0.5">ผู้อนุมัติ: {sale.confirmedBy}</div>
+            <div className="caption-bold text-emerald-600 tracking-wide mb-0.5">{timeText(sale.confirmTime) || '—'}</div>
+            <div className="body-strong text-emerald-700 flex items-center gap-1">ตรวจสอบและยืนยันยอดเรียบร้อย <Check size={14} /></div>
+            <div className="caption text-gray-500 mt-0.5">ผู้อนุมัติ: {sale.confirmedBy}</div>
           </div>
         )}
       </div>
 
       <div className="space-y-1.5">
-        <div className="text-xs font-bold text-gray-400 uppercase tracking-wider">ข้อความต้นฉบับจาก LINE Chat</div>
-        <pre className="p-3 bg-gray-900 text-gray-100 rounded-xl text-xs font-mono overflow-x-auto whitespace-pre-wrap leading-relaxed shadow-inner max-h-40">{rawSalesText(sale)}</pre>
+        <div className="caption-bold text-gray-400 uppercase tracking-wider">ข้อความต้นฉบับจาก LINE Chat</div>
+        <pre className="p-3 bg-gray-900 text-gray-100 rounded-xl caption font-mono overflow-x-auto whitespace-pre-wrap leading-relaxed shadow-inner max-h-40">{rawSalesText(sale)}</pre>
       </div>
     </ModalFrame>
   );
@@ -302,8 +302,8 @@ export function SalesEditorModal({ data, sale, mode, onClose, onSaved, onUpsert 
   if (readonly) {
     const branch = branchById(data, sale.bid);
     return (
-      <ModalFrame title={isLocked ? '🔒 ยอดขายถูกล็อก (ยืนยันแล้ว)' : 'รายละเอียดข้อมูลยอดขาย'} onClose={onClose} footer={<button className="px-5 py-2 font-semibold text-sm bg-gray-900 text-white rounded-xl hover:bg-gray-800 transition-colors" onClick={onClose}>รับทราบ</button>}>
-        {isLocked && <div className="p-3 bg-rose-50 border border-rose-100 rounded-xl text-rose-700 text-xs font-medium flex items-center gap-1.5"><Lock size={14} /> ยอดขายรายการนี้เสร็จสมบูรณ์แล้ว ระบบล็อกไม่ให้แก้ไขเพื่อความปลอดภัยทางบัญชี</div>}
+      <ModalFrame title={isLocked ? '🔒 ยอดขายถูกล็อก (ยืนยันแล้ว)' : 'รายละเอียดข้อมูลยอดขาย'} onClose={onClose} footer={<button className="px-5 py-2 body-strong bg-gray-900 text-white rounded-xl hover:bg-gray-800 transition-colors" onClick={onClose}>รับทราบ</button>}>
+        {isLocked && <div className="p-3 bg-rose-50 border border-rose-100 rounded-xl text-rose-700 caption-strong flex items-center gap-1.5"><Lock size={14} /> ยอดขายรายการนี้เสร็จสมบูรณ์แล้ว ระบบล็อกไม่ให้แก้ไขเพื่อความปลอดภัยทางบัญชี</div>}
         <ViewRows rows={[
           ['สาขา', `${branch?.code || sale.bid} — ${branch?.name || ''}`],
           ['วันที่ทำรายการ', shortDate(sale.date)],
@@ -315,7 +315,7 @@ export function SalesEditorModal({ data, sale, mode, onClose, onSaved, onUpsert 
           ['สถานะปัจจุบัน', sale.status.toUpperCase()]
         ]} />
         <div className="space-y-1.5">
-          <div className="text-xs font-bold text-gray-400 uppercase tracking-wider">เอกสารภาพถ่าย/สลิปรายวัน</div>
+          <div className="caption-bold text-gray-400 uppercase tracking-wider">เอกสารภาพถ่าย/สลิปรายวัน</div>
           <ImagePreviewGrid images={sale.attachments || []} />
         </div>
       </ModalFrame>
@@ -323,24 +323,24 @@ export function SalesEditorModal({ data, sale, mode, onClose, onSaved, onUpsert 
   }
 
   return (
-    <ModalFrame title={sale ? '✏️ แก้ไขข้อมูลยอดขายหน้าร้าน' : '➕ เพิ่มข้อมูลยอดขายใหม่'} onClose={onClose} footer={<><button className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors" onClick={onClose}>ยกเลิก</button><button className="px-5 py-2 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-xl disabled:opacity-50 transition-colors" onClick={save} disabled={saving}>{saving ? 'กำลังบันทึก...' : 'บันทึกข้อมูลยอดขาย'}</button></>}>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-        <label className="flex flex-col gap-1 font-medium text-gray-700">วันที่ขาย<input className="px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" type="date" value={form.sellDate} onChange={(e) => update('sellDate', e.target.value)} /></label>
-        <label className="flex flex-col gap-1 font-medium text-gray-700">เลือกสาขา<select className="px-3 py-2 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20" value={form.branchId} onChange={(e) => update('branchId', e.target.value)}>{data.branches.map((b) => <option key={b.id} value={b.id}>{b.code} - {b.name}</option>)}</select></label>
-        <label className="flex flex-col gap-1 font-medium text-gray-700">เงินสด (Cash)<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="number" value={form.cashAmount} onChange={(e) => update('cashAmount', e.target.value)} /></label>
-        <label className="flex flex-col gap-1 font-medium text-gray-700">เงินโอน (Bank Transfer)<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="number" value={form.transferAmount} onChange={(e) => update('transferAmount', e.target.value)} /></label>
-        <label className="flex flex-col gap-1 font-medium text-gray-700">คิวอาร์โค้ด (QR)<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="number" value={form.qrAmount} onChange={(e) => update('qrAmount', e.target.value)} /></label>
-        <label className="flex flex-col gap-1 font-medium text-gray-700">บัตรเครดิต (Credit Card)<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="number" value={form.creditAmount} onChange={(e) => update('creditAmount', e.target.value)} /></label>
-        <label className="flex flex-col gap-1 font-medium text-gray-700">ยอดรวมทั้งสิ้น (Auto)<input className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl font-bold text-gray-900 outline-none" type="number" value={form.totalAmount} readOnly /></label>
-        <label className="flex flex-col gap-1 font-medium text-gray-700">ผู้ส่งยอดขาย<select className="px-3 py-2 border border-gray-200 rounded-xl bg-white outline-none" value={form.submittedBy} onChange={(e) => update('submittedBy', e.target.value)}><option value="">- ไม่ระบุ -</option>{data.employees.map((emp) => <option key={emp.id} value={emp.id}>{emp.nickname || emp.name}</option>)}</select></label>
-        <label className="flex flex-col gap-1 font-medium text-gray-700">เวลาส่งข้อมูล<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="time" value={form.submittedAt} onChange={(e) => update('submittedAt', e.target.value)} /></label>
-        <label className="flex flex-col gap-1 font-medium text-gray-700">สถานะระบบ<select className="px-3 py-2 border border-gray-200 rounded-xl bg-white" value={form.status} onChange={(e) => update('status', e.target.value)}><option value="draft">รอยืนยันตรวจสอบ</option><option value="confirmed">ยืนยันยอดถูกต้อง</option><option value="edited">มีประวัติแก้ไขเสร็จแล้ว</option></select></label>
-        <div className="sm:col-span-2 flex flex-col gap-1 font-medium text-gray-700">
+    <ModalFrame title={sale ? '✏️ แก้ไขข้อมูลยอดขายหน้าร้าน' : '➕ เพิ่มข้อมูลยอดขายใหม่'} onClose={onClose} footer={<><button className="px-4 py-2 body-emphasis text-gray-600 hover:bg-gray-100 rounded-xl transition-colors" onClick={onClose}>ยกเลิก</button><button className="px-5 py-2 body-strong bg-blue-600 hover:bg-blue-700 text-white rounded-xl disabled:opacity-50 transition-colors" onClick={save} disabled={saving}>{saving ? 'กำลังบันทึก...' : 'บันทึกข้อมูลยอดขาย'}</button></>}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 body-text">
+        <label className="flex flex-col gap-1 body-emphasis text-gray-700">วันที่ขาย<input className="px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" type="date" value={form.sellDate} onChange={(e) => update('sellDate', e.target.value)} /></label>
+        <label className="flex flex-col gap-1 body-emphasis text-gray-700">เลือกสาขา<select className="px-3 py-2 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20" value={form.branchId} onChange={(e) => update('branchId', e.target.value)}>{data.branches.map((b) => <option key={b.id} value={b.id}>{b.code} - {b.name}</option>)}</select></label>
+        <label className="flex flex-col gap-1 body-emphasis text-gray-700">เงินสด (Cash)<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="number" value={form.cashAmount} onChange={(e) => update('cashAmount', e.target.value)} /></label>
+        <label className="flex flex-col gap-1 body-emphasis text-gray-700">เงินโอน (Bank Transfer)<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="number" value={form.transferAmount} onChange={(e) => update('transferAmount', e.target.value)} /></label>
+        <label className="flex flex-col gap-1 body-emphasis text-gray-700">คิวอาร์โค้ด (QR)<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="number" value={form.qrAmount} onChange={(e) => update('qrAmount', e.target.value)} /></label>
+        <label className="flex flex-col gap-1 body-emphasis text-gray-700">บัตรเครดิต (Credit Card)<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="number" value={form.creditAmount} onChange={(e) => update('creditAmount', e.target.value)} /></label>
+        <label className="flex flex-col gap-1 body-emphasis text-gray-700">ยอดรวมทั้งสิ้น (Auto)<input className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl body-strong text-gray-900 outline-none" type="number" value={form.totalAmount} readOnly /></label>
+        <label className="flex flex-col gap-1 body-emphasis text-gray-700">ผู้ส่งยอดขาย<select className="px-3 py-2 border border-gray-200 rounded-xl bg-white outline-none" value={form.submittedBy} onChange={(e) => update('submittedBy', e.target.value)}><option value="">- ไม่ระบุ -</option>{data.employees.map((emp) => <option key={emp.id} value={emp.id}>{emp.nickname || emp.name}</option>)}</select></label>
+        <label className="flex flex-col gap-1 body-emphasis text-gray-700">เวลาส่งข้อมูล<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="time" value={form.submittedAt} onChange={(e) => update('submittedAt', e.target.value)} /></label>
+        <label className="flex flex-col gap-1 body-emphasis text-gray-700">สถานะระบบ<select className="px-3 py-2 border border-gray-200 rounded-xl bg-white" value={form.status} onChange={(e) => update('status', e.target.value)}><option value="draft">รอยืนยันตรวจสอบ</option><option value="confirmed">ยืนยันยอดถูกต้อง</option><option value="edited">มีประวัติแก้ไขเสร็จแล้ว</option></select></label>
+        <div className="sm:col-span-2 flex flex-col gap-1 body-emphasis text-gray-700">
           <span>แนบไฟล์รูปภาพยอดขาย</span>
-          <input className="px-3 py-2 border border-gray-200 rounded-xl text-xs" type="file" accept="image/*" multiple onChange={async (e) => setNewImages(await filesToDataUrls(e.target.files))} />
+          <input className="px-3 py-2 border border-gray-200 rounded-xl caption" type="file" accept="image/*" multiple onChange={async (e) => setNewImages(await filesToDataUrls(e.target.files))} />
         </div>
         <div className="sm:col-span-2"><ImagePreviewGrid images={[...(sale?.attachments || []), ...newImages]} /></div>
-        <label className="sm:col-span-2 flex flex-col gap-1 font-medium text-gray-700">Raw Chat Text จาก LINE<textarea className="px-3 py-2 border border-gray-200 rounded-xl text-xs font-mono outline-none" rows={3} value={form.rawText} onChange={(e) => update('rawText', e.target.value)} /></label>
+        <label className="sm:col-span-2 flex flex-col gap-1 body-emphasis text-gray-700">Raw Chat Text จาก LINE<textarea className="px-3 py-2 border border-gray-200 rounded-xl caption font-mono outline-none" rows={3} value={form.rawText} onChange={(e) => update('rawText', e.target.value)} /></label>
       </div>
     </ModalFrame>
   );
@@ -422,8 +422,8 @@ export function DepositEditorModal({ data, deposit, mode, onClose, onSaved, onUp
     const branch = branchById(data, deposit.bid);
     const account = accountById(data, deposit.bankAccId);
     return (
-      <ModalFrame title={isLocked ? '🔒 รายการฝากเงินตรวจสอบเสร็จสิ้น' : 'รายละเอียดการฝากเงินสด'} onClose={onClose} footer={<button className="px-5 py-2 font-semibold text-sm bg-gray-900 text-white rounded-xl hover:bg-gray-800 transition-colors" onClick={onClose}>ปิด</button>}>
-        {isLocked && <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl text-emerald-700 text-xs font-medium flex items-center gap-1.5"><Lock size={14} /> รายการนี้นำฝากเข้าเซฟตี้โบลต์และตรวจสอบบัญชีธนาคารปลายทางแล้ว ปลอดภัยเรียบร้อย</div>}
+      <ModalFrame title={isLocked ? '🔒 รายการฝากเงินตรวจสอบเสร็จสิ้น' : 'รายละเอียดการฝากเงินสด'} onClose={onClose} footer={<button className="px-5 py-2 body-strong bg-gray-900 text-white rounded-xl hover:bg-gray-800 transition-colors" onClick={onClose}>ปิด</button>}>
+        {isLocked && <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl text-emerald-700 caption-strong flex items-center gap-1.5"><Lock size={14} /> รายการนี้นำฝากเข้าเซฟตี้โบลต์และตรวจสอบบัญชีธนาคารปลายทางแล้ว ปลอดภัยเรียบร้อย</div>}
         <ViewRows rows={[
           ['สาขาที่ทำรายการ', `${branch?.code || deposit.bid} — ${branch?.name || ''}`],
           ['วันที่ทำรายการฝาก', shortDate(deposit.date)],
@@ -435,7 +435,7 @@ export function DepositEditorModal({ data, deposit, mode, onClose, onSaved, onUp
           ['สถานะระบบตรวจสอบ', deposit.status]
         ]} />
         <div className="space-y-1.5">
-          <div className="text-xs font-bold text-gray-400 uppercase tracking-wider">ภาพถ่ายสลิปโอนเงิน / หลักฐานฝากตู้นิรภัย</div>
+          <div className="caption-bold text-gray-400 uppercase tracking-wider">ภาพถ่ายสลิปโอนเงิน / หลักฐานฝากตู้นิรภัย</div>
           <ImagePreviewGrid images={(deposit.attachments?.length ? deposit.attachments : [deposit.slipUrl].filter(Boolean))} />
         </div>
       </ModalFrame>
@@ -443,22 +443,22 @@ export function DepositEditorModal({ data, deposit, mode, onClose, onSaved, onUp
   }
 
   return (
-    <ModalFrame title={deposit ? '✏️ แก้ไขบันทึกนำฝากเงินสด' : '➕ เพิ่มบันทึกนำฝากเงินสดใหม่'} onClose={onClose} footer={<><button className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors" onClick={onClose}>ยกเลิก</button><button className="px-5 py-2 text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-colors" onClick={save} disabled={saving}>{saving ? 'กำลังบันทึก...' : 'บันทึกข้อมูลนำฝาก'}</button></>}>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-        <label className="flex flex-col gap-1 font-medium text-gray-700">วันที่ฝากเงิน<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="date" value={form.depositDate} onChange={(e) => setForm({ ...form, depositDate: e.target.value })} /></label>
-        <label className="flex flex-col gap-1 font-medium text-gray-700">สาขาต้นทาง<select className="px-3 py-2 border border-gray-200 rounded-xl bg-white outline-none" value={form.branchId} onChange={(e) => setForm({ ...form, branchId: e.target.value })}>{data.branches.map((b) => <option key={b.id} value={b.id}>{b.code} - {b.name}</option>)}</select></label>
-        <label className="flex flex-col gap-1 font-medium text-gray-700">ยอดเงินระบบประเมิน<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="number" value={form.expectedAmount} onChange={(e) => setForm({ ...form, expectedAmount: e.target.value })} /></label>
-        <label className="flex flex-col gap-1 font-medium text-gray-700">ยอดนำฝากสลิปจริง<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="number" value={form.depositedAmount} onChange={(e) => setForm({ ...form, depositedAmount: e.target.value })} /></label>
-        <label className="flex flex-col gap-1 font-medium text-gray-700">เข้าบัญชีธนาคาร<select className="px-3 py-2 border border-gray-200 rounded-xl bg-white outline-none" value={form.bankAccountId} onChange={(e) => setForm({ ...form, bankAccountId: e.target.value })}><option value="">- เลือกบัญชีปลายทาง -</option>{data.bankAccounts.map((acc) => <option key={acc.id} value={acc.id}>{acc.bankShort} - {acc.accNo}</option>)}</select></label>
-        <label className="flex flex-col gap-1 font-medium text-gray-700">พนักงานผู้นำฝาก<select className="px-3 py-2 border border-gray-200 rounded-xl bg-white outline-none" value={form.depositedBy} onChange={(e) => setForm({ ...form, depositedBy: e.target.value })}><option value="">- เลือกรายชื่อ -</option>{data.employees.map((emp) => <option key={emp.id} value={emp.id}>{emp.nickname || emp.name}</option>)}</select></label>
+    <ModalFrame title={deposit ? '✏️ แก้ไขบันทึกนำฝากเงินสด' : '➕ เพิ่มบันทึกนำฝากเงินสดใหม่'} onClose={onClose} footer={<><button className="px-4 py-2 body-emphasis text-gray-600 hover:bg-gray-100 rounded-xl transition-colors" onClick={onClose}>ยกเลิก</button><button className="px-5 py-2 body-strong bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-colors" onClick={save} disabled={saving}>{saving ? 'กำลังบันทึก...' : 'บันทึกข้อมูลนำฝาก'}</button></>}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 body-text">
+        <label className="flex flex-col gap-1 body-emphasis text-gray-700">วันที่ฝากเงิน<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="date" value={form.depositDate} onChange={(e) => setForm({ ...form, depositDate: e.target.value })} /></label>
+        <label className="flex flex-col gap-1 body-emphasis text-gray-700">สาขาต้นทาง<select className="px-3 py-2 border border-gray-200 rounded-xl bg-white outline-none" value={form.branchId} onChange={(e) => setForm({ ...form, branchId: e.target.value })}>{data.branches.map((b) => <option key={b.id} value={b.id}>{b.code} - {b.name}</option>)}</select></label>
+        <label className="flex flex-col gap-1 body-emphasis text-gray-700">ยอดเงินระบบประเมิน<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="number" value={form.expectedAmount} onChange={(e) => setForm({ ...form, expectedAmount: e.target.value })} /></label>
+        <label className="flex flex-col gap-1 body-emphasis text-gray-700">ยอดนำฝากสลิปจริง<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="number" value={form.depositedAmount} onChange={(e) => setForm({ ...form, depositedAmount: e.target.value })} /></label>
+        <label className="flex flex-col gap-1 body-emphasis text-gray-700">เข้าบัญชีธนาคาร<select className="px-3 py-2 border border-gray-200 rounded-xl bg-white outline-none" value={form.bankAccountId} onChange={(e) => setForm({ ...form, bankAccountId: e.target.value })}><option value="">- เลือกบัญชีปลายทาง -</option>{data.bankAccounts.map((acc) => <option key={acc.id} value={acc.id}>{acc.bankShort} - {acc.accNo}</option>)}</select></label>
+        <label className="flex flex-col gap-1 body-emphasis text-gray-700">พนักงานผู้นำฝาก<select className="px-3 py-2 border border-gray-200 rounded-xl bg-white outline-none" value={form.depositedBy} onChange={(e) => setForm({ ...form, depositedBy: e.target.value })}><option value="">- เลือกรายชื่อ -</option>{data.employees.map((emp) => <option key={emp.id} value={emp.id}>{emp.nickname || emp.name}</option>)}</select></label>
 
-        <div className="sm:col-span-2 flex flex-col gap-1 font-medium text-gray-700">
+        <div className="sm:col-span-2 flex flex-col gap-1 body-emphasis text-gray-700">
           <span>อัปโหลดรูปภาพสลิปใบเสร็จ (เลือกได้หลายรูป)</span>
-          <input className="px-3 py-2 border border-gray-200 rounded-xl text-xs" type="file" accept="image/*" multiple onChange={async (e) => setNewSlipImages(await filesToDataUrls(e.target.files))} />
+          <input className="px-3 py-2 border border-gray-200 rounded-xl caption" type="file" accept="image/*" multiple onChange={async (e) => setNewSlipImages(await filesToDataUrls(e.target.files))} />
         </div>
-        <label className="sm:col-span-2 flex flex-col gap-1 font-medium text-gray-700">หรือระบุเป็นลิงก์ภาพ (Slip URL)<input className="px-3 py-2 border border-gray-200 rounded-xl text-xs" value={form.slipUrl} onChange={(e) => setForm({ ...form, slipUrl: e.target.value })} /></label>
+        <label className="sm:col-span-2 flex flex-col gap-1 body-emphasis text-gray-700">หรือระบุเป็นลิงก์ภาพ (Slip URL)<input className="px-3 py-2 border border-gray-200 rounded-xl caption" value={form.slipUrl} onChange={(e) => setForm({ ...form, slipUrl: e.target.value })} /></label>
         <div className="sm:col-span-2"><ImagePreviewGrid images={[...(deposit?.attachments || []), ...newSlipImages].filter(Boolean)} /></div>
-        <label className="sm:col-span-2 flex flex-col gap-1 font-medium text-gray-700">สถานะขั้นตอนตรวจสอบ<select className="px-3 py-2 border border-gray-200 rounded-xl bg-white" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+        <label className="sm:col-span-2 flex flex-col gap-1 body-emphasis text-gray-700">สถานะขั้นตอนตรวจสอบ<select className="px-3 py-2 border border-gray-200 rounded-xl bg-white" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
           <option value="waiting">รอฝากเงิน / กำลังเดินทาง</option>
           <option value="submitted">ส่งสลิปหลักฐานแล้ว</option>
           <option value="verified">ตรวจสอบสมบูรณ์ (ล็อกรายการ)</option>
@@ -511,7 +511,7 @@ export function AccountFormModal({ account, mode = 'create', onClose, onSaved, o
 
   if (readonly) {
     return (
-      <ModalFrame title="รายละเอียดช่องรับเงินระบบ" onClose={onClose} footer={<button className="px-4 py-2 text-sm font-semibold bg-gray-900 text-white rounded-xl" onClick={onClose}>ปิด</button>}>
+      <ModalFrame title="รายละเอียดช่องรับเงินระบบ" onClose={onClose} footer={<button className="px-4 py-2 body-strong bg-gray-900 text-white rounded-xl" onClick={onClose}>ปิด</button>}>
         <ViewRows rows={[
           ['สถาบันการเงิน', account.bank],
           ['ตัวย่อสากล', account.bankShort],
@@ -525,14 +525,14 @@ export function AccountFormModal({ account, mode = 'create', onClose, onSaved, o
   }
 
   return (
-    <ModalFrame title={account ? '✏️ แก้ไขข้อมูลบัญชีรับเงิน' : '➕ เพิ่มบัญชีรับเงินในระบบหลังบ้าน'} onClose={onClose} footer={<><button className="px-4 py-2 text-sm text-gray-500" onClick={onClose}>ยกเลิก</button><button className="px-4 py-2 text-sm font-bold bg-blue-600 text-white rounded-xl" onClick={save} disabled={saving}>บันทึกบัญชี</button></>}>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-        <label className="flex flex-col gap-1 font-medium text-gray-700">ชื่อธนาคารเต็ม<input className="px-3 py-2 border border-gray-200 rounded-xl" value={form.bankName} onChange={(e) => setForm({ ...form, bankName: e.target.value })} /></label>
-        <label className="flex flex-col gap-1 font-medium text-gray-700">รหัสย่อธนาคาร<input className="px-3 py-2 border border-gray-200 rounded-xl" value={form.bankShort} onChange={(e) => setForm({ ...form, bankShort: e.target.value })} /></label>
-        <label className="flex flex-col gap-1 font-medium text-gray-700">หมายเลขบัญชี<input className="px-3 py-2 border border-gray-200 rounded-xl" value={form.accountNo} onChange={(e) => setForm({ ...form, accountNo: e.target.value })} /></label>
-        <label className="flex flex-col gap-1 font-medium text-gray-700">ชื่อผู้ถือบัญชี<input className="px-3 py-2 border border-gray-200 rounded-xl" value={form.accountName} onChange={(e) => setForm({ ...form, accountName: e.target.value })} /></label>
-        <label className="flex flex-col gap-1 font-medium text-gray-700">ประเภทสมุดบัญชี<input className="px-3 py-2 border border-gray-200 rounded-xl" value={form.accountType} onChange={(e) => setForm({ ...form, accountType: e.target.value })} /></label>
-        <label className="flex flex-col gap-1 font-medium text-gray-700">ธีมสีสัญลักษณ์ธนาคาร<input className="w-full h-10 border border-gray-200 rounded-xl cursor-pointer p-1" type="color" value={form.colorCode} onChange={(e) => setForm({ ...form, colorCode: e.target.value })} /></label>
+    <ModalFrame title={account ? '✏️ แก้ไขข้อมูลบัญชีรับเงิน' : '➕ เพิ่มบัญชีรับเงินในระบบหลังบ้าน'} onClose={onClose} footer={<><button className="px-4 py-2 body-text text-gray-500" onClick={onClose}>ยกเลิก</button><button className="px-4 py-2 body-strong bg-blue-600 text-white rounded-xl" onClick={save} disabled={saving}>บันทึกบัญชี</button></>}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 body-text">
+        <label className="flex flex-col gap-1 body-emphasis text-gray-700">ชื่อธนาคารเต็ม<input className="px-3 py-2 border border-gray-200 rounded-xl" value={form.bankName} onChange={(e) => setForm({ ...form, bankName: e.target.value })} /></label>
+        <label className="flex flex-col gap-1 body-emphasis text-gray-700">รหัสย่อธนาคาร<input className="px-3 py-2 border border-gray-200 rounded-xl" value={form.bankShort} onChange={(e) => setForm({ ...form, bankShort: e.target.value })} /></label>
+        <label className="flex flex-col gap-1 body-emphasis text-gray-700">หมายเลขบัญชี<input className="px-3 py-2 border border-gray-200 rounded-xl" value={form.accountNo} onChange={(e) => setForm({ ...form, accountNo: e.target.value })} /></label>
+        <label className="flex flex-col gap-1 body-emphasis text-gray-700">ชื่อผู้ถือบัญชี<input className="px-3 py-2 border border-gray-200 rounded-xl" value={form.accountName} onChange={(e) => setForm({ ...form, accountName: e.target.value })} /></label>
+        <label className="flex flex-col gap-1 body-emphasis text-gray-700">ประเภทสมุดบัญชี<input className="px-3 py-2 border border-gray-200 rounded-xl" value={form.accountType} onChange={(e) => setForm({ ...form, accountType: e.target.value })} /></label>
+        <label className="flex flex-col gap-1 body-emphasis text-gray-700">ธีมสีสัญลักษณ์ธนาคาร<input className="w-full h-10 border border-gray-200 rounded-xl cursor-pointer p-1" type="color" value={form.colorCode} onChange={(e) => setForm({ ...form, colorCode: e.target.value })} /></label>
       </div>
     </ModalFrame>
   );

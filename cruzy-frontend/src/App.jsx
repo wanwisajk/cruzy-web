@@ -22,27 +22,19 @@ import AccessDashboard from './pages/AccessDashboard.jsx';
 
 const sessionKey = 'cruzyAdminSession';
 
+function currentMonthRange(date = new Date()) {
+  const firstDay = new Date(date.getFullYear(), date.getMonth(), 1);
+  const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+  return { from: fmtDate(firstDay), to: fmtDate(lastDay) };
+}
+
 export default function App() {
   const [user, setUser] = useState(null);
   const [data, setData] = useState(null);
   const [currentTab, setCurrentTab] = useState('schedule');
   const [currentBranch, setCurrentBranch] = useState('all');
-  const [from, setFrom] = useState(() => {
-    const today = new Date();
-    const dayOfWeek = today.getDay();
-    const firstDay = new Date(today);
-    firstDay.setDate(today.getDate() - ((dayOfWeek + 6) % 7));
-    return fmtDate(firstDay);
-  });
-  const [to, setTo] = useState(() => {
-    const today = new Date();
-    const dayOfWeek = today.getDay();
-    const firstDay = new Date(today);
-    firstDay.setDate(today.getDate() - ((dayOfWeek + 6) % 7));
-    const lastDay = new Date(firstDay);
-    lastDay.setDate(firstDay.getDate() + 6);
-    return fmtDate(lastDay);
-  });
+  const [from, setFrom] = useState(() => currentMonthRange().from);
+  const [to, setTo] = useState(() => currentMonthRange().to);
   const [booting, setBooting] = useState(true);
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState('');
@@ -55,17 +47,12 @@ export default function App() {
   }, []);
 
   async function loadData() {
-    const payload = await api.consoleData();
+    const range = currentMonthRange();
+    const payload = await api.consoleData(range);
     const hydrated = hydrateConsoleData(payload);
     setData(hydrated);
-    const today = new Date(hydrated.initialDate);
-    const dayOfWeek = today.getDay();
-    const firstDay = new Date(today);
-    firstDay.setDate(today.getDate() - ((dayOfWeek + 6) % 7));
-    const lastDay = new Date(firstDay);
-    lastDay.setDate(firstDay.getDate() + 6);
-    setFrom(fmtDate(firstDay));
-    setTo(fmtDate(lastDay));
+    setFrom(range.from);
+    setTo(range.to);
     return hydrated;
   }
 

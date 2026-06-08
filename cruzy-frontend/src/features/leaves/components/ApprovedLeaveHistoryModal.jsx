@@ -18,9 +18,9 @@ export function ApprovedLeaveHistoryModal({ open, onClose, employee }) {
           <button type="button" className="m-close" onClick={onClose}><X size={18} /></button>
         </div>
         <div className="m-body space-y-4">
-          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-            <div className="font-semibold">สรุป</div>
-            <div className="grid grid-cols-2 gap-3 text-sm text-slate-600 sm:grid-cols-4">
+          <div className="section-card-soft body-text text-slate-700">
+            <div className="body-strong">สรุป</div>
+            <div className="grid grid-cols-2 gap-3 body-text text-slate-600 sm:grid-cols-4">
               <div>ประจำปี: {employee.summary.annualUsed}/{employee.summary.annualQuota}</div>
               <div>พักร้อน: {employee.summary.vacationUsed}/{employee.summary.vacationQuota}</div>
               <div>ป่วย: {employee.summary.sickUsed}</div>
@@ -29,7 +29,7 @@ export function ApprovedLeaveHistoryModal({ open, onClose, employee }) {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="min-w-full border-collapse text-sm">
+            <table className="min-w-full border-collapse body-text">
               <thead>
                 <tr>
                   <th className="px-4 py-3 text-left">ประเภทการลา</th>
@@ -57,26 +57,26 @@ export function ApprovedLeaveHistoryModal({ open, onClose, employee }) {
             const imageAttachments = (leave.attachments || []).filter(isImageFile);
             const otherAttachments = (leave.attachments || []).filter((file) => !isImageFile(file));
             return (
-              <div key={leave.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div key={leave.id} className="section-card-sm shadow-sm">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <div className="text-sm text-slate-500">คำขอ #{leave.id}</div>
-                    <div className="font-semibold">{leave.leave_type}</div>
+                    <div className="body-text text-slate-500">คำขอ #{leave.id}</div>
+                    <div className="body-strong">{leave.leave_type}</div>
                   </div>
-                  <div className="text-sm text-slate-500">{leave.start_date} - {leave.end_date} ({leave.days_count} วัน)</div>
+                  <div className="body-text text-slate-500">{leave.start_date} - {leave.end_date} ({leave.days_count} วัน)</div>
                 </div>
-                <div className="mt-3 text-sm text-slate-700">
-                  <div className="font-semibold">เหตุผล</div>
+                <div className="mt-3 body-text text-slate-700">
+                  <div className="body-strong">เหตุผล</div>
                   <div>{leave.reason || '-'}</div>
                 </div>
                 {(imageAttachments.length > 0 || otherAttachments.length > 0) && (
                   <div className="mt-4 space-y-3">
                     {imageAttachments.length > 0 && (
                       <div>
-                        <div className="font-semibold text-sm text-slate-700">ภาพแนบ</div>
+                        <div className="body-strong text-slate-700">ภาพแนบ</div>
                         <div className="grid gap-2 sm:grid-cols-2 mt-2">
                           {imageAttachments.map((file) => (
-                            <div key={file.id || file.fileUrl} className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
+                            <div key={file.id || file.fileUrl} className="overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
                               <img src={file.fileUrl} alt="attachment" className="h-36 w-full object-cover" />
                             </div>
                           ))}
@@ -85,11 +85,11 @@ export function ApprovedLeaveHistoryModal({ open, onClose, employee }) {
                     )}
                     {otherAttachments.length > 0 && (
                       <div>
-                        <div className="font-semibold text-sm text-slate-700">ไฟล์แนบ</div>
+                        <div className="body-strong text-slate-700">ไฟล์แนบ</div>
                         <div className="grid gap-2 sm:grid-cols-2 mt-2">
                           {otherAttachments.map((file) => (
-                            <a key={file.id || file.fileUrl} href={file.fileUrl} target="_blank" rel="noreferrer" className="group overflow-hidden rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-700 transition hover:border-cruzy hover:bg-slate-50">
-                              <div className="font-medium">ดูไฟล์</div>
+                            <a key={file.id || file.fileUrl} href={file.fileUrl} target="_blank" rel="noreferrer" className="group overflow-hidden rounded-xl border border-slate-200 bg-white p-3 caption text-slate-700 transition hover:border-cruzy hover:bg-slate-50">
+                              <div className="body-emphasis">ดูไฟล์</div>
                               <div className="mt-1 text-slate-500">{file.fileName || file.fileUrl}</div>
                             </a>
                           ))}
@@ -106,3 +106,4 @@ export function ApprovedLeaveHistoryModal({ open, onClose, employee }) {
     </div>
   );
 }
+

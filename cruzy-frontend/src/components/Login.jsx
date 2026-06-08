@@ -11,7 +11,7 @@ export function Login({ onLogin, loading, error }) {
   return (
     <div className="login-overlay">
       <form onSubmit={handleSubmit} className="login-box">
-        <div className="logo mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-cruzy-50 text-cruzy">
+        <div className="logo mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-xl bg-cruzy-50 text-cruzy">
           <Building2 size={34} />
         </div>
         <h1>Cruzy Admin</h1>
@@ -37,3 +37,4 @@ export function Login({ onLogin, loading, error }) {
     </div>
   );
 }
+

@@ -7,7 +7,7 @@ import { accessMutations } from "../features/access/services/accessService.js";
 import { Content, Table } from "../components/ui/Layout";
 
 export default function AccessDashboard({ user, fallbackData }) {
-  const { accessData, loading, error, refreshAccessData } = useAccess();
+  const { accessData, loading, error, refreshAccessData } = useAccess(fallbackData);
   const [showUserModal, setShowUserModal] = useState(false);
   const [modalMode, setModalMode] = useState("create");
   const [saving, setSaving] = useState(false);
@@ -180,7 +180,7 @@ export default function AccessDashboard({ user, fallbackData }) {
   };
 
   return (
-    <div className="flex flex-col h-full w-full px-4 py-6 rounded-lg">
+    <div className="app-page page-body flex flex-col h-full w-full rounded-lg">
       <Content
         title="สิทธิ์"
         icon={Shield}
@@ -189,7 +189,7 @@ export default function AccessDashboard({ user, fallbackData }) {
           canManage ? (
             <button
               type="button"
-              className="btn btn-primary text-xs px-3 py-1.5 rounded-lg"
+              className="btn btn-primary"
               onClick={openCreateModal}
             >
               + เพิ่มผู้ใช้งาน
@@ -200,18 +200,18 @@ export default function AccessDashboard({ user, fallbackData }) {
         {/* Stats */}
         {/* <div className="flex gap-4 mb-4">
         <div className="card px-4 py-3 text-center min-w-[90px]">
-          <div className="text-xl font-bold text-cruzy">{users.length}</div>
-          <div className="text-xs text-slate-500">ผู้ใช้งาน</div>
+          <div className="heading-2 text-cruzy">{users.length}</div>
+          <div className="caption text-slate-500">ผู้ใช้งาน</div>
         </div>
         <div className="card px-4 py-3 text-center min-w-[90px]">
-          <div className="text-xl font-bold text-cruzy">
+          <div className="heading-2 text-cruzy">
             {lineGroups.length}
           </div>
-          <div className="text-xs text-slate-500">กลุ่ม Line</div>
+          <div className="caption text-slate-500">กลุ่ม Line</div>
         </div>
         <div className="card px-4 py-3 text-center min-w-[90px]">
-          <div className="text-xl font-bold text-cruzy">{branches.length}</div>
-          <div className="text-xs text-slate-500">สาขา</div>
+          <div className="heading-2 text-cruzy">{branches.length}</div>
+          <div className="caption text-slate-500">สาขา</div>
         </div>
       </div> */}
 
@@ -251,7 +251,7 @@ export default function AccessDashboard({ user, fallbackData }) {
           }
         >
           <div className="grid gap-4">
-            <div className="grid gap-2 text-sm">
+            <div className="grid gap-2 body-text">
               <label className="space-y-2">
                 <span>Username</span>
                 <input
@@ -276,7 +276,7 @@ export default function AccessDashboard({ user, fallbackData }) {
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <label className="space-y-2 text-sm">
+              <label className="space-y-2 body-text">
                 <span>สิทธิ์</span>
                 <select
                   className="input"
@@ -304,7 +304,7 @@ export default function AccessDashboard({ user, fallbackData }) {
             </div>
 
             {form.role !== "owner" && (
-              <label className="space-y-2 text-sm">
+              <label className="space-y-2 body-text">
                 <span>
                   {form.role === "branch" ? "เลือกสาขา" : "เลือกจังหวัด"}
                 </span>
@@ -327,7 +327,7 @@ export default function AccessDashboard({ user, fallbackData }) {
               </label>
             )}
 
-            <label className="space-y-2 text-sm">
+            <label className="space-y-2 body-text">
               <span>
                 {modalMode === "create" ? "รหัสผ่าน" : "รหัสผ่านใหม่ (ถ้ามี)"}
               </span>
@@ -342,7 +342,7 @@ export default function AccessDashboard({ user, fallbackData }) {
                     : "ปล่อยว่างหากไม่เปลี่ยน"
                 }
               />
-              <p className="text-xs text-slate-500">
+              <p className="caption text-slate-500">
                 {modalMode === "create"
                   ? "ตั้งรหัสผ่านเริ่มต้นสำหรับผู้ใช้งานใหม่"
                   : "กรอกเฉพาะถ้าต้องการเปลี่ยนรหัสผ่าน"}
@@ -358,13 +358,11 @@ export default function AccessDashboard({ user, fallbackData }) {
           </div>
         ) : (
           <div className="flex flex-col gap-4">
-            {/* ตาราง */}
-            <div className="card overflow-hidden rounded-lg border border-slate-200 bg-white">
+            <div className="table-shell overflow-hidden">
               <Table headers={tableHeaders}>
                 {users.map((item) => (
-                  <tr key={item.username}
-                  className="bg-white hover:bg-white">
-                    <td className="px-3 py-2 font-bold">{item.username}</td>
+                  <tr key={item.username}>
+                    <td className="px-3 py-2 body-strong">{item.username}</td>
                     <td className="px-3 py-2">{item.name}</td>
                     <td className="px-3 py-2">
                       <Badge tone={item.role === "owner" ? "green" : "blue"}>
@@ -377,7 +375,7 @@ export default function AccessDashboard({ user, fallbackData }) {
                         <button
                           type="button"
                           onClick={() => openEditModal(item)}
-                          className="mr-2 text-xs px-2 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100 hover:text-emerald-800"
+                          className="btn btn-success btn-sm mr-2"
                         >
                           แก้ไข
                         </button>
@@ -393,7 +391,7 @@ export default function AccessDashboard({ user, fallbackData }) {
                               alert(err.message || err);
                             }
                           }}
-                          className="text-xs px-2 py-1 rounded bg-red-50 text-red-700 border border-red-100 hover:bg-red-100 hover:text-red-800"
+                          className="btn btn-danger btn-sm"
                         >
                           ลบ
                         </button>
@@ -408,10 +406,10 @@ export default function AccessDashboard({ user, fallbackData }) {
             <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
               {lineGroups.map((group) => (
                 <div key={group.name} className="card p-4">
-                  <div className="text-sm font-bold text-cruzy">
+                  <div className="body-strong text-cruzy">
                     {group.name}
                   </div>
-                  <div className="mt-2 text-xs text-slate-500">
+                  <div className="mt-2 caption text-slate-500">
                     {group.branches.length} สาขา · {group.members.length} สมาชิก
                   </div>
                 </div>

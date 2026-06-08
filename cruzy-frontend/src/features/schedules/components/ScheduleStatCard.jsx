@@ -9,8 +9,8 @@ export function ScheduleStatCard({ label, value, accent }) {
 
   return (
     <div className={`rounded-xl border border-gray-100 border-l-4 bg-white px-4 py-3 shadow-sm ${border}`}>
-      <p className="mb-1 text-xs text-gray-400">{label}</p>
-      <p className="text-xl font-bold leading-none text-gray-800">{value}</p>
+      <p className="mb-1 caption text-gray-400">{label}</p>
+      <p className="heading-2 leading-none text-gray-800">{value}</p>
     </div>
   );
 }
