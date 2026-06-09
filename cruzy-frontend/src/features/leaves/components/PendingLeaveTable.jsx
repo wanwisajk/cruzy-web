@@ -28,7 +28,7 @@ export function PendingLeaveTable({
               <th className="px-4 py-3 text-left">จำนวนวัน</th>
               <th className="px-4 py-3 text-left">เหตุผล</th>
               <th className="px-4 py-3 text-left">สถานะ</th>
-              <th className="px-4 py-3 text-center">จัดการ</th>
+              <th className="px-4 py-3 text-left">จัดการ</th>
             </tr>
           </thead>
           <tbody>
@@ -63,7 +63,7 @@ export function PendingLeaveTable({
                     <td className="px-4 py-3">
                       <Badge status="pending">Pending</Badge>
                     </td>
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-4 py-3 text-left">
                       <div className="action-cluster">
                       {onEdit ? (
                         <button

@@ -46,8 +46,7 @@ export default function App() {
     bootFromSession();
   }, []);
 
-  async function loadData() {
-    const range = currentMonthRange();
+  async function loadData(range = currentMonthRange()) {
     const payload = await api.consoleData(range);
     const hydrated = hydrateConsoleData(payload);
     setData(hydrated);

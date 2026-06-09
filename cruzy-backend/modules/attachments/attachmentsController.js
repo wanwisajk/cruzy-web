@@ -9,7 +9,11 @@ function safeFileName(name = 'document.pdf') {
     .replace(/[^\w.\-]+/g, '_')
     .replace(/_+/g, '_')
     .slice(0, 120);
-  return cleaned.toLowerCase().endsWith('.pdf') ? cleaned : `${cleaned || 'document'}.pdf`;
+  const lower = cleaned.toLowerCase();
+  if (lower.endsWith('.pdf') || lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
+    return cleaned;
+  }
+  return `${cleaned || 'document'}.pdf`;
 }
 
 function cleanAttachmentPayload(body) {
@@ -21,12 +25,29 @@ function cleanAttachmentPayload(body) {
 }
 
 function parseDataUrl(dataUrl) {
-  const match = String(dataUrl || '').match(/^data:([^;]+);base64,(.+)$/);
-  if (!match) return null;
-  return {
-    contentType: match[1],
-    buffer: Buffer.from(match[2], 'base64')
-  };
+  if (!dataUrl) {
+    console.log('[parseDataUrl] No dataUrl provided');
+    return null;
+  }
+  const dataUrlStr = String(dataUrl || '');
+  console.log('[parseDataUrl] Input length:', dataUrlStr.length, 'First 100 chars:', dataUrlStr.slice(0, 100));
+  const match = dataUrlStr.match(/^data:([^;]+);base64,(.+)$/);
+  if (!match) {
+    console.log('[parseDataUrl] No match found');
+    return null;
+  }
+  console.log('[parseDataUrl] ContentType:', match[1], 'DataLength:', match[2].length);
+  try {
+    const buffer = Buffer.from(match[2], 'base64');
+    console.log('[parseDataUrl] Buffer created, size:', buffer.length);
+    return {
+      contentType: match[1],
+      buffer
+    };
+  } catch (err) {
+    console.log('[parseDataUrl] Buffer creation error:', err.message);
+    return null;
+  }
 }
 
 exports.listAttachments = async (req, res) => {
@@ -88,39 +109,73 @@ exports.uploadAttachment = async (req, res) => {
   try {
     const entityType = req.body.entityType || req.body.entity_type;
     const entityId = parseInteger(req.body.entityId ?? req.body.entity_id);
-    const file = parseDataUrl(req.body.fileData || req.body.file_data);
-    const fileName = safeFileName(req.body.fileName || req.body.file_name);
+    const fileData = req.body.fileData || req.body.file_data;
+    let fileName = req.body.fileName || req.body.file_name;
+    
+    console.log('[uploadAttachment] Initial values:', { entityType, entityId, fileDataExists: !!fileData, fileName });
+    
+    // Ensure we have a filename
+    if (!fileName) {
+      const contentType = fileData?.split(';')[0]?.split(':')[1] || 'image/jpeg';
+      const ext = contentType === 'image/png' ? '.png' : contentType === 'application/pdf' ? '.pdf' : '.jpg';
+      fileName = `upload_${Date.now()}${ext}`;
+      console.log('[uploadAttachment] Generated filename:', fileName);
+    }
+    
+    const file = parseDataUrl(fileData);
 
     if (!entityType || entityId === null || !file) {
+      console.log('[uploadAttachment] Validation failed:', { entityType, entityId, fileExists: !!file });
       return res.status(400).json({ message: 'ข้อมูลไฟล์แนบไม่ครบถ้วน' });
     }
-    if (file.contentType !== 'application/pdf') {
-      return res.status(400).json({ message: 'รองรับเฉพาะไฟล์ PDF เท่านั้น' });
+    
+    const validTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
+    if (!validTypes.includes(file.contentType)) {
+      console.log('[uploadAttachment] Invalid content type:', file.contentType);
+      return res.status(400).json({ message: 'รองรับเฉพาะไฟล์ PDF, PNG, และ JPEG เท่านั้น' });
     }
 
-    const storagePath = `${entityType}/${entityId}/${Date.now()}_${fileName}`;
-    const { error: uploadError } = await supabase.storage
-      .from(DOCUMENTS_BUCKET)
-      .upload(storagePath, file.buffer, {
-        contentType: file.contentType,
-        upsert: false
-      });
-    if (uploadError) throw uploadError;
+    const safeFileName_result = safeFileName(fileName);
+    const storagePath = `${entityType}/${entityId}/${Date.now()}_${safeFileName_result}`;
+    console.log('[uploadAttachment] Uploading:', { storagePath, bufferSize: file.buffer.length, contentType: file.contentType });
+    
+const { error: uploadError } = await supabase.storage
+  .from(DOCUMENTS_BUCKET)
+  .upload(storagePath, file.buffer, {
+    contentType: file.contentType,
+    cacheControl: '3600',
+    upsert: false
+  });
+    
+    if (uploadError) {
+      console.log('[uploadAttachment] Supabase upload error:', uploadError);
+      throw uploadError;
+    }
 
     const { data: publicData } = supabase.storage.from(DOCUMENTS_BUCKET).getPublicUrl(storagePath);
+    console.log('[uploadAttachment] Got public URL:', publicData.publicUrl);
+    
     const payload = {
       entity_type: entityType,
       entity_id: entityId,
       file_url: publicData.publicUrl,
       storage_bucket: DOCUMENTS_BUCKET,
       storage_path: storagePath,
-      file_name: fileName,
+      file_name: safeFileName_result,
       file_type: file.contentType,
       file_size: file.buffer.length
     };
+    
+    console.log('[uploadAttachment] Inserting to DB:', { entity_type: payload.entity_type, entity_id: payload.entity_id });
+    
     const { data, error } = await supabase.from(TABLES.attachments).insert([payload]).select().single();
-    if (error) throw error;
+    if (error) {
+      console.log('[uploadAttachment] Database error:', error);
+      throw error;
+    }
 
+    console.log('[uploadAttachment] Success! ID:', data.id);
+    
     res.status(201).json({
       message: 'อัปโหลดไฟล์สำเร็จ',
       data: {
@@ -130,6 +185,7 @@ exports.uploadAttachment = async (req, res) => {
       }
     });
   } catch (error) {
+    console.log('[uploadAttachment] Final error:', error.message || error);
     sendError(res, error, 'ไม่สามารถอัปโหลดไฟล์ได้');
   }
 };

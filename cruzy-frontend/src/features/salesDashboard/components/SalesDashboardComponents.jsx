@@ -239,6 +239,17 @@ export function SalesEditorModal({ data, sale, mode, onClose, onSaved, onUpsert 
   });
   const [newImages, setNewImages] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [newImageFiles, setNewImageFiles] = useState([]);
+
+  async function filesToDataUrls(fileList) {
+    const files = Array.from(fileList || []).filter((file) => file.type.startsWith('image/'));
+    setNewImageFiles(files);
+    return Promise.all(files.map((file) => new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.readAsDataURL(file);
+    })));
+  }
 
   function update(field, value) {
     const next = { ...form, [field]: value };
@@ -246,16 +257,6 @@ export function SalesEditorModal({ data, sale, mode, onClose, onSaved, onUpsert 
       next.totalAmount = Number(next.cashAmount || 0) + Number(next.transferAmount || 0) + Number(next.qrAmount || 0) + Number(next.creditAmount || 0);
     }
     setForm(next);
-  }
-
-  async function filesToDataUrls(fileList) {
-    const files = Array.from(fileList || []).filter((file) => file.type.startsWith('image/'));
-    return Promise.all(files.map((file) => new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    })));
   }
 
   async function save() {
@@ -278,13 +279,35 @@ export function SalesEditorModal({ data, sale, mode, onClose, onSaved, onUpsert 
       const result = sale ? await salesDashboardService.updateSale(sale.id, payload) : await salesDashboardService.createSale(payload);
       const saved = normalizeSaleLocal(result.data);
 
-      if (newImages.length) {
-        const created = await salesDashboardService.createAttachments(newImages.map((fileUrl) => ({
-          entityType: 'sale', entityId: saved.id, fileUrl
-        })));
-        saved.attachments = [...(sale?.attachments || []), ...(created.data || []).map((r) => ({
-          id: String(r.id), entityType: r.entity_type || r.entityType, entityId: String(r.entity_id || r.entityId), fileUrl: r.file_url || r.fileUrl
-        }))];
+      if (newImageFiles.length) {
+        const uploadedAttachments = await Promise.all(
+          newImageFiles.map((file) => {
+            return new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = async () => {
+                try {
+                  const uploaded = await salesDashboardService.uploadAttachment({
+                    entityType: 'sale',
+                    entityId: saved.id,
+                    fileData: reader.result,
+                    fileName: file.name
+                  });
+                  resolve({
+                    id: String(uploaded.data.id),
+                    entityType: uploaded.data.entity_type || uploaded.data.entityType,
+                    entityId: String(uploaded.data.entity_id || uploaded.data.entityId),
+                    fileUrl: uploaded.data.file_url || uploaded.data.fileUrl
+                  });
+                } catch (err) {
+                  reject(err);
+                }
+              };
+              reader.onerror = reject;
+              reader.readAsDataURL(file);
+            });
+          })
+        );
+        saved.attachments = [...(sale?.attachments || []), ...uploadedAttachments];
       } else {
         saved.attachments = sale?.attachments || saved.attachments || [];
       }

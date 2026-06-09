@@ -43,7 +43,7 @@ export default function AllAlertsPage({ alerts, onAssign, onClose }) {
       {/* Body */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {/* Summary cards */}
-        <div className="grid grid-cols-3 gap-3">
+        {/* <div className="grid grid-cols-3 gap-3">
           {[
             {
               label: "การแจ้งเตือน",
@@ -71,7 +71,7 @@ export default function AllAlertsPage({ alerts, onAssign, onClose }) {
               <div className="caption text-gray-400 mt-1">{label}</div>
             </div>
           ))}
-        </div>
+        </div> */}
 
         {/* Filter chips */}
         <div className="flex items-center gap-2 flex-wrap">

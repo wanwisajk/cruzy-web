@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, Eye, Pencil, Check, Lock, Unlock, FileText, AlertCircle, Wallet, CreditCard, Landmark, User } from 'lucide-react';
 import { salesDashboardService } from '../features/salesDashboard/services/salesDashboardService';
 import {
@@ -32,7 +32,7 @@ function getMonthRange() {
   };
 }
 
-export default function SaleDashboard({ data, user, currentBranch, from, to }) {
+export default function SaleDashboard({ data, user, currentBranch, from, to, onRefreshData }) {
   const [activeTab, setActiveTab] = useState('sales');
   const [sales, setSales] = useState(data.sales);
   const [deposits, setDeposits] = useState(data.deposits);
@@ -44,6 +44,8 @@ export default function SaleDashboard({ data, user, currentBranch, from, to }) {
   const [showAccountForm, setShowAccountForm] = useState(false);
   const [editor, setEditor] = useState(null);
   const [toast, setToast] = useState(null);
+  const [lastRefreshed, setLastRefreshed] = useState(new Date());
+  const refreshRef = useRef(() => onRefreshData({ from: filterFrom, to: filterTo }));
 
   useEffect(() => {
     setSales(data.sales);
@@ -58,6 +60,23 @@ export default function SaleDashboard({ data, user, currentBranch, from, to }) {
     }
   }, [from, to]);
 
+  useEffect(() => {
+    refreshRef.current = () => onRefreshData({ from: filterFrom, to: filterTo });
+  }, [onRefreshData, filterFrom, filterTo]);
+
+  useEffect(() => {
+    const interval = window.setInterval(async () => {
+      try {
+        await refreshRef.current();
+        setLastRefreshed(new Date());
+      } catch (error) {
+        console.error('Sales auto-refresh failed:', error);
+      }
+    }, 30000);
+
+    return () => window.clearInterval(interval);
+  }, []);
+
   const localData = useMemo(() => ({ ...data, sales, deposits, bankAccounts }), [data, sales, deposits, bankAccounts]);
   const visibleSales = useMemo(() => filteredSales(localData, user, currentBranch, filterFrom, filterTo), [localData, user, currentBranch, filterFrom, filterTo]);
   const visibleDeposits = useMemo(() => filteredDeposits(localData, user, currentBranch, filterFrom, filterTo), [localData, user, currentBranch, filterFrom, filterTo]);
@@ -65,6 +84,17 @@ export default function SaleDashboard({ data, user, currentBranch, from, to }) {
   function flash(message, type = 'ok') {
     setToast({ message, type });
     window.setTimeout(() => setToast(null), 2600);
+  }
+
+  async function refreshSales() {
+    try {
+      await refreshRef.current();
+      setLastRefreshed(new Date());
+      flash('รีเฟรชข้อมูลยอดขายแล้ว');
+    } catch (error) {
+      console.error('Manual sales refresh failed:', error);
+      flash(error.message || 'รีเฟรชข้อมูลไม่สำเร็จ', 'err');
+    }
   }
 
   async function confirmSale(sale) {
@@ -132,6 +162,11 @@ export default function SaleDashboard({ data, user, currentBranch, from, to }) {
           <StatCard value={`฿${money(totalCredit)}`} label="บัตรเครดิต" tone="orange" icon={CreditCard} />
         </div>
 
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="caption text-slate-500">อัปเดตล่าสุด {new Date(lastRefreshed).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</div>
+          <button className="btn btn-secondary btn-sm" onClick={refreshSales}>รีเฟรชยอดขาย</button>
+        </div>
+
         <div className="flex flex-wrap gap-2">
           <span className="summary-pill badge pending">รอยืนยันยอด {visibleSales.filter((s) => s.status === 'draft').length} รายการ</span>
           <span className="summary-pill badge info">มีประวัติแก้ไข {visibleSales.filter((s) => s.status === 'edited' || s.editLog?.length).length} รายการ</span>
@@ -163,7 +198,7 @@ export default function SaleDashboard({ data, user, currentBranch, from, to }) {
                       <div><div>บัตร</div><div className="text-gray-900">฿{money(rows.reduce((s, r) => s + r.credit, 0))}</div></div>
                     </div>
                     <div className="flex items-center justify-between caption text-gray-400 border-t border-gray-100 pt-2">
-                      <div className="flex items-center gap-1"><User size={10} /><span className="truncate max-w-[80px]">{latest.submittedBy || '—'}</span></div>
+                      <div className="flex items-center gap-1"><User size={10} /><span className="truncate max-w-20">{latest.submittedBy || '—'}</span></div>
                       <div className="action-cluster">
                         <button className="icon-action" onClick={() => setEditor({ type: 'sale', mode: 'view', item: latest })}><Eye size={12} /></button>
                         <button className="icon-action info" onClick={() => setEditor({ type: 'sale', mode: 'edit', item: latest })}><Pencil size={12} /></button>

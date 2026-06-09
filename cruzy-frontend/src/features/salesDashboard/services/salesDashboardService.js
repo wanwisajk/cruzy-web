@@ -8,5 +8,6 @@ export const salesDashboardService = {
   updateCashDeposit: (id, body) => api.updateCashDeposit(id, body),
   createBankAccount: (body) => api.createBankAccount(body),
   updateBankAccount: (id, body) => api.updateBankAccount(id, body),
-  createAttachments: (attachments) => api.createAttachments(attachments)
+  createAttachments: (attachments) => api.createAttachments(attachments),
+  uploadAttachment: (body) => api.uploadAttachment(body)
 };

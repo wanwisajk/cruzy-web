@@ -128,6 +128,17 @@ exports.createBranch = async (req, res) => {
     res.status(201).json({ message: 'เพิ่มสาขาสำเร็จ', data: branchResponse });
   } catch (error) {
     console.error('createBranch failed:', error);
+
+    if (
+      error &&
+      (
+        error.code === '23505' ||
+        String(error.message || '').toLowerCase().includes('duplicate key value')
+      )
+    ) {
+      return res.status(409).json({ message: 'รหัสสาขาซ้ำ' });
+    }
+
     sendError(res, error, 'ไม่สามารถเพิ่มสาขาได้');
   }
 };
@@ -163,6 +174,17 @@ exports.updateBranch = async (req, res) => {
     res.json({ message: 'อัปเดตสาขาสำเร็จ', data: branchResponse });
   } catch (error) {
     console.error('updateBranch failed:', error);
+
+    if (
+      error &&
+      (
+        error.code === '23505' ||
+        String(error.message || '').toLowerCase().includes('duplicate key value')
+      )
+    ) {
+      return res.status(409).json({ message: 'รหัสสาขาซ้ำ' });
+    }
+
     sendError(res, error, 'ไม่สามารถอัปเดตสาขาได้');
   }
 };

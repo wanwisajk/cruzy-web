@@ -1,22 +1,66 @@
-import { useState } from 'react';
-import { DAYS, DAY_LABELS, EMPTY_BRANCH } from '../hooks/useBranches';
+import { useState } from "react";
+import { formatDbTime } from "../../../lib/date";
+import { DAYS, DAY_LABELS, EMPTY_BRANCH } from "../hooks/useBranches";
 
-const steps = ['ข้อมูลสาขา', 'จำนวนพนักงาน', 'เวลาทำการ'];
+const steps = ["ข้อมูลสาขา", "จำนวนพนักงาน", "เวลาทำการ"];
 const presets = [
-  { label: '09:00–21:00', open: '09:00', close: '21:00' },
-  { label: '10:00–21:00', open: '10:00', close: '21:00' },
-  { label: '10:00–22:00', open: '10:00', close: '22:00' }
+  { label: "09:00–21:00", open: "09:00", close: "21:00" },
+  { label: "10:00–21:00", open: "10:00", close: "21:00" },
+  { label: "10:00–22:00", open: "10:00", close: "22:00" },
 ];
-const sameId = (left, right) => String(left ?? '') === String(right ?? '');
+const sameId = (left, right) => String(left ?? "") === String(right ?? "");
+
+const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
+const MINUTES = ["00", "15", "30", "45"];
+
+function TimeSelect({ value, onChange, className }) {
+  const safe = formatDbTime(value) || "10:00";
+  const [h, m] = safe.split(":");
+  return (
+    <div
+      className={`flex items-center justify-center gap-0.5 ${className ?? ""}`}
+    >
+      <select
+        value={h}
+        onChange={(e) => onChange(`${e.target.value}:${m}`)}
+        className="caption border border-slate-200 rounded-lg px-1 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition bg-white"
+      >
+        {HOURS.map((hh) => (
+          <option key={hh} value={hh}>
+            {hh}
+          </option>
+        ))}
+      </select>
+      <span className="caption text-slate-400 select-none">:</span>
+      <select
+        value={m}
+        onChange={(e) => onChange(`${h}:${e.target.value}`)}
+        className="caption border border-slate-200 rounded-lg px-1 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition bg-white"
+      >
+        {MINUTES.map((mm) => (
+          <option key={mm} value={mm}>
+            {mm}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
 
 export function BranchModal({ branch, regions, onClose, onSave }) {
-  const [form, setForm] = useState(() => branch ? { ...branch } : { ...EMPTY_BRANCH });
+  const [form, setForm] = useState(() =>
+    branch ? { ...branch } : { ...EMPTY_BRANCH },
+  );
   const [step, setStep] = useState(0);
   const isNew = !branch;
   const valid = form.name.trim() && form.code.trim() && form.region_id;
 
   const set = (key, val) => setForm((current) => ({ ...current, [key]: val }));
-  const setHour = (type, day, val) => setForm((current) => ({ ...current, [type]: { ...current[type], [day]: val } }));
+  const setHour = (type, day, val) =>
+    setForm((current) => ({
+      ...current,
+      [type]: { ...current[type], [day]: val },
+    }));
   const applyPreset = (preset) => {
     const hours = {};
     const hoursEnd = {};
@@ -33,10 +77,25 @@ export function BranchModal({ branch, regions, onClose, onSave }) {
         <div className="px-6 pt-6 pb-4 border-b border-slate-100 flex-shrink-0">
           <div className="flex items-center justify-between mb-4">
             <h2 className="heading-3 text-slate-800">
-              {isNew ? 'เพิ่มสาขาใหม่' : `แก้ไข ${form.code}`}
+              {isNew ? "เพิ่มสาขาใหม่" : `แก้ไข ${form.code}`}
             </h2>
-            <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
             </button>
           </div>
           <div className="flex gap-1">
@@ -44,7 +103,7 @@ export function BranchModal({ branch, regions, onClose, onSave }) {
               <button
                 key={label}
                 onClick={() => setStep(index)}
-                className={`flex-1 py-1.5 rounded-xl caption-strong transition-colors ${step === index ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                className={`flex-1 py-1.5 rounded-xl caption-strong transition-colors ${step === index ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"}`}
               >
                 {label}
               </button>
@@ -53,29 +112,51 @@ export function BranchModal({ branch, regions, onClose, onSave }) {
         </div>
 
         <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
-          {step === 0 ? <BranchIdentityStep form={form} regions={regions} set={set} /> : null}
+          {step === 0 ? (
+            <BranchIdentityStep form={form} regions={regions} set={set} />
+          ) : null}
           {step === 1 ? <BranchStaffStep form={form} set={set} /> : null}
-          {step === 2 ? <BranchHoursStep form={form} setHour={setHour} applyPreset={applyPreset} /> : null}
+          {step === 2 ? (
+            <BranchHoursStep
+              form={form}
+              setHour={setHour}
+              applyPreset={applyPreset}
+            />
+          ) : null}
         </div>
 
         <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between flex-shrink-0 bg-white">
           <div>
             {step > 0 ? (
-              <button onClick={() => setStep((current) => current - 1)} className="px-4 py-2 rounded-xl border border-slate-200 body-text text-slate-600 hover:bg-slate-50 transition-colors body-emphasis">
+              <button
+                onClick={() => setStep((current) => current - 1)}
+                className="px-4 py-2 rounded-xl border border-slate-200 body-text text-slate-600 hover:bg-slate-50 transition-colors body-emphasis"
+              >
                 ก่อนหน้า
               </button>
             ) : null}
           </div>
           <div className="flex gap-2">
-            <button onClick={onClose} className="px-4 py-2 rounded-xl body-text text-slate-500 hover:bg-slate-100 transition-colors">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl body-text text-slate-500 hover:bg-slate-100 transition-colors"
+            >
               ยกเลิก
             </button>
             {step < 2 ? (
-              <button onClick={() => setStep((current) => current + 1)} disabled={step === 0 && !valid} className="px-5 py-2 rounded-xl bg-emerald-600 text-white body-strong hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              <button
+                onClick={() => setStep((current) => current + 1)}
+                disabled={step === 0 && !valid}
+                className="px-5 py-2 rounded-xl bg-emerald-600 text-white body-strong hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
                 ถัดไป
               </button>
             ) : (
-              <button onClick={() => onSave(form)} disabled={!valid} className="px-5 py-2 rounded-xl bg-emerald-600 text-white body-strong hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              <button
+                onClick={() => onSave(form)}
+                disabled={!valid}
+                className="px-5 py-2 rounded-xl bg-emerald-600 text-white body-strong hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
                 บันทึก
               </button>
             )}
@@ -91,18 +172,45 @@ function BranchIdentityStep({ form, regions, set }) {
     <>
       <div className="grid grid-cols-2 gap-3">
         <div className="col-span-2">
-          <label className="block caption-strong text-slate-500 mb-1.5">ชื่อสาขา <span className="text-red-400">*</span></label>
-          <input value={form.name} onChange={(event) => set('name', event.target.value)} placeholder="เช่น Central Chiang Rai" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 body-text focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition" />
+          <label className="block caption-strong text-slate-500 mb-1.5">
+            ชื่อสาขา <span className="text-red-400">*</span>
+          </label>
+          <input
+            value={form.name}
+            onChange={(event) => set("name", event.target.value)}
+            placeholder="เช่น Central Chiang Rai"
+            className="w-full border border-slate-200 rounded-xl px-3 py-2.5 body-text focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition"
+          />
         </div>
         <div>
-          <label className="block caption-strong text-slate-500 mb-1.5">รหัสสาขา <span className="text-red-400">*</span></label>
-          <input value={form.code} onChange={(event) => set('code', event.target.value.toUpperCase().slice(0, 4))} placeholder="CCR" maxLength={4} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 body-text font-mono body-strong tracking-widest focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition" />
+          <label className="block caption-strong text-slate-500 mb-1.5">
+            รหัสสาขา <span className="text-red-400">*</span>
+          </label>
+          <input
+            value={form.code}
+            onChange={(event) =>
+              set("code", event.target.value.toUpperCase().slice(0, 4))
+            }
+            placeholder="CCR"
+            maxLength={4}
+            className="w-full border border-slate-200 rounded-xl px-3 py-2.5 body-text font-mono body-strong tracking-widest focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition"
+          />
         </div>
         <div>
-          <label className="block caption-strong text-slate-500 mb-1.5">จังหวัด<span className="text-red-400">*</span></label>
-          <select value={form.region_id} onChange={(event) => set('region_id', event.target.value)} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 body-text focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition bg-white">
+          <label className="block caption-strong text-slate-500 mb-1.5">
+            จังหวัด<span className="text-red-400">*</span>
+          </label>
+          <select
+            value={form.region_id}
+            onChange={(event) => set("region_id", event.target.value)}
+            className="w-full border border-slate-200 rounded-xl px-3 py-2.5 body-text focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition bg-white"
+          >
             <option value="">เลือกจังหวัด</option>
-            {regions.map((region) => <option key={region.id} value={region.id}>{region.name}</option>)}
+            {regions.map((region) => (
+              <option key={region.id} value={region.id}>
+                {region.name}
+              </option>
+            ))}
           </select>
         </div>
       </div>
@@ -112,8 +220,15 @@ function BranchIdentityStep({ form, regions, set }) {
             <span className="text-emerald-700 body-strong">{form.code}</span>
           </div>
           <div>
-            <p className="body-strong text-emerald-800 body-text">{form.name}</p>
-            <p className="caption text-emerald-600">{regions.find((region) => sameId(region.id, form.region_id))?.name}</p>
+            <p className="body-strong text-emerald-800 body-text">
+              {form.name}
+            </p>
+            <p className="caption text-emerald-600">
+              {
+                regions.find((region) => sameId(region.id, form.region_id))
+                  ?.name
+              }
+            </p>
           </div>
         </div>
       ) : null}
@@ -128,8 +243,22 @@ function BranchStaffStep({ form, set }) {
         กำหนดจำนวนพนักงานขั้นต่ำที่ต้องมีในแต่ละประเภทวัน
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <StaffInput label="วันธรรมดา" keyName="minWeekday" sub="จันทร์–ศุกร์" tone="emerald" value={form.minWeekday} set={set} />
-        <StaffInput label="วันหยุด" keyName="minWeekend" sub="เสาร์–อาทิตย์" tone="amber" value={form.minWeekend} set={set} />
+        <StaffInput
+          label="วันธรรมดา"
+          keyName="minWeekday"
+          sub="จันทร์–ศุกร์"
+          tone="emerald"
+          value={form.minWeekday}
+          set={set}
+        />
+        <StaffInput
+          label="วันหยุด"
+          keyName="minWeekend"
+          sub="เสาร์–อาทิตย์"
+          tone="amber"
+          value={form.minWeekend}
+          set={set}
+        />
       </div>
     </div>
   );
@@ -137,16 +266,32 @@ function BranchStaffStep({ form, set }) {
 
 function StaffInput({ label, keyName, sub, tone, value, set }) {
   const styles = {
-    emerald: 'border-emerald-100 bg-emerald-50 text-emerald-700 text-emerald-500 focus:ring-emerald-400 border-emerald-200',
-    amber: 'border-amber-100 bg-amber-50 text-amber-700 text-amber-500 focus:ring-amber-400 border-amber-200'
+    emerald:
+      "border-emerald-100 bg-emerald-50 text-emerald-700 text-emerald-500 focus:ring-emerald-400 border-emerald-200",
+    amber:
+      "border-amber-100 bg-amber-50 text-amber-700 text-amber-500 focus:ring-amber-400 border-amber-200",
   };
 
   return (
     <div className="text-center">
       <div className={`p-4 rounded-xl border-2 ${styles[tone]}`}>
-        <p className={`caption-bold mb-1 ${tone === 'amber' ? 'text-amber-700' : 'text-emerald-700'}`}>{label}</p>
-        <p className={`caption mb-3 ${tone === 'amber' ? 'text-amber-500' : 'text-emerald-500'}`}>{sub}</p>
-        <input type="number" min="1" value={value ?? ''} onChange={(event) => set(keyName, Number(event.target.value))} className={`w-full text-center stat-number bg-white border rounded-xl py-2 focus:outline-none focus:ring-2 transition ${tone === 'amber' ? 'focus:ring-amber-400 border-amber-200' : 'focus:ring-emerald-400 border-emerald-200'}`} />
+        <p
+          className={`caption-bold mb-1 ${tone === "amber" ? "text-amber-700" : "text-emerald-700"}`}
+        >
+          {label}
+        </p>
+        <p
+          className={`caption mb-3 ${tone === "amber" ? "text-amber-500" : "text-emerald-500"}`}
+        >
+          {sub}
+        </p>
+        <input
+          type="number"
+          min="1"
+          value={value ?? ""}
+          onChange={(event) => set(keyName, Number(event.target.value))}
+          className={`w-full text-center stat-number bg-white border rounded-xl py-2 focus:outline-none focus:ring-2 transition ${tone === "amber" ? "focus:ring-amber-400 border-amber-200" : "focus:ring-emerald-400 border-emerald-200"}`}
+        />
         <p className="caption text-slate-400 mt-1">คน</p>
       </div>
     </div>
@@ -161,7 +306,11 @@ function BranchHoursStep({ form, setHour, applyPreset }) {
       </div>
       <div className="flex gap-2 flex-wrap">
         {presets.map((preset) => (
-          <button key={preset.label} onClick={() => applyPreset(preset)} className="caption px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-emerald-100 hover:text-emerald-700 text-slate-600 body-strong transition-colors">
+          <button
+            key={preset.label}
+            onClick={() => applyPreset(preset)}
+            className="caption px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-emerald-100 hover:text-emerald-700 text-slate-600 body-strong transition-colors"
+          >
             {preset.label} (ทุกวัน)
           </button>
         ))}
@@ -172,24 +321,45 @@ function BranchHoursStep({ form, setHour, applyPreset }) {
           <p className="caption-strong text-slate-500 text-center">เปิด</p>
           <p className="caption-strong text-slate-500 text-center">ปิด</p>
         </div>
-        {DAYS.map((day, index) => <BranchHourRow key={day} day={day} index={index} form={form} setHour={setHour} />)}
+        {DAYS.map((day, index) => (
+          <BranchHourRow
+            key={day}
+            day={day}
+            index={index}
+            form={form}
+            setHour={setHour}
+          />
+        ))}
       </div>
     </div>
   );
 }
 
 function BranchHourRow({ day, index, form, setHour }) {
-  const isWeekend = day === 'ส' || day === 'อา';
+  const isWeekend = day === "ส" || day === "อา";
 
   return (
-    <div className={`grid grid-cols-3 items-center px-4 py-2 gap-2 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} ${isWeekend ? 'bg-amber-50/40' : ''}`}>
+    <div
+      className={`grid grid-cols-3 items-center px-4 py-2 gap-2 ${index % 2 === 0 ? "bg-white" : "bg-slate-50/50"} ${isWeekend ? "bg-amber-50/40" : ""}`}
+    >
       <div className="flex items-center gap-2">
-        <span className={`w-7 h-7 rounded-lg flex items-center justify-center caption-bold ${isWeekend ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>{day}</span>
-        <span className="caption text-slate-500 hidden sm:block">{DAY_LABELS[day]}</span>
+        <span
+          className={`w-7 h-7 rounded-lg flex items-center justify-center caption-bold ${isWeekend ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-600"}`}
+        >
+          {day}
+        </span>
+        <span className="caption text-slate-500 hidden sm:block">
+          {DAY_LABELS[day]}
+        </span>
       </div>
-      <input type="time" value={form.hours?.[day] || '10:00'} onChange={(event) => setHour('hours', day, event.target.value)} className="caption border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition text-center" />
-      <input type="time" value={form.hoursEnd?.[day] || '21:00'} onChange={(event) => setHour('hoursEnd', day, event.target.value)} className="caption border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition text-center" />
+      <TimeSelect
+        value={form.hours?.[day]}
+        onChange={(val) => setHour("hours", day, val)}
+      />
+      <TimeSelect
+        value={form.hoursEnd?.[day]}
+        onChange={(val) => setHour("hoursEnd", day, val)}
+      />
     </div>
   );
 }
-

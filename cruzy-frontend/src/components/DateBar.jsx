@@ -83,6 +83,7 @@ export function DateBar({ from, to, setFrom, setTo }) {
       />
       <Button
         variant="ghost"
+        size="sm"
         className={`date-btn ${activePreset === "today" ? "active" : ""}`}
         onClick={() => preset("today")}
       >
@@ -90,6 +91,7 @@ export function DateBar({ from, to, setFrom, setTo }) {
       </Button>
       <Button
         variant="ghost"
+        size="sm" 
         className={`date-btn ${activePreset === "week" ? "active" : ""}`}
         onClick={() => preset("week")}
       >
@@ -97,6 +99,7 @@ export function DateBar({ from, to, setFrom, setTo }) {
       </Button>
       <Button
         variant="ghost"
+        size="sm"
         className={`date-btn ${activePreset === "month" ? "active" : ""}`}
         onClick={() => preset("month")}
       >
