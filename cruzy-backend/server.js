@@ -7,6 +7,7 @@ require('dotenv').config({
 });
 
 const apiRoutes = require('./routes/apiRoutes');
+const { startSalarySummaryScheduler } = require('./modules/salarySummaries/salarySummaryScheduler');
 
 const app = express();
 const PORT = process.env.PORT;
@@ -32,4 +33,5 @@ app.use('/api', apiRoutes);
 
 app.listen(PORT, () => {
   console.log(`Cruzy backend running at http://localhost:${PORT}`);
+  startSalarySummaryScheduler();
 });

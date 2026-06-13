@@ -14,6 +14,7 @@ const emptyData = {
   employeeAvailabilityRules: [],
   employeeAvailabilityOverrides: [],
   employeePayProfiles: [],
+  salarySummaries: [],
   branchStaffingRules: [],
   sales: [],
   salesLogs: [],
@@ -85,6 +86,7 @@ export function hydrateConsoleData(data = {}) {
   state.employeeAvailabilityRules = (data.employeeAvailabilityRules || data.employee_availability_rules || []).map(mapAvailabilityRule);
   state.employeeAvailabilityOverrides = (data.employeeAvailabilityOverrides || data.employee_availability_overrides || []).map(mapAvailabilityOverride);
   state.employeePayProfiles = (data.employeePayProfiles || data.employee_pay_profiles || []).map(mapPayProfile);
+  state.salarySummaries = (data.salarySummaries || data.salary_summaries || []).map(mapSalarySummary);
   state.branchStaffingRules = staffingRules;
 
   const primaryBranches = derivePrimaryEmployeeBranches(branchRules, scheduleRows);
@@ -220,7 +222,7 @@ export function hydrateConsoleData(data = {}) {
     title: alert.title,
     detail: alert.detail || '',
     severity: alert.severity || 'warning',
-    time: formatDbTime(alert.created_at) || '',
+    time: formatDbTime(alert.alert_time) || '',
     ack: Boolean(alert.is_acknowledged)
   }));
   state.inspections = (data.storeInspections || []).map((inspection) => ({
@@ -229,7 +231,10 @@ export function hydrateConsoleData(data = {}) {
     bid: inspection.branch_id,
     submittedBy: inspection.submitted_by === null || inspection.submitted_by === undefined ? null : String(inspection.submitted_by),
     submitTime: formatDbTime(inspection.submit_time),
+    closeTime: formatDbTime(inspection.close_time),
     status: inspection.status || 'pass',
+    isLate: Boolean(inspection.is_late),
+    lateMinutes: Number(inspection.late_minutes || 0),
     note: inspection.manager_note || ''
   }));
   state.warningLetterTemplates = (data.warningLetterTemplates || []).map((template) => ({
@@ -332,6 +337,10 @@ function mapAvailabilityOverride(row) {
 
 function mapPayProfile(row) {
   return { id: String(row.id || ''), empId: String(row.employee_id), payType: row.pay_type || 'monthly', payCycle: row.pay_cycle || 'monthly', monthlySalary: Number(row.monthly_salary || 0), dailyRate: Number(row.daily_rate || 0), breakHours: Number(row.break_hours || 1), commissionEnabled: row.commission_enabled !== false, commissionRate: Number(row.commission_rate || 0), commissionCalcType: row.commission_calc_type || 'scheduled_assigned_branch_days', specialAllowance: Number(row.special_allowance || 0), socialSecurityEnabled: row.social_security_enabled !== false, socialSecurityAmount: Number(row.social_security_amount ?? 0), absenceDeductMode: row.absence_deduct_mode || 'system', absenceDeductUnit: row.absence_deduct_unit || null, absenceDeductValue: row.absence_deduct_value === null || row.absence_deduct_value === undefined ? null : Number(row.absence_deduct_value), absenceSystemCalc: row.absence_system_calc || null, effectiveFrom: row.effective_from, effectiveTo: row.effective_to, active: row.is_active !== false };
+}
+
+function mapSalarySummary(row) {
+  return { id: String(row.id || ''), empId: String(row.employee_id), salaryMonth: row.salary_month, grossAmount: Number(row.gross_amount || 0), deductionAmount: Number(row.deduction_amount || 0), netAmount: Number(row.net_amount || 0), detail: row.detail || {}, lineSentAt: row.line_sent_at || null, createdAt: row.created_at || null };
 }
 
 function mapStaffingRule(row) {

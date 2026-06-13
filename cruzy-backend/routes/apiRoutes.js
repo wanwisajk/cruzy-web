@@ -20,6 +20,7 @@ const accessRoutes = require('../modules/access/accessRoutes');
 const cashDepositsRoutes = require('../modules/cashDeposits/cashDepositsRoutes');
 const attachmentsRoutes = require('../modules/attachments/attachmentsRoutes');
 const contractsRoutes = require('../modules/contracts/contractsRoutes');
+const salarySummariesRoutes = require('../modules/salarySummaries/salarySummariesRoutes');
 
 const router = express.Router();
 
@@ -32,6 +33,7 @@ router.use('/regions', regionsRoutes);
 router.use('/bank-accounts', bankAccountsRoutes);
 router.use('/cash-deposits', cashDepositsRoutes);
 router.use('/contracts', contractsRoutes);
+router.use('/salary-summaries', salarySummariesRoutes);
 router.use('/schedule', schedulesRoutes);
 router.use('/leaves', leavesRoutes);
 router.use('/sales', salesRoutes);

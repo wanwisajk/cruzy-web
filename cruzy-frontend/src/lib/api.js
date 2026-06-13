@@ -49,6 +49,23 @@ export const api = {
     return request(`/console/data${suffix ? `?${suffix}` : ''}`);
   },
 
+  getSalarySummaries: (filters = {}) => {
+    const query = new URLSearchParams();
+    if (filters.from) query.set('from', filters.from);
+    if (filters.to) query.set('to', filters.to);
+    if (filters.employeeId) query.set('employeeId', filters.employeeId);
+    const suffix = query.toString();
+    return request(`/salary-summaries${suffix ? `?${suffix}` : ''}`);
+  },
+  createSalarySummary: (body) => request('/salary-summaries', {
+    method: 'POST',
+    body: JSON.stringify(body)
+  }),
+  updateSalarySummary: (id, body) => request(`/salary-summaries/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body)
+  }),
+
   // Attendance alerts
   getAttendance: () => request('/attendance'),
   getAttendanceRecord: (id) => request(`/attendance/${id}`),

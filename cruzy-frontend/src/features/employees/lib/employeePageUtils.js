@@ -235,10 +235,14 @@ export function countCommissionDays(data, employee, responsibleBranches, periodD
   if (!scopedBranches.length) return 0;
 
   if (employee.commissionCalcType === "period_days_responsible_branches") {
-    return periodDays.length;
+    return periodDays.length * scopedBranches.length;
   }
 
-  return periodDays.filter((date) => scopedBranches.some((branchId) => hasScheduledShift(data, employee.id, branchId, date))).length;
+  return periodDays.reduce(
+    (sum, date) =>
+      sum + scopedBranches.filter((branchId) => hasScheduledShift(data, employee.id, branchId, date)).length,
+    0,
+  );
 }
 
 export function employeeCommissionForPeriod(data, employee, periodDays, selectedBranch = "all") {
@@ -264,16 +268,19 @@ export function calculateDailyCommissionForPeriod(data, employee, periodDays, se
     if (selectedBranch !== "all" && String(sale.bid) !== String(selectedBranch)) return false;
     return saleMatchesCommissionType(data, employee, sale, responsibleBranches, periodDays);
   });
-  const salesByDate = eligibleSales.reduce((map, sale) => {
-    const date = sale.date;
-    map.set(date, (map.get(date) || 0) + Number(sale.total || 0));
+  const salesByBranchDate = eligibleSales.reduce((map, sale) => {
+    const key = `${sale.date}|${sale.bid}`;
+    const current = map.get(key) || { date: sale.date, branchId: sale.bid, sales: 0 };
+    current.sales += Number(sale.total || 0);
+    map.set(key, current);
     return map;
   }, new Map());
   const rate = Number(employee.commissionRate || 0) / 100;
-  const dailyBreakdown = Array.from(salesByDate.entries())
-    .sort(([a], [b]) => String(a).localeCompare(String(b)))
-    .map(([date, sales]) => ({
+  const dailyBreakdown = Array.from(salesByBranchDate.values())
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.branchId).localeCompare(String(b.branchId)))
+    .map(({ date, branchId, sales }) => ({
       date,
+      branchId,
       sales,
       commission: Math.round(sales * rate),
     }));

@@ -12,7 +12,8 @@ const OPTIONAL_KEYS = [
   'leaveBalances',
   'salesLogs',
   'attachments',
-  'systemAuditLogs'
+  'systemAuditLogs',
+  'salarySummaries'
 ];
 
 const DATE_FILTERS = {
@@ -24,7 +25,8 @@ const DATE_FILTERS = {
   attendance: 'work_date',
   attendanceAlerts: 'work_date',
   storeInspections: 'work_date',
-  warningLetters: 'issue_date'
+  warningLetters: 'issue_date',
+  salarySummaries: 'salary_month'
 };
 
 const DEFAULT_OPTIONS = {
@@ -40,6 +42,7 @@ const DEFAULT_OPTIONS = {
   inspectionLogs: { order: { column: 'created_at', ascending: false }, limit: 500 },
   attachments: { order: { column: 'created_at', ascending: false } },
   systemAuditLogs: { order: { column: 'created_at', ascending: false }, limit: 1000 },
+  salarySummaries: { order: [{ column: 'salary_month', ascending: false }, { column: 'employee_id', ascending: true }] },
   warningLetters: { order: [{ column: 'issue_date', ascending: false }, { column: 'employee_id', ascending: true }] },
   bankAccounts: { order: [{ column: 'is_active', ascending: false }, { column: 'bank_short', ascending: true }] }
 };

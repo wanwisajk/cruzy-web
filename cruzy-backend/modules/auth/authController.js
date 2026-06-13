@@ -10,7 +10,7 @@ exports.login = async (req, res) => {
 
     const { data, error } = await supabase
       .from(TABLES.users)
-      .select('id, username, password_hash, name, role, scope_type, scope_value')
+      .select('*')
       .eq('username', username)
       .limit(1);
 

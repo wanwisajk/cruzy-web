@@ -25,6 +25,12 @@ function branchOpeningTime(branch, date) {
   return branch?.hours?.[dayKey] || '10:00';
 }
 
+function branchClosingTime(branch, date) {
+  const day = new Date(`${date}T00:00:00`).getDay();
+  const dayKey = DAY_NUMBER_TO_KEY[day];
+  return branch?.hoursEnd?.[dayKey] || '21:00';
+}
+
 function openingStatusFor(item, branch, date) {
   if (!item) {
     return {
@@ -53,6 +59,34 @@ function openingStatusFor(item, branch, date) {
   };
 }
 
+function closingStatusFor(item, branch, date) {
+  const targetTime = branchClosingTime(branch, date);
+  if (!item?.close_time) {
+    return {
+      label: 'ยังไม่บันทึกปิด',
+      detail: '-',
+      targetTime,
+      earlyMinutes: 0,
+      tone: 'bg-slate-100 text-slate-500 border-slate-200',
+      dot: 'bg-slate-300'
+    };
+  }
+
+  const closeMinutes = timeToMinutes(item.close_time);
+  const targetMinutes = timeToMinutes(targetTime);
+  const earlyMinutes = closeMinutes === null || targetMinutes === null ? 0 : Math.max(0, targetMinutes - closeMinutes);
+  const isEarly = earlyMinutes > 0;
+
+  return {
+    label: isEarly ? 'ปิดก่อนเวลา' : 'ปิดแล้ว',
+    detail: item.close_time || '-',
+    targetTime,
+    earlyMinutes,
+    tone: isEarly ? 'bg-red-50 text-red-700 border-red-200' : 'bg-blue-50 text-blue-700 border-blue-200',
+    dot: isEarly ? 'bg-red-500' : 'bg-blue-500'
+  };
+}
+
 function formatInspectionItem(item) {
   if (typeof item === 'string') {
     return { label: item, passed: true };
@@ -67,6 +101,53 @@ function formatInspectionItem(item) {
     return { label, passed, detail };
   }
   return { label: String(item), passed: false };
+}
+
+function normalizeConfigList(items = []) {
+  if (!Array.isArray(items)) return [];
+  return items.map((item) => {
+    if (typeof item === 'string') return { key: item, label: item };
+    if (item && typeof item === 'object') {
+      const label = item.label || item.name || item.title || item.text || item.key || '';
+      return { ...item, key: item.key || item.id || label, label };
+    }
+    return { key: String(item), label: String(item) };
+  }).filter((item) => item.label);
+}
+
+function itemLookupKeys(item) {
+  return [item.key, item.label, item.name, item.title, item.id]
+    .filter((value) => value !== undefined && value !== null && value !== '')
+    .map((value) => String(value).trim().toLowerCase());
+}
+
+function buildDbItemMap(inspectionItems) {
+  const rows = Array.isArray(inspectionItems)
+    ? inspectionItems
+    : Object.entries(inspectionItems || {}).map(([key, value]) => ({ key, label: key, value }));
+  return rows.reduce((map, rawItem) => {
+    const item = formatInspectionItem(rawItem);
+    const source = typeof rawItem === 'object' && rawItem ? rawItem : {};
+    itemLookupKeys({ ...source, label: item.label }).forEach((key) => {
+      if (!map.has(key)) map.set(key, { ...item, raw: rawItem });
+    });
+    return map;
+  }, new Map());
+}
+
+function buildConfiguredInspectionRows(configItems, inspectionItems, category) {
+  const dbMap = buildDbItemMap(inspectionItems);
+  return normalizeConfigList(configItems).map((configItem) => {
+    const matchKey = itemLookupKeys(configItem).find((key) => dbMap.has(key));
+    const saved = matchKey ? dbMap.get(matchKey) : null;
+    return {
+      category,
+      label: configItem.label,
+      detail: saved?.detail || configItem.description || configItem.note || '',
+      passed: saved ? saved.passed : false,
+      hasData: Boolean(saved)
+    };
+  });
 }
 
 function rangeDays(from, to) {
@@ -132,6 +213,7 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
     branchId: '',
     workDate: from || new Date().toISOString().slice(0, 10),
     submitTime: new Date().toTimeString().slice(0, 5),
+    closeTime: '',
     submittedBy: '',
     note: '',
     images: []
@@ -225,11 +307,18 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
       const branch = branchMap[item.branch_id];
       return openingStatusFor(item, branch, item.work_date).lateMinutes > 0;
     }).length;
+    const closedEarly = rangeInspections.filter((item) => {
+      const branch = branchMap[item.branch_id];
+      return closingStatusFor(item, branch, item.work_date).earlyMinutes > 0;
+    }).length;
+    const missingClose = rangeInspections.filter((item) => !item.close_time).length;
     return {
       opened: rangeInspections.length,
       late,
       onTime: rangeInspections.length - late,
       missing: missingCount,
+      closedEarly,
+      missingClose,
     };
   }, [rangeInspections, missingCount, branchMap]);
 
@@ -276,20 +365,42 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
   const detailBranch = branchMap[detailInspection?.branch_id] || {};
   const detailEmployee = employeeMap[detailInspection?.submitted_by] || { name: detailInspection?.submitted_by || '-' };
   const detailOpeningMeta = detailInspection ? openingStatusFor(detailInspection, detailBranch, detailInspection.work_date) : null;
+  const detailClosingMeta = detailInspection ? closingStatusFor(detailInspection, detailBranch, detailInspection.work_date) : null;
   const detailAttachments = detailInspection?.attachments || [];
   const currentSettingsMap = useMemo(
     () => Object.fromEntries(settings.map((setting) => [setting.branch_id, setting])),
     [settings]
   );
+  const detailSetting = detailInspection ? currentSettingsMap[detailInspection.branch_id] || {} : {};
+  const detailChecklistRows = detailInspection
+    ? buildConfiguredInspectionRows(detailSetting.checklists || [], detailInspection.inspection_items, 'Checklist')
+    : [];
+  const detailProductRows = detailInspection
+    ? buildConfiguredInspectionRows(detailSetting.required_products || [], detailInspection.inspection_items, 'สินค้าที่ต้องตรวจ')
+    : [];
+  const detailFallbackRows = detailInspection && !detailChecklistRows.length && !detailProductRows.length
+    ? (Array.isArray(detailInspection.inspection_items)
+        ? detailInspection.inspection_items
+        : Object.entries(detailInspection.inspection_items || {}).map(([key, value]) => ({ label: key, value })))
+      .map((rawItem) => ({ ...formatInspectionItem(rawItem), hasData: true, category: 'ข้อมูลที่บันทึก' }))
+    : [];
+  const detailRequiredPhotoRows = normalizeConfigList(detailSetting.required_photos || []);
 
   const openingFormBranch = branchMap[openingForm.branchId];
   const openingFormTargetTime = openingFormBranch ? branchOpeningTime(openingFormBranch, openingForm.workDate) : '10:00';
+  const openingFormCloseTargetTime = openingFormBranch ? branchClosingTime(openingFormBranch, openingForm.workDate) : '21:00';
   const openingFormLateMinutes = useMemo(() => {
     const submitMinutes = timeToMinutes(openingForm.submitTime);
     const targetMinutes = timeToMinutes(openingFormTargetTime);
     if (submitMinutes === null || targetMinutes === null) return 0;
     return Math.max(0, submitMinutes - targetMinutes);
   }, [openingForm.submitTime, openingFormTargetTime]);
+  const openingFormEarlyCloseMinutes = useMemo(() => {
+    const closeMinutes = timeToMinutes(openingForm.closeTime);
+    const targetMinutes = timeToMinutes(openingFormCloseTargetTime);
+    if (closeMinutes === null || targetMinutes === null) return 0;
+    return Math.max(0, targetMinutes - closeMinutes);
+  }, [openingForm.closeTime, openingFormCloseTargetTime]);
 
   function setOpeningField(field) {
     return (event) => setOpeningForm((current) => ({ ...current, [field]: event.target.value }));
@@ -310,6 +421,7 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
       branch_id: openingForm.branchId,
       work_date: openingForm.workDate,
       submit_time: openingForm.submitTime,
+      close_time: openingForm.closeTime || null,
       submitted_by: openingForm.submittedBy || null,
       status: 'pending',
       inspection_items: [{ label: 'เปิดร้าน', passed: true, value: openingForm.note || 'บันทึกเปิดร้าน' }],
@@ -323,6 +435,7 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
     setOpeningForm((current) => ({
       ...current,
       note: '',
+      closeTime: '',
       images: []
     }));
     formElement.reset();
@@ -349,7 +462,7 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
         </button>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
         <div className="section-card-sm">
           <div className="body-text text-slate-500">เปิดแล้ว</div>
           <div className="mt-3 stat-number text-slate-900">{loading ? '–' : summaryCounts.opened}</div>
@@ -365,6 +478,14 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
         <div className="section-card-sm">
           <div className="body-text text-slate-500">เปิดตรงเวลา</div>
           <div className="mt-3 stat-number text-emerald-600">{loading ? '–' : summaryCounts.onTime}</div>
+        </div>
+        <div className="section-card-sm">
+          <div className="body-text text-slate-500">ยังไม่บันทึกปิด</div>
+          <div className="mt-3 stat-number text-slate-900">{loading ? '–' : summaryCounts.missingClose}</div>
+        </div>
+        <div className="section-card-sm">
+          <div className="body-text text-slate-500">ปิดก่อนเวลา</div>
+          <div className="mt-3 stat-number text-red-600">{loading ? '–' : summaryCounts.closedEarly}</div>
         </div>
       </div>
 
@@ -413,14 +534,19 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <div className="body-strong text-slate-900">บันทึกเปิดร้าน</div>
-                    <div className="mt-1 caption text-slate-500">กรอกเวลาเปิดร้าน แนบรูปได้หลายรูป แล้วระบบจะเทียบเวลาเปิดตามสาขาและวันให้อัตโนมัติ</div>
+                    <div className="mt-1 caption text-slate-500">กรอกเวลาเปิด-ปิดร้าน แนบรูปได้หลายรูป แล้วระบบจะเทียบเวลาตามสาขาและวันให้อัตโนมัติ</div>
                   </div>
-                  <div className={`badge ${openingFormLateMinutes > 0 ? 'pending' : 'approved'} border px-3 py-2 caption-bold`}>
-                    เวลาเปิดสาขา {openingFormTargetTime} · {openingFormLateMinutes > 0 ? `สาย ${openingFormLateMinutes} นาที` : 'ตรงเวลา'}
+                  <div className="flex flex-wrap gap-2">
+                    <div className={`badge ${openingFormLateMinutes > 0 ? 'pending' : 'approved'} border px-3 py-2 caption-bold`}>
+                      เปิด {openingFormTargetTime} · {openingFormLateMinutes > 0 ? `สาย ${openingFormLateMinutes} นาที` : 'ตรงเวลา'}
+                    </div>
+                    <div className={`badge ${openingFormEarlyCloseMinutes > 0 ? 'danger' : 'approved'} border px-3 py-2 caption-bold`}>
+                      ปิด {openingFormCloseTargetTime} · {openingForm.closeTime ? (openingFormEarlyCloseMinutes > 0 ? `ก่อน ${openingFormEarlyCloseMinutes} นาที` : 'ไม่ก่อนเวลา') : 'ยังไม่กรอก'}
+                    </div>
                   </div>
                 </div>
 
-                <div className="mt-4 grid gap-3 md:grid-cols-5">
+                <div className="mt-4 grid gap-3 md:grid-cols-6">
                   <label className="caption-bold text-slate-500">
                     สาขา
                     <select value={openingForm.branchId} onChange={setOpeningField('branchId')} className="input mt-1 w-full">
@@ -437,6 +563,10 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
                   <label className="caption-bold text-slate-500">
                     เวลาเปิดจริง
                     <input type="time" value={openingForm.submitTime} onChange={setOpeningField('submitTime')} className="input mt-1 w-full" />
+                  </label>
+                  <label className="caption-bold text-slate-500">
+                    เวลาปิดร้าน
+                    <input type="time" value={openingForm.closeTime} onChange={setOpeningField('closeTime')} className="input mt-1 w-full" />
                   </label>
                   <label className="caption-bold text-slate-500">
                     ผู้เปิดร้าน
@@ -482,7 +612,7 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
               <div className="table-shell">
                 <div className="border-b border-slate-100 px-4 py-3">
                   <div className="body-strong text-slate-900">📅 สถานะเปิดร้าน × สาขา</div>
-                  <div className="mt-1 caption text-slate-500">ข้อมูลจาก DB ตาราง store_inspections: เวลาเปิด, เปิดสาย, หรือยังไม่เปิด</div>
+                  <div className="mt-1 caption text-slate-500">ข้อมูลจาก DB ตาราง store_inspections: เวลาเปิด-ปิด, เปิดสาย, ปิดก่อนเวลา, หรือยังไม่บันทึก</div>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="min-w-full border-collapse body-text">
@@ -508,6 +638,7 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
                             {rangeDates.map((date) => {
                               const item = openingInspectionMap[`${branch.id}|${date}`];
                               const meta = openingStatusFor(item, branch, date);
+                              const closeMeta = closingStatusFor(item, branch, date);
                               return (
                                 <td key={`${branch.id}_${date}`} className="px-3 py-3 align-top">
                                   <button
@@ -528,6 +659,20 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
                                     ) : (
                                       <div className="mt-0.5 caption body-strong opacity-70">ไม่มีข้อมูลเปิดร้าน</div>
                                     )}
+                                    {item ? (
+                                      <div className={`mt-2 rounded-lg border px-2 py-1 ${closeMeta.tone}`}>
+                                        <div className="flex items-center gap-2">
+                                          <span className={`h-1.5 w-1.5 rounded-full ${closeMeta.dot}`} />
+                                          <span className="caption-bold">{closeMeta.label}</span>
+                                        </div>
+                                        <div className="mt-0.5 caption body-strong opacity-80">
+                                          ปิดจริง {closeMeta.detail} · เป้า {closeMeta.targetTime}
+                                        </div>
+                                        {closeMeta.earlyMinutes ? (
+                                          <div className="mt-0.5 caption body-strong opacity-80">ก่อนเวลา {closeMeta.earlyMinutes} นาที</div>
+                                        ) : null}
+                                      </div>
+                                    ) : null}
                                   </button>
                                 </td>
                               );
@@ -585,6 +730,7 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
                       <th className="whitespace-nowrap px-4 py-3 text-left">สาขา</th>
                       <th className="whitespace-nowrap px-4 py-3 text-left">ผู้ส่ง</th>
                       <th className="whitespace-nowrap px-4 py-3 text-left">เวลาส่ง</th>
+                      <th className="whitespace-nowrap px-4 py-3 text-left">เวลาปิด</th>
                       <th className="whitespace-nowrap px-4 py-3 text-left">คะแนน</th>
                       <th className="whitespace-nowrap px-4 py-3 text-left">จำนวนรูป</th>
                       <th className="whitespace-nowrap px-4 py-3 text-left">สถานะ</th>
@@ -594,12 +740,19 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
                   </thead>
                   <tbody>
                     {filteredInspections.length ? (
-                      filteredInspections.map((item) => (
+                      filteredInspections.map((item) => {
+                        const closeMeta = closingStatusFor(item, branchMap[item.branch_id], item.work_date);
+                        return (
                         <tr key={item.id} className="border-b last:border-b-0 hover:bg-slate-50">
                           <td className="px-4 py-3">{thaiShortDate(item.work_date)}</td>
                           <td className="px-4 py-3 body-strong text-slate-900">{item.branch.code}</td>
                           <td className="px-4 py-3">{item.employee.name}</td>
                           <td className="px-4 py-3">{item.submit_time || '-'}</td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex rounded-full border px-2.5 py-1 caption body-strong ${closeMeta.tone}`}>
+                              {item.close_time || '-'}
+                            </span>
+                          </td>
                           <td className="px-4 py-3">{item.score ?? '-'}</td>
                           <td className="px-4 py-3">{item.photo_count ?? 0}</td>
                           <td className="px-4 py-3"><span className={`inline-flex rounded-full px-3 py-1 caption body-strong ${formatBadge(item.status)}`}>{item.status || 'pending'}</span></td>
@@ -616,10 +769,11 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
                             </button>
                           </td>
                         </tr>
-                      ))
+                        );
+                      })
                     ) : (
                       <tr>
-                        <td colSpan="9" className="px-4 py-8 text-center text-slate-500">ยังไม่มีข้อมูลการตรวจร้าน</td>
+                        <td colSpan="10" className="px-4 py-8 text-center text-slate-500">ยังไม่มีข้อมูลการตรวจร้าน</td>
                       </tr>
                     )}
                   </tbody>
@@ -722,10 +876,13 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
                   <div className="section-card-sm">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
-                        <div className="caption uppercase tracking-[0.12em] text-slate-500">สถานะเปิดร้าน</div>
+                        <div className="caption uppercase tracking-[0.12em] text-slate-500">สถานะเปิด-ปิดร้าน</div>
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                           <span className={`inline-flex rounded-full border px-3 py-1 caption-bold ${detailOpeningMeta?.tone || 'bg-slate-100 text-slate-600 border-slate-200'}`}>
                             {detailOpeningMeta?.label || '-'}
+                          </span>
+                          <span className={`inline-flex rounded-full border px-3 py-1 caption-bold ${detailClosingMeta?.tone || 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                            {detailClosingMeta?.label || '-'}
                           </span>
                           <span className={`inline-flex rounded-full px-3 py-1 caption-bold ${formatBadge(detailInspection.status)}`}>
                             Review: {detailInspection.status || 'pending'}
@@ -738,12 +895,24 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
                           <div className="mt-1 body-strong text-slate-900">{detailOpeningMeta?.targetTime || '-'}</div>
                         </div>
                         <div className="rounded-xl bg-slate-50 px-3 py-2">
+                          <div className="text-slate-400">เวลาปิดสาขา</div>
+                          <div className="mt-1 body-strong text-slate-900">{detailClosingMeta?.targetTime || '-'}</div>
+                        </div>
+                        <div className="rounded-xl bg-slate-50 px-3 py-2">
                           <div className="text-slate-400">เปิดจริง</div>
                           <div className="mt-1 body-strong text-slate-900">{detailInspection.submit_time || '-'}</div>
                         </div>
                         <div className="rounded-xl bg-slate-50 px-3 py-2">
+                          <div className="text-slate-400">ปิดจริง</div>
+                          <div className="mt-1 body-strong text-slate-900">{detailInspection.close_time || '-'}</div>
+                        </div>
+                        <div className="rounded-xl bg-slate-50 px-3 py-2">
                           <div className="text-slate-400">สาย</div>
                           <div className={`mt-1 body-strong ${detailOpeningMeta?.lateMinutes ? 'text-orange-600' : 'text-emerald-600'}`}>{detailOpeningMeta?.lateMinutes || 0} นาที</div>
+                        </div>
+                        <div className="rounded-xl bg-slate-50 px-3 py-2">
+                          <div className="text-slate-400">ปิดก่อน</div>
+                          <div className={`mt-1 body-strong ${detailClosingMeta?.earlyMinutes ? 'text-red-600' : 'text-blue-600'}`}>{detailClosingMeta?.earlyMinutes || 0} นาที</div>
                         </div>
                       </div>
                     </div>
@@ -797,24 +966,59 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
                         <ListChecks size={16} /> Checklist
                       </div>
                       <div className="space-y-2">
-                        {(Array.isArray(detailInspection.inspection_items)
-                          ? detailInspection.inspection_items
-                          : Object.entries(detailInspection.inspection_items || {}).map(([key, value]) => ({ label: key, value })))
-                          .map((rawItem, index) => {
-                            const item = formatInspectionItem(rawItem);
-                            return (
-                              <div key={index} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                                <div>
-                                  <div className="body-strong text-slate-900">{item.label}</div>
-                                  {item.detail ? <div className="caption text-slate-500">{item.detail}</div> : null}
-                                </div>
-                                <Pill className={item.passed ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}>{item.passed ? 'Pass' : 'Fail'}</Pill>
+                        {detailChecklistRows.length ? (
+                          detailChecklistRows.map((item, index) => (
+                            <div key={`${item.label}_${index}`} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                              <div>
+                                <div className="body-strong text-slate-900">{item.label}</div>
+                                {item.detail ? <div className="caption text-slate-500">{item.detail}</div> : null}
                               </div>
-                            );
-                          })}
-                        {!detailInspection.inspection_items || (Array.isArray(detailInspection.inspection_items) && !detailInspection.inspection_items.length) ? (
-                          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 body-text text-slate-500">ไม่มี Checklist</div>
+                              <Pill className={item.hasData ? (item.passed ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700') : 'bg-slate-100 text-slate-500'}>
+                                {item.hasData ? (item.passed ? 'Pass' : 'Fail') : 'ไม่มีข้อมูล'}
+                              </Pill>
+                            </div>
+                          ))
                         ) : null}
+                        {detailProductRows.length ? (
+                          <div className="pt-2">
+                            <div className="mb-2 caption-bold uppercase tracking-[0.12em] text-slate-500">สินค้าที่ต้องตรวจ</div>
+                            <div className="space-y-2">
+                              {detailProductRows.map((item, index) => (
+                                <div key={`${item.label}_${index}`} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                                  <div>
+                                    <div className="body-strong text-slate-900">{item.label}</div>
+                                    {item.detail ? <div className="caption text-slate-500">{item.detail}</div> : null}
+                                  </div>
+                                  <Pill className={item.hasData ? (item.passed ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700') : 'bg-slate-100 text-slate-500'}>
+                                    {item.hasData ? (item.passed ? 'Pass' : 'Fail') : 'ไม่มีข้อมูล'}
+                                  </Pill>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+                        {detailFallbackRows.length ? (
+                          detailFallbackRows.map((item, index) => (
+                            <div key={`${item.label}_${index}`} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                              <div>
+                                <div className="body-strong text-slate-900">{item.label}</div>
+                                {item.detail ? <div className="caption text-slate-500">{item.detail}</div> : null}
+                              </div>
+                              <Pill className={item.passed ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}>{item.passed ? 'Pass' : 'Fail'}</Pill>
+                            </div>
+                          ))
+                        ) : null}
+                        {!detailChecklistRows.length && !detailProductRows.length && !detailFallbackRows.length ? (
+                          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 body-text text-slate-500">ไม่มี Checklist ของสาขานี้</div>
+                        ) : null}
+                        <div className="rounded-xl border border-slate-200 bg-white px-3 py-3">
+                          <div className="caption-bold uppercase tracking-[0.12em] text-slate-500">รูปที่ต้องถ่ายตามสาขา</div>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {detailRequiredPhotoRows.length ? detailRequiredPhotoRows.map((item, index) => (
+                              <Pill key={`${item.label}_${index}`} className="bg-blue-50 text-blue-700">{item.label}</Pill>
+                            )) : <span className="body-text text-slate-500">-</span>}
+                          </div>
+                        </div>
                       </div>
                     </div>
                     <div className="rounded-xl border border-slate-200 bg-white p-4">

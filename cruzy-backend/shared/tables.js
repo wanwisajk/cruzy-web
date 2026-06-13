@@ -24,5 +24,6 @@ module.exports = {
   warningLetters: 'warning_letters',
   attachments: 'attachments',
   systemAuditLogs: 'system_audit_logs',
+  salarySummaries: 'salary_summaries',
   users: 'users'
 };

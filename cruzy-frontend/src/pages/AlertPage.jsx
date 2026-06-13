@@ -6,8 +6,10 @@ import { useAlerts } from '../features/alerts/hooks/useAlerts.js';
 const TYPE_CONFIG = {
   absent: { label: 'ขาดงาน', color: 'bg-red-50 text-red-700', badge: 'bg-red-100 text-red-800', icon: 'ขาด' },
   late: { label: 'มาสาย', color: 'bg-orange-50 text-orange-700', badge: 'bg-orange-100 text-orange-800', icon: 'สาย' },
+  store_open_late: { label: 'เปิดร้านสาย', color: 'bg-orange-50 text-orange-700', badge: 'bg-orange-100 text-orange-800', icon: 'เปิด' },
   break_over: { label: 'พักเกิน', color: 'bg-amber-50 text-amber-700', badge: 'bg-amber-100 text-amber-800', icon: 'พัก' },
   early: { label: 'ปิดก่อนเวลา', color: 'bg-yellow-50 text-yellow-700', badge: 'bg-yellow-100 text-yellow-800', icon: 'ปิด' },
+  store_close_early: { label: 'ปิดร้านก่อนเวลา', color: 'bg-yellow-50 text-yellow-700', badge: 'bg-yellow-100 text-yellow-800', icon: 'ปิด' },
   nocheck: { label: 'ไม่ Check-out', color: 'bg-blue-50 text-blue-700', badge: 'bg-blue-100 text-blue-800', icon: 'ไม่มี' }
 };
 
@@ -23,8 +25,9 @@ function Badge({ children, className = '' }) {
 function AlertCard({ alert, employee, branch, isOpen, onToggle, onAck, onEdit, onDelete, acking }) {
   const config = TYPE_CONFIG[alert.alert_type] || TYPE_CONFIG.late;
   const severity = SEVERITY_CONFIG[alert.severity] || SEVERITY_CONFIG.warning;
-  const isDerived = alert.source === 'discipline';
+  const isDerived = alert.source === 'discipline' || alert.source === 'store';
   const acknowledged = Boolean(alert.is_acknowledged);
+  const sourceLabel = alert.source === 'store' ? 'จากข้อมูลเปิด/ปิดร้าน' : 'จากข้อมูลวินัยจริง';
 
   return (
     <div
@@ -40,7 +43,7 @@ function AlertCard({ alert, employee, branch, isOpen, onToggle, onAck, onEdit, o
             <div className="flex flex-wrap gap-2 body-strong text-slate-900">
               <span>{alert.title}</span>
               <Badge className={severity.className}>{severity.label}</Badge>
-              {isDerived ? <Badge className="bg-emerald-100 text-emerald-800">จากข้อมูลวินัยจริง</Badge> : null}
+              {isDerived ? <Badge className="bg-emerald-100 text-emerald-800">{sourceLabel}</Badge> : null}
             </div>
             <div className="mt-1 body-text text-slate-500">{employee?.name || alert.employee_id} · {branch?.code || alert.branch_id} · {thaiShortDate(alert.work_date)}</div>
             <div className="mt-2 body-text text-slate-700">{alert.detail || '-'}</div>
@@ -104,7 +107,7 @@ function AlertCard({ alert, employee, branch, isOpen, onToggle, onAck, onEdit, o
           </div>
           <div className="section-card-soft body-text text-slate-700">
             <div className="caption text-slate-500">แหล่งข้อมูล</div>
-            <div className="mt-2 body-strong text-slate-900">{isDerived ? 'คำนวณจากวินัย/เข้างาน' : 'บันทึกในระบบแจ้งเตือน'}</div>
+            <div className="mt-2 body-strong text-slate-900">{alert.source === 'store' ? 'คำนวณจากข้อมูลเปิด/ปิดร้าน' : isDerived ? 'คำนวณจากวินัย/เข้างาน' : 'บันทึกในระบบแจ้งเตือน'}</div>
           </div>
         </div>
       </div>
@@ -283,6 +286,63 @@ export function buildDisciplineAlerts(data, dismissedIds = new Set()) {
   return alerts.sort((a, b) => String(b.work_date).localeCompare(String(a.work_date)) || String(b.alert_time || '').localeCompare(String(a.alert_time || '')));
 }
 
+export function buildStoreInspectionAlerts(data, dismissedIds = new Set()) {
+  const branches = data?.branches || [];
+  const employees = data?.employees || [];
+  const inspections = data?.inspections || [];
+  const alerts = [];
+
+  inspections.forEach((inspection) => {
+    const branch = branches.find((item) => String(item.id) === String(inspection.bid));
+    const employee = employees.find((item) => String(item.id) === String(inspection.submittedBy));
+    const openTarget = branchShiftStart(branch, inspection.date);
+    const closeTarget = branchShiftEnd(branch, inspection.date);
+    const lateMinutes = Math.max(Number(inspection.lateMinutes || 0), diffAfter(inspection.submitTime, openTarget));
+    const submittedBy = inspection.submittedBy ? String(inspection.submittedBy) : '';
+
+    if (lateMinutes > 0) {
+      const id = `store_open_late_${inspection.id}`;
+      if (!dismissedIds.has(id)) {
+        alerts.push({
+          id,
+          source: 'store',
+          alert_type: 'store_open_late',
+          employee_id: submittedBy,
+          branch_id: inspection.bid,
+          work_date: inspection.date,
+          alert_time: inspection.submitTime || openTarget,
+          title: `${branch?.code || inspection.bid} เปิดร้านสาย ${lateMinutes} นาที`,
+          detail: `บันทึกเปิดร้านเวลา ${inspection.submitTime || '-'} เทียบเวลาเปิดร้าน ${openTarget}${employee ? ` โดย ${employee.name}` : ''}`,
+          severity: lateMinutes >= 30 ? 'critical' : 'warning',
+          is_acknowledged: false
+        });
+      }
+    }
+
+    const earlyMinutes = inspection.closeTime ? diffBefore(inspection.closeTime, closeTarget) : 0;
+    if (earlyMinutes > 0) {
+      const id = `store_close_early_${inspection.id}`;
+      if (!dismissedIds.has(id)) {
+        alerts.push({
+          id,
+          source: 'store',
+          alert_type: 'store_close_early',
+          employee_id: submittedBy,
+          branch_id: inspection.bid,
+          work_date: inspection.date,
+          alert_time: inspection.closeTime || closeTarget,
+          title: `${branch?.code || inspection.bid} ปิดร้านก่อนเวลา ${earlyMinutes} นาที`,
+          detail: `บันทึกปิดร้านเวลา ${inspection.closeTime || '-'} เทียบเวลาปิดร้าน ${closeTarget}${employee ? ` โดย ${employee.name}` : ''}`,
+          severity: earlyMinutes >= 30 ? 'critical' : 'warning',
+          is_acknowledged: false
+        });
+      }
+    }
+  });
+
+  return alerts.sort((a, b) => String(b.work_date).localeCompare(String(a.work_date)) || String(b.alert_time || '').localeCompare(String(a.alert_time || '')));
+}
+
 function normalizePersistedAlert(alert) {
   const type = alert.alert_type || alert.type;
   return {
@@ -412,7 +472,10 @@ export default function AlertPage({ data, currentBranch }) {
   const displayAlerts = useMemo(() => {
     const persisted = (alerts?.length ? alerts : data?.attendanceAlerts || []).map(normalizePersistedAlert);
     const persistedKeys = new Set(persisted.map(alertIdentityKey));
-    const derived = buildDisciplineAlerts(data, dismissedDerivedIds).map((alert) =>
+    const derived = [
+      ...buildDisciplineAlerts(data, dismissedDerivedIds),
+      ...buildStoreInspectionAlerts(data, dismissedDerivedIds)
+    ].map((alert) =>
       acknowledgedDerivedIds.has(alert.id) ? { ...alert, is_acknowledged: true } : alert,
     ).filter((alert) => !persistedKeys.has(alertIdentityKey(alert)));
     return [...derived, ...persisted];
@@ -439,8 +502,8 @@ export default function AlertPage({ data, currentBranch }) {
   const stats = useMemo(() => ({
     total: displayAlerts.length,
     absent: displayAlerts.filter((alert) => alert.alert_type === 'absent').length,
-    late: displayAlerts.filter((alert) => alert.alert_type === 'late').length,
-    early: displayAlerts.filter((alert) => alert.alert_type === 'early').length,
+    late: displayAlerts.filter((alert) => ['late', 'store_open_late'].includes(alert.alert_type)).length,
+    early: displayAlerts.filter((alert) => ['early', 'store_close_early'].includes(alert.alert_type)).length,
     breakOver: displayAlerts.filter((alert) => alert.alert_type === 'break_over').length,
     unack: displayAlerts.filter((alert) => !alert.is_acknowledged).length,
     ack: displayAlerts.filter((alert) => alert.is_acknowledged).length,
@@ -491,18 +554,20 @@ export default function AlertPage({ data, currentBranch }) {
   const handleAcknowledge = async (alert) => {
     setAckingId(alert.id);
     try {
-      if (alert.source === 'discipline') {
-        await createAlert({
-          alertType: alert.alert_type,
-          employeeId: alert.employee_id,
-          branchId: Number(alert.branch_id),
-          workDate: alert.work_date,
-          alertTime: alert.alert_time,
-          title: alert.title,
-          detail: alert.detail,
-          severity: alert.severity,
-          isAcknowledged: true
-        });
+      if (alert.source === 'discipline' || alert.source === 'store') {
+        if (alert.employee_id) {
+          await createAlert({
+            alertType: alert.alert_type,
+            employeeId: alert.employee_id,
+            branchId: Number(alert.branch_id),
+            workDate: alert.work_date,
+            alertTime: alert.alert_time,
+            title: alert.title,
+            detail: alert.detail,
+            severity: alert.severity,
+            isAcknowledged: true
+          });
+        }
         setAcknowledgedDerivedIds((current) => new Set([...current, alert.id]));
         markJustAcknowledged(alert.id);
         window.setTimeout(() => {
@@ -578,8 +643,10 @@ export default function AlertPage({ data, currentBranch }) {
             { id: 'ack', label: 'รับทราบแล้ว' },
             { id: 'absent', label: 'ขาดงาน' },
             { id: 'late', label: 'มาสาย' },
+            { id: 'store_open_late', label: 'เปิดร้านสาย' },
             { id: 'break_over', label: 'พักเกิน' },
-            { id: 'early', label: 'ปิดก่อนเวลา' }
+            { id: 'early', label: 'ปิดก่อนเวลา' },
+            { id: 'store_close_early', label: 'ปิดร้านก่อนเวลา' }
           ].map((item) => (
             <button key={item.id} type="button" onClick={() => setTab(item.id)} className={`page-tab ${tab === item.id ? 'active' : ''}`}>
               {item.label}
