@@ -10,7 +10,7 @@ import {
 
 export function StatCard({ icon: Icon, label, value, tone }) {
   return (
-    <div className="section-card-sm">
+    <div className="section-card-sm min-w-[170px] shrink-0 sm:min-w-0">
       <div className="flex items-center justify-between gap-3">
         <div>
           <div className="caption-strong text-slate-500">{label}</div>

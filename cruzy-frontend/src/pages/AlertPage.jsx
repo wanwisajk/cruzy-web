@@ -588,54 +588,56 @@ export default function AlertPage({ data, currentBranch }) {
   };
 
   return (
-    <div className="app-page page-body space-y-4">
-      <div className="page-header flex-col items-start md:flex-row md:items-center">
+    <div className="app-page page-body space-y-3">
+      <div className="page-header mb-0 flex-col items-start gap-3 md:flex-row md:items-center">
         <div className="page-heading">
-          <div className="page-icon">
-            <AlertTriangle size={20} />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-700 shadow-sm ring-1 ring-amber-100">
+            <AlertTriangle size={18} />
           </div>
           <div className="page-heading-text">
-            <div className="page-title">แจ้งเตือนวินัย</div>
-            <div className="page-subtitle">แสดงคนขาดงาน มาสาย และพักเกินจากข้อมูลเข้างานจริง</div>
+            <div className="text-[18px] font-medium leading-6 text-slate-900">แจ้งเตือนวินัย</div>
+            <div className="caption text-slate-500">สรุปจากข้อมูลเข้างานจริง</div>
           </div>
         </div>
-        <button type="button" onClick={() => openEditor(null)} className="btn btn-primary">
+        <button type="button" onClick={() => openEditor(null)} className="btn btn-primary btn-sm">
           <Plus size={16} /> สร้างแจ้งเตือน
         </button>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-7">
-        <div className="section-card-sm">
-          <div className="body-text text-slate-500">ทั้งหมด</div>
-          <div className="mt-3 stat-number text-slate-900">{stats.total}</div>
+      <div className="-mx-1 overflow-x-auto pb-1 sm:mx-0 sm:overflow-visible">
+        <div className="flex gap-2 px-1 sm:grid sm:px-0 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+        <div className="section-card-sm min-w-[140px] shrink-0 p-3 sm:min-w-0">
+          <div className="caption text-slate-500">ทั้งหมด</div>
+          <div className="mt-2 stat-number text-slate-900">{stats.total}</div>
         </div>
-        <div className="surface-danger p-4">
-          <div className="body-text text-red-700">ขาดงาน</div>
-          <div className="mt-3 stat-number text-red-800">{stats.absent}</div>
+        <div className="surface-danger min-w-[140px] shrink-0 p-3 sm:min-w-0">
+          <div className="caption text-red-700">ขาดงาน</div>
+          <div className="mt-2 stat-number text-red-800">{stats.absent}</div>
         </div>
-        <div className="surface-warning p-4">
-          <div className="body-text text-orange-700">มาสาย</div>
-          <div className="mt-3 stat-number text-orange-800">{stats.late}</div>
+        <div className="surface-warning min-w-[140px] shrink-0 p-3 sm:min-w-0">
+          <div className="caption text-orange-700">มาสาย</div>
+          <div className="mt-2 stat-number text-orange-800">{stats.late}</div>
         </div>
-        <div className="surface-warning p-4">
-          <div className="body-text text-amber-700">พักเกิน</div>
-          <div className="mt-3 stat-number text-amber-800">{stats.breakOver}</div>
+        <div className="surface-warning min-w-[140px] shrink-0 p-3 sm:min-w-0">
+          <div className="caption text-amber-700">พักเกิน</div>
+          <div className="mt-2 stat-number text-amber-800">{stats.breakOver}</div>
         </div>
-        <div className="surface-warning p-4">
-          <div className="body-text text-yellow-700">ปิดก่อนเวลา</div>
-          <div className="mt-3 stat-number text-yellow-800">{stats.early}</div>
+        <div className="surface-warning min-w-[140px] shrink-0 p-3 sm:min-w-0">
+          <div className="caption text-yellow-700">ปิดก่อนเวลา</div>
+          <div className="mt-2 stat-number text-yellow-800">{stats.early}</div>
         </div>
-        <div className="section-card-sm">
-          <div className="body-text text-slate-500">ยังไม่รับทราบ</div>
-          <div className="mt-3 stat-number text-orange-700">{stats.unack}</div>
+        <div className="section-card-sm min-w-[140px] shrink-0 p-3 sm:min-w-0">
+          <div className="caption text-slate-500">ยังไม่รับทราบ</div>
+          <div className="mt-2 stat-number text-orange-700">{stats.unack}</div>
         </div>
-        <div className="surface-success p-4">
-          <div className="body-text text-emerald-700">รับทราบแล้ว</div>
-          <div className="mt-3 stat-number text-emerald-800">{stats.ack}</div>
+        <div className="surface-success min-w-[140px] shrink-0 p-3 sm:min-w-0">
+          <div className="caption text-emerald-700">รับทราบแล้ว</div>
+          <div className="mt-2 stat-number text-emerald-800">{stats.ack}</div>
+        </div>
         </div>
       </div>
 
-      <div className="section-card-scroll">
+      <div className="section-card-scroll p-1.5">
         <div className="page-tabs border-0">
           {[
             { id: 'all', label: 'ทั้งหมด' },
@@ -655,7 +657,7 @@ export default function AlertPage({ data, currentBranch }) {
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap gap-2">
           <span className="count-pill body-text">สาขา: {currentBranch === 'all' ? 'ทั้งหมด' : branches.find((branch) => branch.id === currentBranch)?.code || currentBranch}</span>
         </div>

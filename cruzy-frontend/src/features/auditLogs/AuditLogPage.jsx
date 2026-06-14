@@ -134,20 +134,20 @@ export default function AuditLogPage() {
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white shadow-sm">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
-              <FileClock size={22} />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
+              <FileClock size={18} />
             </div>
             <div>
-              <h1 className="heading-3 text-slate-950">บันทึกกิจกรรมระบบ</h1>
-              <p className="body-text text-slate-500">ดูเหตุการณ์และการเปลี่ยนแปลงสำคัญจากระบบทั้งหมด</p>
+              <h1 className="text-[18px] font-medium leading-6 text-slate-950">บันทึกกิจกรรมระบบ</h1>
+              <p className="caption text-slate-500">ดูการเปลี่ยนแปลงสำคัญจากระบบ</p>
             </div>
           </div>
           <button
             type="button"
             onClick={handleSearch}
-            className="btn btn-primary btn-lg"
+            className="btn btn-primary btn-sm"
           >
             <RefreshCw size={16} />
             รีเฟรชข้อมูล
@@ -155,16 +155,18 @@ export default function AuditLogPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-5">
-        <section className="grid gap-3 md:grid-cols-4">
-          <StatCard icon={Activity} label="รายการที่แสดง" value={filteredLogs.length.toLocaleString('th-TH')} tone="bg-emerald-50 text-emerald-700" />
-          <StatCard icon={Database} label="โมดูลหลัก" value={SUPPORTED_MODULES.length.toLocaleString('th-TH')} tone="bg-blue-50 text-blue-700" />
-          <StatCard icon={Filter} label="ประเภทคำสั่ง" value={actions.length.toLocaleString('th-TH')} tone="bg-violet-50 text-violet-700" />
-          <StatCard icon={CalendarDays} label="ช่วงวันที่" value={`${fromDate} - ${toDate}`} tone="bg-amber-50 text-amber-700" />
+      <main className="mx-auto max-w-7xl px-4 py-4">
+        <section className="-mx-1 overflow-x-auto pb-1 sm:mx-0 sm:overflow-visible">
+          <div className="flex gap-2 px-1 sm:grid sm:px-0 sm:grid-cols-2 md:grid-cols-4">
+            <StatCard icon={Activity} label="รายการที่แสดง" value={filteredLogs.length.toLocaleString('th-TH')} tone="bg-emerald-50 text-emerald-700" />
+            <StatCard icon={Database} label="โมดูลหลัก" value={SUPPORTED_MODULES.length.toLocaleString('th-TH')} tone="bg-blue-50 text-blue-700" />
+            <StatCard icon={Filter} label="ประเภทคำสั่ง" value={actions.length.toLocaleString('th-TH')} tone="bg-violet-50 text-violet-700" />
+            <StatCard icon={CalendarDays} label="ช่วงวันที่" value={`${fromDate} - ${toDate}`} tone="bg-amber-50 text-amber-700" />
+          </div>
         </section>
 
-        <section className="mt-4 section-card section-card-body">
-          <div className="flex flex-wrap items-end gap-3">
+        <section className="mt-3 section-card section-card-body">
+          <div className="flex flex-wrap items-end gap-2">
             <label className="flex flex-col gap-2 caption-strong text-slate-500">
               เริ่มวันที่
               <input
@@ -193,24 +195,16 @@ export default function AuditLogPage() {
                 className="field-search body-emphasis"
               />
             </div>
-            <button
-              type="button"
-              onClick={handleSearch}
-              className="btn btn-primary btn-lg"
-            >
+            <button type="button" onClick={handleSearch} className="btn btn-primary btn-sm">
               <Search size={16} />
               ค้นหา
             </button>
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="btn btn-secondary btn-lg"
-            >
+            <button type="button" onClick={resetFilters} className="btn btn-secondary btn-sm">
               ล้างตัวกรอง
             </button>
           </div>
 
-          <div className="mt-5 grid gap-3 md:grid-cols-4">
+          <div className="mt-4 grid gap-2 md:grid-cols-4">
             <SelectFilter label="คำสั่ง" value={activeAction} onChange={setActiveAction} options={actions} />
             <SelectFilter label="โมดูล" value={activeModule} onChange={setActiveModule} options={modules} />
             <SelectFilter label="หมวดข้อมูล" value={activeTable} onChange={setActiveTable} options={tables} />

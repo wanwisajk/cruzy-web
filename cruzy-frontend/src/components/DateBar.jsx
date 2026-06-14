@@ -67,49 +67,60 @@ export function DateBar({ from, to, setFrom, setTo }) {
 
   return (
     <div className="date-bar">
-      <CalendarDays size={16} className="text-slate-400" />
-      <input
-        type="date"
-        value={from}
-        onChange={(event) => updateFrom(event.target.value)}
-        className="rounded-lg border border-slate-200 px-3 py-1.5 caption outline-none focus:border-cruzy"
-      />
-      <span className="caption text-slate-400">ถึง</span>
-      <input
-        type="date"
-        value={to}
-        onChange={(event) => updateTo(event.target.value)}
-        className="rounded-lg border border-slate-200 px-3 py-1.5 caption outline-none focus:border-cruzy"
-      />
-      <Button
-        variant="ghost"
-        size="sm"
-        className={`date-btn ${activePreset === "today" ? "active" : ""}`}
-        onClick={() => preset("today")}
-      >
-        วันนี้
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm" 
-        className={`date-btn ${activePreset === "week" ? "active" : ""}`}
-        onClick={() => preset("week")}
-      >
-        สัปดาห์นี้
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        className={`date-btn ${activePreset === "month" ? "active" : ""}`}
-        onClick={() => preset("month")}
-      >
-        เดือนนี้
-      </Button>
-      <span className="date-label">
+      <div className="date-bar-main">
+        <div className="date-range-fields">
+          <div className="date-range-heading">
+            <CalendarDays size={16} className="text-slate-400" />
+            <span className="caption text-slate-500">ช่วงวันที่</span>
+          </div>
+          <div className="date-range-inputs">
+            <input
+              type="date"
+              value={from}
+              onChange={(event) => updateFrom(event.target.value)}
+              className="rounded-lg border border-slate-200 px-3 py-2 caption outline-none focus:border-cruzy"
+            />
+            <span className="caption text-slate-400">ถึง</span>
+            <input
+              type="date"
+              value={to}
+              onChange={(event) => updateTo(event.target.value)}
+              className="rounded-lg border border-slate-200 px-3 py-2 caption outline-none focus:border-cruzy"
+            />
+          </div>
+        </div>
+        <div className="date-preset-row">
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`date-btn ${activePreset === "today" ? "active" : ""}`}
+            onClick={() => preset("today")}
+          >
+            วันนี้
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm" 
+            className={`date-btn ${activePreset === "week" ? "active" : ""}`}
+            onClick={() => preset("week")}
+          >
+            สัปดาห์นี้
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`date-btn ${activePreset === "month" ? "active" : ""}`}
+            onClick={() => preset("month")}
+          >
+            เดือนนี้
+          </Button>
+        </div>
+      </div>
+      <div className="date-label">
         {from === to
           ? thaiLongDate(from)
           : `${thaiLongDate(from)} - ${thaiLongDate(to)}`}
-      </span>
+      </div>
     </div>
   );
 }

@@ -89,11 +89,13 @@ export default function CommissionDashboard({ data: initialData, user, currentBr
       <div className="p-6">
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-slate-200 rounded-lg w-1/3" />
-          <div className="grid grid-cols-4 gap-4">
-            <div className="h-24 bg-slate-200 rounded-lg col-span-1" />
-            <div className="h-24 bg-slate-200 rounded-lg col-span-1" />
-            <div className="h-24 bg-slate-200 rounded-lg col-span-1" />
-            <div className="h-24 bg-slate-200 rounded-lg col-span-1" />
+          <div className="-mx-1 overflow-x-auto pb-1 sm:mx-0 sm:overflow-visible">
+            <div className="flex gap-4 px-1 sm:grid sm:px-0 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="h-24 min-w-[170px] shrink-0 rounded-lg bg-slate-200 sm:min-w-0" />
+              <div className="h-24 min-w-[170px] shrink-0 rounded-lg bg-slate-200 sm:min-w-0" />
+              <div className="h-24 min-w-[170px] shrink-0 rounded-lg bg-slate-200 sm:min-w-0" />
+              <div className="h-24 min-w-[170px] shrink-0 rounded-lg bg-slate-200 sm:min-w-0" />
+            </div>
           </div>
           <div className="h-8 bg-slate-200 rounded-lg w-full" />
           <div className="h-48 bg-slate-200 rounded-lg w-full" />
@@ -108,36 +110,39 @@ export default function CommissionDashboard({ data: initialData, user, currentBr
         <div className="page-heading-text">
           <h2 className="page-title">💰 ระบบคำนวณค่าคอมมิชชันพนักงาน</h2>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
           <button onClick={computeAll} className="btn btn-secondary btn-lg"><RefreshCw size={16} /> คำนวณค่าคอมมิชชัน</button>
           <button onClick={exportCsv} className="btn btn-secondary btn-lg"><Download size={16} /> Export Excel</button>
         </div>
       </div>
 
-      <div className="stats-row">
-        <div className="section-card-sm">
+      <div className="-mx-1 overflow-x-auto pb-1 sm:mx-0 sm:overflow-visible">
+        <div className="flex gap-3 px-1 sm:grid sm:px-0 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="section-card-sm min-w-[170px] shrink-0 sm:min-w-0">
           <div className="body-text text-slate-500">ยอดขายรวม</div>
           <div className="stat-number">฿{money(summary.totalSales)}</div>
         </div>
-        <div className="section-card-sm">
+        <div className="section-card-sm min-w-[170px] shrink-0 sm:min-w-0">
           <div className="body-text text-slate-500">ค่าคอมรวม</div>
           <div className="stat-number">฿{money(summary.totalCommission)}</div>
         </div>
-        <div className="section-card-sm">
+        <div className="section-card-sm min-w-[170px] shrink-0 sm:min-w-0">
           <div className="body-text text-slate-500">พนักงานที่ได้คอม</div>
           <div className="stat-number">{summary.earners}</div>
         </div>
-        <div className="section-card-sm">
+        <div className="section-card-sm min-w-[170px] shrink-0 sm:min-w-0">
           <div className="body-text text-slate-500">จำนวนวันที่คิดคอม</div>
           <div className="stat-number">{summary.totalDays}</div>
         </div>
+        </div>
       </div>
 
-      <div className="flex items-center gap-3 mb-4">
-        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ค้นหา ชื่อ / รหัส / สาขา" className="input w-80" />
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ค้นหา ชื่อ / รหัส / สาขา" className="input w-full sm:w-80" />
       </div>
 
-      <div className="table-shell overflow-x-auto">
+      <div className="table-shell">
+        <div className="overflow-x-auto">
         <table className="min-w-full border-collapse body-text">
           <thead>
             <tr className="bg-[#fafafa]">
@@ -168,6 +173,7 @@ export default function CommissionDashboard({ data: initialData, user, currentBr
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

@@ -442,54 +442,56 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
   }
 
   return (
-    <div className="app-page page-body space-y-4">
-      <div className="page-header flex-col items-start md:flex-row md:items-center">
+    <div className="app-page page-body space-y-3">
+      <div className="page-header mb-0 flex-col items-start gap-3 md:flex-row md:items-center">
         <div className="page-heading">
-          <div className="page-icon">
-            <span>🔍</span>
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100">
+            <span className="text-base">🔍</span>
           </div>
           <div className="page-heading-text">
-            <div className="page-title">ระบบตรวจร้าน</div>
-            <div className="page-subtitle">ข้อมูลจากฐานข้อมูลจริง ใช้ช่วงวันที่จาก DateBar</div>
+            <div className="text-[18px] font-medium leading-6 text-slate-900">ระบบตรวจร้าน</div>
+            <div className="caption text-slate-500">ข้อมูลจริงตามช่วงวันที่เลือก</div>
           </div>
         </div>
         <button
           type="button"
           onClick={loadAllData}
-          className="btn btn-secondary"
+          className="btn btn-secondary btn-sm"
         >
           <RefreshCcw size={16} /> รีเฟรชข้อมูล
         </button>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-        <div className="section-card-sm">
-          <div className="body-text text-slate-500">เปิดแล้ว</div>
-          <div className="mt-3 stat-number text-slate-900">{loading ? '–' : summaryCounts.opened}</div>
+      <div className="-mx-1 overflow-x-auto pb-1 sm:mx-0 sm:overflow-visible">
+        <div className="flex gap-2 px-1 sm:grid sm:px-0 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <div className="section-card-sm min-w-[140px] shrink-0 p-3 sm:min-w-0">
+          <div className="caption text-slate-500">เปิดแล้ว</div>
+          <div className="mt-2 stat-number text-slate-900">{loading ? '–' : summaryCounts.opened}</div>
         </div>
-        <div className="section-card-sm">
-          <div className="body-text text-slate-500">ยังไม่เปิด</div>
-          <div className="mt-3 stat-number text-slate-900">{loading ? '–' : summaryCounts.missing}</div>
+        <div className="section-card-sm min-w-[140px] shrink-0 p-3 sm:min-w-0">
+          <div className="caption text-slate-500">ยังไม่เปิด</div>
+          <div className="mt-2 stat-number text-slate-900">{loading ? '–' : summaryCounts.missing}</div>
         </div>
-        <div className="section-card-sm">
-          <div className="body-text text-slate-500">เปิดสาย</div>
-          <div className="mt-3 stat-number text-orange-600">{loading ? '–' : summaryCounts.late}</div>
+        <div className="section-card-sm min-w-[140px] shrink-0 p-3 sm:min-w-0">
+          <div className="caption text-slate-500">เปิดสาย</div>
+          <div className="mt-2 stat-number text-orange-600">{loading ? '–' : summaryCounts.late}</div>
         </div>
-        <div className="section-card-sm">
-          <div className="body-text text-slate-500">เปิดตรงเวลา</div>
-          <div className="mt-3 stat-number text-emerald-600">{loading ? '–' : summaryCounts.onTime}</div>
+        <div className="section-card-sm min-w-[140px] shrink-0 p-3 sm:min-w-0">
+          <div className="caption text-slate-500">เปิดตรงเวลา</div>
+          <div className="mt-2 stat-number text-emerald-600">{loading ? '–' : summaryCounts.onTime}</div>
         </div>
-        <div className="section-card-sm">
-          <div className="body-text text-slate-500">ยังไม่บันทึกปิด</div>
-          <div className="mt-3 stat-number text-slate-900">{loading ? '–' : summaryCounts.missingClose}</div>
+        <div className="section-card-sm min-w-[140px] shrink-0 p-3 sm:min-w-0">
+          <div className="caption text-slate-500">ยังไม่บันทึกปิด</div>
+          <div className="mt-2 stat-number text-slate-900">{loading ? '–' : summaryCounts.missingClose}</div>
         </div>
-        <div className="section-card-sm">
-          <div className="body-text text-slate-500">ปิดก่อนเวลา</div>
-          <div className="mt-3 stat-number text-red-600">{loading ? '–' : summaryCounts.closedEarly}</div>
+        <div className="section-card-sm min-w-[140px] shrink-0 p-3 sm:min-w-0">
+          <div className="caption text-slate-500">ปิดก่อนเวลา</div>
+          <div className="mt-2 stat-number text-red-600">{loading ? '–' : summaryCounts.closedEarly}</div>
+        </div>
         </div>
       </div>
 
-      <div className="flex flex-col gap-2 overflow-x-auto section-card-sm sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-2 overflow-x-auto section-card-sm p-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="count-pill">
           สาขา: {selectedBranch === 'all' ? 'ทั้งหมด' : branchMap[selectedBranch]?.code || selectedBranch}
         </div>

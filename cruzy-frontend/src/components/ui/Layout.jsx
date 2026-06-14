@@ -32,20 +32,22 @@ export function Content({ title, icon: Icon, stats, action, children }) {
 export function Table({ headers, children }) {
   return (
     <div className="table-shell">
-      <table className="w-full border-collapse">
-        <thead>
-          <tr>
-            {headers.map((header) => (
-              <th key={header} className="px-3 py-3 text-left table-head text-slate-500">
-                {header}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {children}
-        </tbody>
-      </table>
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr>
+              {headers.map((header) => (
+                <th key={header} className="px-3 py-3 text-left table-head text-slate-500">
+                  {header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {children}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

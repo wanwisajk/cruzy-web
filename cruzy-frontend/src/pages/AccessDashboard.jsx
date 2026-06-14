@@ -180,7 +180,7 @@ export default function AccessDashboard({ user, fallbackData }) {
   };
 
   return (
-    <div className="app-page page-body flex flex-col h-full w-full rounded-lg">
+    <div className="app-page page-body flex h-full w-full flex-col rounded-lg">
       <Content
         title="สิทธิ์"
         icon={Shield}
@@ -372,29 +372,31 @@ export default function AccessDashboard({ user, fallbackData }) {
                     <td className="px-3 py-2">{scopeLabel(item)}</td>
                     {canManage ? (
                       <td className="px-3 py-2">
-                        <button
-                          type="button"
-                          onClick={() => openEditModal(item)}
-                          className="btn btn-success btn-sm mr-2"
-                        >
-                          แก้ไข
-                        </button>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            try {
-                              if (!window.confirm("ลบผู้ใช้นี้จริงหรือไม่?"))
-                                return;
-                              await accessMutations.deleteUser(item.id);
-                              await refreshAccessData();
-                            } catch (err) {
-                              alert(err.message || err);
-                            }
-                          }}
-                          className="btn btn-danger btn-sm"
-                        >
-                          ลบ
-                        </button>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(item)}
+                            className="btn btn-success btn-sm"
+                          >
+                            แก้ไข
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                if (!window.confirm("ลบผู้ใช้นี้จริงหรือไม่?"))
+                                  return;
+                                await accessMutations.deleteUser(item.id);
+                                await refreshAccessData();
+                              } catch (err) {
+                                alert(err.message || err);
+                              }
+                            }}
+                            className="btn btn-danger btn-sm"
+                          >
+                            ลบ
+                          </button>
+                        </div>
                       </td>
                     ) : null}
                   </tr>
