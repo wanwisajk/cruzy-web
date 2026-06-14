@@ -202,6 +202,12 @@ export const api = {
     method: 'PATCH',
     body: JSON.stringify(body)
   }),
+  approveSale: (id) => request(`/sales/${id}/approve`, {
+    method: 'POST'
+  }),
+  rejectSale: (id) => request(`/sales/${id}/reject`, {
+    method: 'POST'
+  }),
   
   // Bank Accounts
   getBankAccounts: () => request('/bank-accounts'),
@@ -223,6 +229,12 @@ export const api = {
   updateCashDeposit: (id, body) => request(`/cash-deposits/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(body)
+  }),
+  approveCashDeposit: (id) => request(`/cash-deposits/${id}/approve`, {
+    method: 'POST'
+  }),
+  rejectCashDeposit: (id) => request(`/cash-deposits/${id}/reject`, {
+    method: 'POST'
   }),
 
   // Attachments

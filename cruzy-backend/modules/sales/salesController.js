@@ -1,5 +1,5 @@
 const { fetchTable, supabase } = require('../../shared/db');
-const { parseInteger, required, sendError, toNumber } = require('../../shared/http');
+const { parseInteger, required, sendError, toNumber, auditFields } = require('../../shared/http');
 const TABLES = require('../../shared/tables');
 
 function cleanSalePayload(body) {
@@ -123,6 +123,47 @@ exports.updateSale = async (req, res) => {
     }
     sendError(res, error, 'ไม่สามารถอัปเดตยอดขายได้');
   }
+};
+
+async function setSaleStatus(req, res, status, successMessage) {
+  try {
+    const id = parseInteger(req.params.id);
+    if (id === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
+    const payload = { status, ...auditFields(req) };
+    const { data, error } = await supabase.from(TABLES.sales).update(payload).eq('id', id).select().single();
+    if (error) throw error;
+    res.json({ message: successMessage, data });
+  } catch (error) {
+    // If audit columns don't exist in this table, retry without audit fields
+    if (String(error.code || '').toUpperCase().includes('PGRST204') || String(error.message || '').includes("Could not find the 'audit_actor_id'")) {
+      try {
+        const id = parseInteger(req.params.id);
+        const { data, error: err2 } = await supabase.from(TABLES.sales).update({ status }).eq('id', id).select().single();
+        if (err2) throw err2;
+        return res.json({ message: successMessage, data });
+      } catch (err2) {
+        return sendError(res, err2, 'ไม่สามารถอัปเดตสถานะยอดขายได้');
+      }
+    }
+
+    sendError(res, error, 'ไม่สามารถอัปเดตสถานะยอดขายได้');
+  }
+}
+
+exports.updateSaleStatus = async (req, res) => {
+  const { status } = req.body;
+  if (!['draft', 'submitted', 'confirmed', 'rejected'].includes(status)) {
+    return res.status(400).json({ message: 'สถานะไม่ถูกต้อง' });
+  }
+  return setSaleStatus(req, res, status, 'อัปเดตสถานะยอดขายเรียบร้อยแล้ว');
+};
+
+exports.approveSale = async (req, res) => {
+  return setSaleStatus(req, res, 'confirmed', 'ยืนยันยอดขายเรียบร้อยแล้ว');
+};
+
+exports.rejectSale = async (req, res) => {
+  return setSaleStatus(req, res, 'rejected', 'ปฏิเสธยอดขายเรียบร้อยแล้ว');
 };
 
 exports.deleteSale = async (req, res) => {

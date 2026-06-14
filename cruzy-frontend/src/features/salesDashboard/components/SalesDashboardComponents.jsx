@@ -48,8 +48,8 @@ export function StatusBadge({ status }) {
   );
 }
 
-export function DepositStatusBadge({ deposit }) {
-  const status = depositStatus(deposit);
+export function DepositStatusBadge({ deposit, expectedAmount }) {
+  const status = depositStatus(deposit, expectedAmount);
   let colorClass = 'bg-gray-100 text-gray-800 border-gray-200';
 
   if (status.className === 'waiting') colorClass = 'bg-amber-50 text-amber-700 border-amber-200';

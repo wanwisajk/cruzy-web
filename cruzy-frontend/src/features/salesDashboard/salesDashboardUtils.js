@@ -51,15 +51,26 @@ export function filteredDeposits(data, user, currentBranch, from, to) {
   return data.deposits.filter((deposit) => branchIds.includes(String(deposit.bid)) && dates.includes(deposit.date));
 }
 
+export function cashByBranchAndDate(data) {
+  return data.sales.reduce((acc, sale) => {
+    const branchId = String(sale.bid);
+    const date = sale.date;
+    const key = `${branchId}_${date}`;
+    acc[key] = (acc[key] || 0) + Number(sale.cash || 0);
+    return acc;
+  }, {});
+}
+
 export function statusBadge(status) {
   if (status === 'draft') return { className: 'draft', label: 'รอยืนยัน' };
   if (status === 'edited') return { className: 'edited', label: 'แก้ไข' };
   return { className: 'confirmed', label: 'ยืนยัน' };
 }
 
-export function depositStatus(deposit) {
+export function depositStatus(deposit, expectedOverride = null) {
   if (!Number(deposit.deposited)) return { className: 'waiting', label: 'รอฝาก' };
-  const diff = Number(deposit.deposited) - Number(deposit.expected);
+  const expected = expectedOverride === null || expectedOverride === undefined ? Number(deposit.expected) : Number(expectedOverride);
+  const diff = Number(deposit.deposited) - expected;
   if (diff === 0) return { className: 'match', label: 'ตรง' };
   return { className: 'mismatch', label: `ยอด${diff > 0 ? 'เกิน' : 'ขาด'} ฿${money(Math.abs(diff))}` };
 }

@@ -151,20 +151,32 @@ exports.updateLeave = async (req, res) => {
   }
 };
 
-exports.updateLeaveStatus = async (req, res) => {
+async function setLeaveStatus(req, res, status, successMessage) {
   try {
-    const { status } = req.body;
-    if (!['pending', 'approved', 'rejected'].includes(status)) {
-      return res.status(400).json({ message: 'สถานะไม่ถูกต้อง' });
-    }
     const id = parseInteger(req.params.id);
     if (id === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
     const { data, error } = await supabase.from(TABLES.leaves).update({ status, ...auditFields(req) }).eq('id', id).select(LEAVE_SELECT).single();
     if (error) throw error;
-    res.json({ message: 'อัปเดตสถานะการลาเรียบร้อยแล้ว', data });
+    res.json({ message: successMessage, data });
   } catch (error) {
     sendError(res, error, 'ไม่สามารถอัปเดตสถานะการลาได้');
   }
+}
+
+exports.updateLeaveStatus = async (req, res) => {
+  const { status } = req.body;
+  if (!['pending', 'approved', 'rejected'].includes(status)) {
+    return res.status(400).json({ message: 'สถานะไม่ถูกต้อง' });
+  }
+  return setLeaveStatus(req, res, status, 'อัปเดตสถานะการลาเรียบร้อยแล้ว');
+};
+
+exports.approveLeave = async (req, res) => {
+  return setLeaveStatus(req, res, 'approved', 'อนุมัติการลาเรียบร้อยแล้ว');
+};
+
+exports.rejectLeave = async (req, res) => {
+  return setLeaveStatus(req, res, 'rejected', 'ปฏิเสธการลาเรียบร้อยแล้ว');
 };
 
 exports.deleteLeave = async (req, res) => {

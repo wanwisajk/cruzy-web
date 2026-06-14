@@ -1,5 +1,5 @@
 const { fetchTable, supabase } = require('../../shared/db');
-const { parseInteger, required, sendError, toNumber } = require('../../shared/http');
+const { parseInteger, required, sendError, toNumber, auditFields } = require('../../shared/http');
 const TABLES = require('../../shared/tables');
 
 function cleanCashDepositPayload(body) {
@@ -103,6 +103,46 @@ exports.updateCashDeposit = async (req, res) => {
     }
     sendError(res, error, 'ไม่สามารถอัปเดตรายการฝากเงินได้');
   }
+};
+
+async function setCashDepositStatus(req, res, status, successMessage) {
+  try {
+    const id = parseInteger(req.params.id);
+    if (id === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
+    const payload = { status, ...auditFields(req) };
+    const { data, error } = await supabase.from(TABLES.cashDeposits).update(payload).eq('id', id).select().single();
+    if (error) throw error;
+    res.json({ message: successMessage, data });
+  } catch (error) {
+    if (String(error.code || '').toUpperCase().includes('PGRST204') || String(error.message || '').includes("Could not find the 'audit_actor_id'")) {
+      try {
+        const id = parseInteger(req.params.id);
+        const { data, error: err2 } = await supabase.from(TABLES.cashDeposits).update({ status }).eq('id', id).select().single();
+        if (err2) throw err2;
+        return res.json({ message: successMessage, data });
+      } catch (err2) {
+        return sendError(res, err2, 'ไม่สามารถอัปเดตรายการฝากเงินได้');
+      }
+    }
+
+    sendError(res, error, 'ไม่สามารถอัปเดตรายการฝากเงินได้');
+  }
+}
+
+exports.updateCashDepositStatus = async (req, res) => {
+  const { status } = req.body;
+  if (!['waiting', 'verified', 'rejected'].includes(status)) {
+    return res.status(400).json({ message: 'สถานะไม่ถูกต้อง' });
+  }
+  return setCashDepositStatus(req, res, status, 'อัปเดตสถานะรายการฝากเงินเรียบร้อยแล้ว');
+};
+
+exports.approveCashDeposit = async (req, res) => {
+  return setCashDepositStatus(req, res, 'verified', 'ตรวจสอบรายการฝากเงินเรียบร้อยแล้ว');
+};
+
+exports.rejectCashDeposit = async (req, res) => {
+  return setCashDepositStatus(req, res, 'rejected', 'ปฏิเสธรายการฝากเงินเรียบร้อยแล้ว');
 };
 
 exports.deleteCashDeposit = async (req, res) => {
