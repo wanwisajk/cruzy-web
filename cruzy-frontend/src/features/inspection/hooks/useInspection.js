@@ -69,9 +69,11 @@ export function useInspection({ user, from, to, currentBranch }) {
   const [savingReview, setSavingReview] = useState(false);
   const [toast, setToast] = useState(null);
 
-  const loadAllData = useCallback(async () => {
-    setLoading(true);
-    setError('');
+  const loadAllData = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) {
+      setLoading(true);
+      setError('');
+    }
     try {
       const data = await inspectionService.fetchDashboardData({ from, to, branch: currentBranch });
       setBranches(mergeBranchHours(data.branches || [], data.branchStaffingRules || data.branch_staffing_rules || []));
@@ -87,14 +89,44 @@ export function useInspection({ user, from, to, currentBranch }) {
       }));
       setSettings(data.inspectionSettings || []);
     } catch (err) {
-      setError(err.message || 'ไม่สามารถโหลดข้อมูลได้');
+      if (silent) {
+        console.error('Inspection auto-refresh failed:', err);
+      } else {
+        setError(err.message || 'ไม่สามารถโหลดข้อมูลได้');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [from, to, currentBranch]);
 
   useEffect(() => {
     loadAllData();
+  }, [loadAllData]);
+
+  useEffect(() => {
+    let disposed = false;
+    let inFlight = false;
+    const tick = async () => {
+      if (disposed || inFlight || document.visibilityState === 'hidden') return;
+      inFlight = true;
+      try {
+        await loadAllData({ silent: true });
+      } finally {
+        inFlight = false;
+      }
+    };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') tick();
+    };
+    const interval = window.setInterval(tick, 30000);
+    window.addEventListener('focus', tick);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      disposed = true;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', tick);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [loadAllData]);
 
   useEffect(() => {

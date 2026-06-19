@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { DateBar } from './components/DateBar';
@@ -8,7 +8,7 @@ import { Toasts } from './components/Toasts';
 import { useToast } from './hooks/useToast';
 import { api } from './lib/api';
 import { fmtDate } from './lib/date';
-import { hydrateConsoleData } from './lib/hydrate';
+import { hydrateConsoleData, hydrateConsolePatch } from './lib/hydrate';
 import EmployeesPage from './pages/EmployeesPage.jsx';
 import ScheduleDashboard from './pages/ScheduleDashboard.jsx';
 import SalesDashboard from './pages/SaleDashboard.jsx';
@@ -22,6 +22,21 @@ import AccessDashboard from './pages/AccessDashboard.jsx';
 import LiffInspectionPage from './pages/LiffInspectionPage.jsx';
 
 const sessionKey = 'cruzyAdminSession';
+const ownerOnlyPaths = new Set(['/auditlog', '/access']);
+const SALES_REFRESH_KEYS = ['sales', 'cashDeposits', 'salesLogs', 'attachments', 'bankAccounts', 'bankAccountBranches'];
+const AUTO_REFRESH_KEYS_BY_TAB = {
+  schedule: ['schedules', 'employees', 'employeeBranchEligibility', 'employeeAvailabilityRules', 'employeeAvailabilityOverrides', 'branchStaffingRules'],
+  employee: ['employees', 'employeeBranchEligibility', 'employeeAvailabilityRules', 'employeeAvailabilityOverrides', 'employeePayProfiles', 'leaveBalances', 'contracts', 'attendance', 'attendanceAlerts', 'warningLetters'],
+  leave: ['leaves', 'leaveBalances', 'employees', 'attachments'],
+  commission: ['sales', 'schedules', 'employees', 'employeePayProfiles', 'employeeBranchEligibility', 'salarySummaries'],
+  alerts: ['attendance', 'attendanceAlerts', 'warningLetters'],
+  'warning-letters': ['warningLetterTemplates', 'employees', 'branches'],
+  access: ['users']
+};
+
+function isOwnerRole(user) {
+  return String(user?.role || '').trim().toLowerCase() === 'owner';
+}
 
 function currentWeekRange(date = new Date()) {
   const current = new Date(date);
@@ -47,6 +62,8 @@ export default function App() {
   const { toasts, push } = useToast();
   const location = useLocation();
   const navigate = useNavigate();
+  const isOwner = isOwnerRole(user);
+  const hasData = Boolean(data);
 
   useEffect(() => {
     bootFromSession();
@@ -60,6 +77,21 @@ export default function App() {
     setTo(range.to);
     return hydrated;
   }
+
+  const refreshDataSlices = useCallback(async (keys, range = { from, to }) => {
+    if (!Array.isArray(keys) || keys.length === 0) return null;
+    const payload = await api.consoleData({ ...range, keys });
+    let hydrated = null;
+    setData((current) => {
+      hydrated = hydrateConsolePatch(payload, current);
+      return hydrated;
+    });
+    return hydrated;
+  }, [from, to]);
+
+  const refreshSalesData = useCallback((range) => (
+    refreshDataSlices(SALES_REFRESH_KEYS, range)
+  ), [refreshDataSlices]);
 
   async function bootFromSession() {
     const raw = localStorage.getItem(sessionKey);
@@ -118,6 +150,43 @@ export default function App() {
   }, [data, currentBranch]);
 
   useEffect(() => {
+    const keys = AUTO_REFRESH_KEYS_BY_TAB[currentTab];
+    if (!user || !hasData || !keys?.length) return undefined;
+
+    let disposed = false;
+    let inFlight = false;
+    const tick = async () => {
+      if (disposed || inFlight || document.visibilityState === 'hidden') return;
+      inFlight = true;
+      try {
+        await refreshDataSlices(keys, { from, to });
+      } catch (error) {
+        console.error('Auto-refresh failed:', error);
+      } finally {
+        inFlight = false;
+      }
+    };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') tick();
+    };
+    const interval = window.setInterval(tick, 30000);
+    window.addEventListener('focus', tick);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      disposed = true;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', tick);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [currentTab, from, hasData, refreshDataSlices, to, user]);
+
+  useEffect(() => {
+    if (user && ownerOnlyPaths.has(location.pathname) && !isOwner) {
+      setCurrentTab('schedule');
+      navigate('/', { replace: true });
+      return;
+    }
+
     if (location.pathname === '/leave') {
       setCurrentTab('leave');
       return;
@@ -146,7 +215,7 @@ export default function App() {
       setCurrentTab('access');
       return;
     }
-  }, [location.pathname]);
+  }, [isOwner, location.pathname, navigate, user]);
 
   if (location.pathname.startsWith('/liff/inspection')) {
     return <LiffInspectionPage />;
@@ -182,7 +251,7 @@ export default function App() {
         alertCount={alertCount}
         navigate={navigate}
       >
-        {location.pathname !== '/leave' && location.pathname !== '/auditlog' ? // App.tsx
+        {location.pathname !== '/leave' && location.pathname !== '/auditlog' && location.pathname !== '/access' ? // App.tsx
 <DateBar from={from} to={to} setFrom={setFrom} setTo={setTo} initialDate={data.initialDate} /> : null}
         <Routes>
           <Route
@@ -199,11 +268,11 @@ export default function App() {
           />
           <Route
             path="/auditlog"
-            element={<LogPage />}
+            element={isOwner ? <LogPage /> : null}
           />
           <Route
             path="/access"
-            element={<AccessDashboard user={user} fallbackData={data} onRefreshData={loadData} />}
+            element={isOwner ? <AccessDashboard user={user} fallbackData={data} onRefreshData={loadData} /> : null}
           />
           <Route
             path="/*"
@@ -211,12 +280,12 @@ export default function App() {
               <>
                 {currentTab === 'schedule' ? <ScheduleDashboard data={data} setData={setData} user={user} currentBranch={currentBranch} from={from} to={to} toast={push} onRefreshData={loadData} /> : null}
                 {currentTab === 'employee' ? <EmployeesPage data={data} user={user} currentBranch={currentBranch} from={from} to={to} setData={setData} toast={push} onRefreshData={loadData} /> : null}
-                {currentTab === 'sales' ? <SalesDashboard data={data} user={user} currentBranch={currentBranch} from={from} to={to} onRefreshData={loadData} /> : null}
+                {currentTab === 'sales' ? <SalesDashboard data={data} user={user} currentBranch={currentBranch} from={from} to={to} onRefreshData={refreshSalesData} /> : null}
                 {currentTab === 'commission' ? <CommissionDashboard data={data} user={user} currentBranch={currentBranch} from={from} to={to} onRefreshData={loadData} /> : null}
                 {currentTab === 'inspection' ? <InspectionDashboard user={user} currentBranch={currentBranch} from={from} to={to} onRefreshData={loadData} /> : null}
                 {currentTab === 'alerts' ? <AlertPage data={data} currentBranch={currentBranch} onRefreshData={loadData} /> : null}
                 {currentTab === 'warning-letters' ? <WarningLetterPage data={data} user={user} onRefreshData={loadData} /> : null}
-                {currentTab === 'access' ? <AccessDashboard user={user} fallbackData={data} onRefreshData={loadData} /> : null}
+                {isOwner && currentTab === 'access' ? <AccessDashboard user={user} fallbackData={data} onRefreshData={loadData} /> : null}
               </>
             }
           />

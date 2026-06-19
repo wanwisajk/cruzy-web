@@ -66,12 +66,17 @@ export default function SaleDashboard({ data, user, currentBranch, from, to, onR
   }, [onRefreshData, filterFrom, filterTo]);
 
   useEffect(() => {
+    let inFlight = false;
     const interval = window.setInterval(async () => {
+      if (inFlight || document.visibilityState === 'hidden') return;
+      inFlight = true;
       try {
         await refreshRef.current();
         setLastRefreshed(new Date());
       } catch (error) {
         console.error('Sales auto-refresh failed:', error);
+      } finally {
+        inFlight = false;
       }
     }, 30000);
 

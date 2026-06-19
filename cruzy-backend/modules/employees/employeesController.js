@@ -2,6 +2,11 @@ const { fetchTable, supabase } = require('../../shared/db');
 const { auditFields, parseInteger, required, sendError, toNumber } = require('../../shared/http');
 const TABLES = require('../../shared/tables');
 
+function cleanManualId(value) {
+  const id = String(value ?? '').trim();
+  return id && id.length <= 255 ? id : null;
+}
+
 function cleanEmployeePayload(body) {
   const payload = {
     name: body.name,
@@ -14,7 +19,7 @@ function cleanEmployeePayload(body) {
     phone: body.phone || null,
     line_user_id: body.line_user_id || null
   };
-  if (body.id !== undefined && body.id !== null && body.id !== '') payload.id = parseInteger(body.id);
+  if (body.id !== undefined && body.id !== null && body.id !== '') payload.id = cleanManualId(body.id);
   return payload;
 }
 
@@ -242,12 +247,16 @@ exports.createEmployee = async (req, res) => {
   let employeeId = null;
   const audit = auditFields(req);
   try {
-    if (!required(res, req.body, ['name', 'branchEligibility', 'payProfile'])) return;
+    if (!required(res, req.body, ['id', 'name', 'branchEligibility', 'payProfile'])) return;
+    const manualEmployeeId = cleanManualId(req.body.id);
+    if (!manualEmployeeId) {
+      return res.status(400).json({ message: 'รหัสพนักงานต้องไม่ว่างและยาวไม่เกิน 255 ตัวอักษร' });
+    }
     if (!Array.isArray(req.body.branchEligibility) || req.body.branchEligibility.length === 0) {
       return res.status(400).json({ message: 'ต้องระบุสาขาที่พนักงานสามารถทำงานได้อย่างน้อย 1 สาขา' });
     }
 
-    const employee = { ...cleanEmployeePayload({ ...req.body, id: undefined }), ...audit };
+    const employee = { ...cleanEmployeePayload({ ...req.body, id: manualEmployeeId }), ...audit };
     const { data, error } = await supabase.from(TABLES.employees).insert([employee]).select().single();
     if (error) throw error;
     employeeId = data.id;

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Image, ListChecks, Plus, RefreshCcw, Search, Trash2, UploadCloud, X } from 'lucide-react';
-import { thaiLongDate, thaiShortDate } from '../lib/date';
+import { fmtDate, thaiLongDate, thaiShortDate } from '../lib/date';
 import { useInspection } from '../features/inspection/hooks/useInspection.js';
 
 function formatBadge(status) {
@@ -405,7 +405,7 @@ function rangeDays(from, to) {
   const current = new Date(`${from}T00:00:00`);
   const end = new Date(`${to}T00:00:00`);
   while (current <= end) {
-    dates.push(current.toISOString().slice(0, 10));
+    dates.push(fmtDate(current));
     current.setDate(current.getDate() + 1);
   }
   return dates;
@@ -469,7 +469,7 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [openingForm, setOpeningForm] = useState(() => ({
     branchId: '',
-    workDate: from || new Date().toISOString().slice(0, 10),
+    workDate: from || fmtDate(new Date()),
     submitTime: new Date().toTimeString().slice(0, 5),
     closeTime: '',
     submittedBy: '',
@@ -542,6 +542,8 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
   }, [enrichedInspections, selectedBranch, searchValue]);
 
   const rangeDates = useMemo(() => (from && to ? rangeDays(from, to) : []), [from, to]);
+  const today = fmtDate(new Date());
+  const openingTableMinWidth = 72 + rangeDates.length * 112;
   const rangeDateSet = useMemo(() => new Set(rangeDates), [rangeDates]);
   const expectedCombos = useMemo(
     () => visibleBranches.length * rangeDates.length,
@@ -689,6 +691,14 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
   useEffect(() => {
     setReviewNote(detailInspection?.manager_note || '');
   }, [detailInspection?.id, detailInspection?.manager_note]);
+
+  useEffect(() => {
+    if (!from || !to) return;
+    setOpeningForm((current) => {
+      if (current.workDate >= from && current.workDate <= to) return current;
+      return { ...current, workDate: from };
+    });
+  }, [from, to]);
 
   function setOpeningField(field) {
     return (event) => setOpeningForm((current) => ({
@@ -1263,67 +1273,87 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
               </form>
 
               <div className="table-shell">
-                <div className="border-b border-slate-100 px-4 py-3">
-                </div>
                 <div className="overflow-x-auto">
-                  <table className="min-w-full border-collapse body-text">
-                    <thead className="bg-slate-50 text-slate-500">
+                  <table className="w-full table-fixed border-collapse body-text" style={{ minWidth: `${openingTableMinWidth}px` }}>
+                    <thead>
                       <tr>
-                        <th className="sticky left-0 z-10 min-w-[180px] border-r border-slate-200 bg-slate-50 px-4 py-3 text-left">สาขา</th>
-                        {rangeDates.map((date) => (
-                          <th key={date} className="min-w-[150px] whitespace-nowrap px-2 py-3 text-center">
-                            <div className="body-strong text-slate-700">{thaiShortDate(date)}</div>
-                            <div className="mt-0.5 caption body-emphasis text-slate-400">{date}</div>
-                          </th>
-                        ))}
+                        <th className="sticky left-0 z-20 w-[72px] border-b border-r-2 border-gray-100 border-r-blue-500 bg-gray-50 px-3 py-2.5 text-left caption body-strong uppercase tracking-wide text-gray-400">
+                          สาขา
+                        </th>
+                        {rangeDates.map((date) => {
+                          const day = new Date(`${date}T00:00:00`);
+                          const isToday = date === today;
+                          return (
+                            <th
+                              key={date}
+                              className={`w-[112px] border-b border-gray-100 px-2 py-2.5 text-center ${
+                                isToday ? 'border-b-blue-200 bg-blue-50' : 'bg-gray-50'
+                              }`}
+                            >
+                              <div className={`caption body-strong uppercase tracking-wide ${isToday ? 'text-blue-600' : 'text-gray-400'}`}>
+                                {day.toLocaleDateString('th-TH', { weekday: 'short' })}
+                              </div>
+                              <div className={`mt-0.5 body-text body-strong ${isToday ? 'text-blue-600' : 'text-gray-700'}`}>
+                                {day.getDate()}
+                              </div>
+                            </th>
+                          );
+                        })}
                       </tr>
                     </thead>
                     <tbody>
                       {openingBranches.length && rangeDates.length ? (
                         openingBranches.map((branch) => (
-                          <tr key={branch.id} className="border-t border-slate-100 hover:bg-slate-50/60">
-                            <td className="sticky left-0 z-10 border-r border-slate-200 bg-white px-4 py-3">
-                              <div className="body-strong text-slate-900">{branch.code}</div>
-                              <div className="mt-0.5 max-w-[150px] truncate caption text-slate-500">{branch.name}</div>
+                          <tr key={branch.id}>
+                            <td
+                              className="sticky left-0 z-10 w-[72px] whitespace-nowrap border-b border-r-2 border-gray-100 border-r-blue-500 bg-white px-3 py-2 align-middle caption body-strong text-gray-800"
+                              title={branch.name}
+                            >
+                              {branch.code}
                             </td>
                             {rangeDates.map((date) => {
                               const item = openingInspectionMap[`${branch.id}|${date}`];
                               const meta = openingStatusFor(item, branch, date);
                               const closeMeta = closingStatusFor(item, branch, date);
+                              const isToday = date === today;
+                              const hasIssue = meta.lateMinutes > 0 || closeMeta.earlyMinutes > 0;
+                              const missing = !item;
+                              const bgClass = missing
+                                ? 'bg-red-50'
+                                : hasIssue
+                                  ? 'bg-orange-50'
+                                  : isToday
+                                    ? 'bg-blue-50/60'
+                                    : 'bg-white';
                               return (
-                                <td key={`${branch.id}_${date}`} className="px-2 py-2 align-top">
+                                <td key={`${branch.id}_${date}`} className={`w-[112px] border-b border-l border-gray-100 p-2 align-top transition ${bgClass}`}>
                                   <button
                                     type="button"
                                     onClick={() => item ? openInspectionDetail(item.id) : undefined}
-                                    className={`block w-full overflow-hidden rounded-xl border border-slate-200 text-left transition ${item ? 'hover:shadow-sm' : 'cursor-default'}`}
+                                    className={`block min-h-[118px] w-full rounded-lg border border-gray-100 bg-white/80 px-2 py-1.5 text-left shadow-sm transition ${item ? 'hover:border-blue-200 hover:shadow' : 'cursor-default'}`}
                                   >
-                                    <div className={`min-h-[74px] px-2.5 py-2 ${meta.tone}`}>
-                                      <div className="flex items-center gap-2">
-                                        <span className={`h-2 w-2 rounded-full ${meta.dot}`} />
-                                        <span className="caption-bold">{meta.label}</span>
-                                      </div>
-                                      <div className="mt-1 body-strong leading-none">{meta.detail}</div>
-                                      <div className="mt-0.5 caption body-strong opacity-80">เปิด {meta.targetTime}</div>
-                                      {meta.lateMinutes ? (
-                                        <div className="caption body-strong opacity-80">สาย {meta.lateMinutes} นาที</div>
-                                      ) : item?.employee?.name ? (
-                                        <div className="truncate caption body-strong opacity-80">{item.employee.name}</div>
-                                      ) : (
-                                        <div className="caption body-strong opacity-70">ไม่มีข้อมูล</div>
-                                      )}
+                                    <div className="flex items-center justify-between gap-1">
+                                      <span className={`rounded-full px-2 py-0.5 caption body-strong ${missing ? 'bg-red-100 text-red-700' : meta.lateMinutes ? 'bg-orange-100 text-orange-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                        {meta.label}
+                                      </span>
+                                      <span className="caption text-gray-400">{meta.targetTime}</span>
                                     </div>
-                                    <div className={`min-h-[74px] border-t border-white/70 px-2.5 py-2 ${closeMeta.tone}`}>
-                                      <div className="flex items-center gap-2">
-                                        <span className={`h-2 w-2 rounded-full ${closeMeta.dot}`} />
-                                        <span className="caption-bold">{closeMeta.label}</span>
+                                    <div className="mt-1.5 body-strong leading-none text-gray-900">{meta.detail}</div>
+                                    <div className="mt-1 min-h-[16px] truncate caption body-strong text-gray-500">
+                                      {meta.lateMinutes ? `สาย ${meta.lateMinutes} นาที` : item?.employee?.name || 'ไม่มีข้อมูล'}
+                                    </div>
+
+                                    <div className="mt-2 border-t border-gray-100 pt-1.5">
+                                      <div className="flex items-center justify-between gap-1">
+                                        <span className={`rounded-full px-2 py-0.5 caption body-strong ${!item?.close_time ? 'bg-gray-100 text-gray-500' : closeMeta.earlyMinutes ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
+                                          {item?.close_time ? 'ปิดร้าน' : 'รอปิด'}
+                                        </span>
+                                        <span className="caption text-gray-400">{closeMeta.targetTime}</span>
                                       </div>
-                                      <div className="mt-1 body-strong leading-none">{closeMeta.detail}</div>
-                                      <div className="mt-0.5 caption body-strong opacity-80">ปิด {closeMeta.targetTime}</div>
-                                      {closeMeta.earlyMinutes ? (
-                                        <div className="caption body-strong opacity-80">ก่อน {closeMeta.earlyMinutes} นาที</div>
-                                      ) : (
-                                        <div className="caption body-strong opacity-70">{item?.close_time ? 'ปิดตามเวลา' : 'ไม่มีข้อมูล'}</div>
-                                      )}
+                                      <div className="mt-1 body-strong leading-none text-gray-900">{closeMeta.detail}</div>
+                                      <div className="mt-1 truncate caption body-strong text-gray-500">
+                                        {closeMeta.earlyMinutes ? `ก่อน ${closeMeta.earlyMinutes} นาที` : item?.close_time ? 'ปิดตามเวลา' : 'ไม่มีข้อมูล'}
+                                      </div>
                                     </div>
                                   </button>
                                 </td>

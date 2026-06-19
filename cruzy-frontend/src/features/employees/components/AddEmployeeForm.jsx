@@ -236,6 +236,7 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
 
   function validate() {
     const e = {};
+    if (!isEdit && (!String(form.id || '').trim() || String(form.id || '').trim().length > 255)) e.id = true;
     if (!form.name.trim()) e.name = true;
     if (!form.nickname.trim()) e.nickname = true;
     if (!form.wage || Number(form.wage) <= 0) e.wage = true;
@@ -304,6 +305,7 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
       }
 
       const payload = {
+        id: String(form.id).trim(),
         name: form.name.trim(),
         color: form.color,
         position: form.pos,
@@ -457,7 +459,12 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
             <input type="text" value={form.name} onChange={set("name")} placeholder="ชื่อจริง นามสกุล" className={`${inputBaseStyle} ${errors.name ? "border-red-400 bg-red-50/20" : "border-slate-200"}`} />
           </div>
 
-          <div className="lg:col-span-3">
+          <div className="lg:col-span-1">
+            <label className={labelBaseStyle}>รหัสพนักงาน <span className="text-red-500">*</span></label>
+            <input type="text" value={form.id} onChange={set("id")} disabled={isEdit} maxLength={255} placeholder="เช่น EMP001" className={`${inputBaseStyle} ${errors.id ? "border-red-400 bg-red-50/20" : "border-slate-200"} disabled:bg-slate-50 disabled:text-slate-400 disabled:border-slate-100`} />
+          </div>
+
+          <div className="lg:col-span-2">
             <label className={labelBaseStyle}>ชื่อเล่น <span className="text-red-500">*</span></label>
             <input type="text" value={form.nickname} onChange={set("nickname")} placeholder="ชื่อเล่นสำหรับหน้าตารางเวร" className={`${inputBaseStyle} ${errors.nickname ? "border-red-400 bg-red-50/20" : "border-slate-200"}`} />
           </div>
@@ -475,10 +482,12 @@ export default function AddEmployeeForm({ branches = [], onSubmit, onCancel, emp
             </select>
           </div>
 
-          <div className="lg:col-span-2">
-            <label className={labelBaseStyle}>LINE User ID <span className="caption text-slate-400 font-normal">(ยิงสลิป/วินัย)</span></label>
-            <input type="text" value={form.lineUserId} onChange={set("lineUserId")} placeholder="Uxxxxxxxxxxxxxxxxxxxxxxx" className={`${inputBaseStyle} border-slate-200`} />
-          </div>
+          {isEdit && (
+            <div className="lg:col-span-2">
+              <label className={labelBaseStyle}>LINE User ID <span className="caption text-slate-400 font-normal">(ยิงสลิป/วินัย)</span></label>
+              <input type="text" value={form.lineUserId} onChange={set("lineUserId")} placeholder="Uxxxxxxxxxxxxxxxxxxxxxxx" className={`${inputBaseStyle} border-slate-200`} />
+            </div>
+          )}
 
           <div className="col-span-1 md:col-span-2 lg:col-span-6 bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2">
             <label className={`${labelBaseStyle} text-slate-700 body-strong`}>

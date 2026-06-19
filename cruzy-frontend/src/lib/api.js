@@ -45,6 +45,8 @@ export const api = {
     const query = new URLSearchParams();
     if (filters.from) query.set('from', filters.from);
     if (filters.to) query.set('to', filters.to);
+    if (Array.isArray(filters.keys) && filters.keys.length) query.set('keys', filters.keys.join(','));
+    if (typeof filters.keys === 'string' && filters.keys.trim()) query.set('keys', filters.keys.trim());
     const suffix = query.toString();
     return request(`/console/data${suffix ? `?${suffix}` : ''}`);
   },

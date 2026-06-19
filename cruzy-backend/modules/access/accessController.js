@@ -10,13 +10,27 @@ function hashPassword(pw) {
   return crypto.createHash('sha256').update(pw).digest('hex');
 }
 
+function cleanManualId(value) {
+  const id = String(value ?? '').trim();
+  return id && id.length <= 255 ? id : null;
+}
+
 async function fetchUsers() {
   const rows = await fetchTable(TABLES.users, 'id, username, name, role, scope_type, scope_value, created_at');
   return rows.map(normalizeUser);
 }
 
-function userFilter(query, identifier) {
-  return /^\d+$/.test(String(identifier)) ? query.eq('id', identifier) : query.eq('username', identifier);
+async function findUserByIdentifier(identifier, select = 'id, username') {
+  const value = cleanManualId(identifier);
+  if (!value) return null;
+
+  const { data: idRows, error: idError } = await supabase.from(TABLES.users).select(select).eq('id', value).limit(1);
+  if (idError) throw idError;
+  if (idRows?.[0]) return idRows[0];
+
+  const { data: usernameRows, error: usernameError } = await supabase.from(TABLES.users).select(select).eq('username', value).limit(1);
+  if (usernameError) throw usernameError;
+  return usernameRows?.[0] || null;
 }
 
 async function findActorUser(req) {
@@ -25,10 +39,8 @@ async function findActorUser(req) {
   const select = 'id, username, name, role';
 
   if (actorId) {
-    const column = /^\d+$/.test(actorId) ? 'id' : 'username';
-    const { data, error } = await supabase.from(TABLES.users).select(select).eq(column, actorId).limit(1);
-    if (error) throw error;
-    if (data?.[0]) return data[0];
+    const user = await findUserByIdentifier(actorId, select);
+    if (user) return user;
   }
 
   if (actorName) {
@@ -59,14 +71,13 @@ exports.requireOwner = async (req, res, next) => {
 
 exports.getAccessData = async (_req, res) => {
   try {
-    const [users, branches, regions, employees] = await Promise.all([
+    const [users, branches, regions] = await Promise.all([
       fetchUsers(),
       fetchTable(TABLES.branches),
-      fetchTable(TABLES.regions),
-      fetchTable(TABLES.employees, 'id, name, region_id')
+      fetchTable(TABLES.regions)
     ]);
 
-    res.json({ users, branches, regions, employees });
+    res.json({ users, branches, regions });
   } catch (error) {
     sendError(res, error, 'ไม่สามารถดึงข้อมูลสิทธิ์ได้');
   }
@@ -83,8 +94,11 @@ exports.listUsers = async (_req, res) => {
 exports.createUser = async (req, res) => {
   try {
     const { username, name, role, scope_type, scope_value, password } = req.body;
-    if (!username || !name || !role || !scope_type) return res.status(400).json({ message: 'Missing required fields' });
+    if (!req.body.id || !username || !name || !role || !scope_type) return res.status(400).json({ message: 'Missing required fields' });
+    const userId = cleanManualId(req.body.id);
+    if (!userId) return res.status(400).json({ message: 'รหัสผู้ใช้งานต้องไม่ว่างและยาวไม่เกิน 255 ตัวอักษร' });
     const payload = {
+      id: userId,
       username,
       name,
       role,
@@ -123,13 +137,7 @@ exports.deleteUser = async (req, res) => {
     const identifier = String(req.params.id || '').trim();
     if (!identifier) return res.status(400).json({ message: 'Missing user id' });
 
-    const { data: userRows, error: userError } = await userFilter(
-      supabase.from(TABLES.users).select('id, username'),
-      identifier
-    ).limit(1);
-    if (userError) throw userError;
-
-    const target = userRows?.[0];
+    const target = await findUserByIdentifier(identifier);
     if (!target) return res.status(404).json({ message: 'ไม่พบผู้ใช้งานที่ต้องการลบ' });
 
     if (target.username) {

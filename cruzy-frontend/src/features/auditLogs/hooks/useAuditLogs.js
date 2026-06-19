@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { auditLogService } from '../services/auditLogService.js';
 
 function defaultFilters() {
@@ -15,22 +15,56 @@ export function useAuditLogs() {
   const [auditLogs, setAuditLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const lastFiltersRef = useRef(defaultFilters());
 
-  const fetchAuditLogs = useCallback(async (filters = {}) => {
-    setLoading(true);
-    setError('');
+  const fetchAuditLogs = useCallback(async (filters = {}, { silent = false } = {}) => {
+    lastFiltersRef.current = filters;
+    if (!silent) {
+      setLoading(true);
+      setError('');
+    }
     try {
       const data = await auditLogService.getAuditLogs(filters);
       setAuditLogs(Array.isArray(data) ? data : []);
     } catch (err) {
-      setError(err.message || 'ไม่สามารถโหลดประวัติระบบได้');
+      if (silent) {
+        console.error('Audit log auto-refresh failed:', err);
+      } else {
+        setError(err.message || 'ไม่สามารถโหลดประวัติระบบได้');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     fetchAuditLogs(defaultFilters());
+  }, [fetchAuditLogs]);
+
+  useEffect(() => {
+    let disposed = false;
+    let inFlight = false;
+    const tick = async () => {
+      if (disposed || inFlight || document.visibilityState === 'hidden') return;
+      inFlight = true;
+      try {
+        await fetchAuditLogs(lastFiltersRef.current, { silent: true });
+      } finally {
+        inFlight = false;
+      }
+    };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') tick();
+    };
+    const interval = window.setInterval(tick, 30000);
+    window.addEventListener('focus', tick);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      disposed = true;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', tick);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [fetchAuditLogs]);
 
   return {

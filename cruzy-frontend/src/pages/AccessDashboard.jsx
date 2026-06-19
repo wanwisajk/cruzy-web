@@ -1,5 +1,5 @@
 import { Loader2, Shield, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Badge } from "../components/ui/Badge";
 import { Modal } from "../components/Modal";
 import { useAccess } from "../features/access/hooks/useAccess.js";
@@ -16,6 +16,7 @@ export default function AccessDashboard({ user, fallbackData }) {
   const [selectedUser, setSelectedUser] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [form, setForm] = useState({
+    userId: "",
     username: "",
     name: "",
     role: "branch",
@@ -37,35 +38,6 @@ export default function AccessDashboard({ user, fallbackData }) {
         name: region.name,
         branches: region.branches || [],
       }));
-  const employees = accessData.employees.some(
-    (employee) => employee.branch || employee.branch_id,
-  )
-    ? accessData.employees
-    : fallbackData?.employees || [];
-
-  const lineGroups = useMemo(() => {
-    return regions.map((region) => {
-      const regionId = region.id;
-      const branchIds =
-        region.branches ||
-        branches
-          .filter(
-            (branch) =>
-              branch.region_id === regionId || branch.region === regionId,
-          )
-          .map((branch) => branch.id);
-      return {
-        name: `Cruzy ${region.name}`,
-        branches: branchIds,
-        members: employees
-          .filter((employee) =>
-            branchIds.includes(employee.branch || employee.branch_id),
-          )
-          .map((employee) => employee.id),
-      };
-    });
-  }, [branches, employees, regions]);
-
   if (!isOwner) {
     return (
       <Content title="ไม่มีสิทธิ์" icon={Shield} stats={[]}>
@@ -78,8 +50,8 @@ export default function AccessDashboard({ user, fallbackData }) {
 
   const canManage = isOwner;
   const tableHeaders = canManage
-    ? ["Username", "ชื่อ", "สิทธิ์", "ขอบเขต", ""]
-    : ["Username", "ชื่อ", "สิทธิ์", "ขอบเขต"];
+    ? ["User ID", "Username", "ชื่อ", "สิทธิ์", "ขอบเขต", ""]
+    : ["User ID", "Username", "ชื่อ", "สิทธิ์", "ขอบเขต"];
 
   const scopeLabel = (item) => {
     if (item.scope === "all") return "ทั้งหมด";
@@ -108,6 +80,7 @@ export default function AccessDashboard({ user, fallbackData }) {
     setModalMode("create");
     setSelectedUser(null);
     setForm({
+      userId: "",
       username: "",
       name: "",
       role: "branch",
@@ -122,6 +95,7 @@ export default function AccessDashboard({ user, fallbackData }) {
     setModalMode("edit");
     setSelectedUser(item);
     setForm({
+      userId: item.id || "",
       username: item.username,
       name: item.name || "",
       role: item.role || "branch",
@@ -150,7 +124,13 @@ export default function AccessDashboard({ user, fallbackData }) {
       }
 
       if (modalMode === "create") {
+        if (!String(form.userId || "").trim() || String(form.userId || "").trim().length > 255) {
+          alert("กรุณากรอก User ID และต้องยาวไม่เกิน 255 ตัวอักษร");
+          return;
+        }
+
         await accessMutations.createUser({
+          id: String(form.userId).trim(),
           username: form.username,
           name: form.name,
           role: form.role,
@@ -274,6 +254,18 @@ export default function AccessDashboard({ user, fallbackData }) {
         >
           <div className="grid gap-4">
             <div className="grid gap-2 body-text">
+              <label className="space-y-2">
+                <span>User ID</span>
+                <input
+                  className="input"
+                  type="text"
+                  value={form.userId}
+                  onChange={(event) => setField("userId", event.target.value)}
+                  disabled={modalMode === "edit"}
+                  maxLength={255}
+                  placeholder="เช่น U001"
+                />
+              </label>
               <label className="space-y-2">
                 <span>Username</span>
                 <input
@@ -435,7 +427,8 @@ export default function AccessDashboard({ user, fallbackData }) {
             <div className="table-shell overflow-hidden">
               <Table headers={tableHeaders}>
                 {users.map((item) => (
-                  <tr key={item.username}>
+                  <tr key={item.id || item.username}>
+                    <td className="px-3 py-2 font-mono caption">{item.id}</td>
                     <td className="px-3 py-2 body-strong">{item.username}</td>
                     <td className="px-3 py-2">{item.name}</td>
                     <td className="px-3 py-2">

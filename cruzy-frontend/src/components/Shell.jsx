@@ -15,11 +15,16 @@ const menus = [
   { id: 'access', label: 'สิทธิ์', icon: LockKeyhole, ownerOnly: true }
 ];
 
+function isOwnerRole(user) {
+  return String(user?.role || '').trim().toLowerCase() === 'owner';
+}
+
 export function Shell({ data, user, currentTab, setCurrentTab, currentBranch, setCurrentBranch, children, onLogout, alertCount, navigate }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const branches = getScopeBranches(data, user);
+  const isOwner = isOwnerRole(user);
   const availableMenus = menus.filter((menu) => {
-    if (menu.ownerOnly) return user.role === 'owner';
+    if (menu.ownerOnly) return isOwner;
     return true;
   });
 

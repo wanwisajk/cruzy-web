@@ -7,21 +7,53 @@ export function useWarningLetters() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const fetchWarningLetters = useCallback(async () => {
-    setLoading(true);
-    setError('');
+  const fetchWarningLetters = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) {
+      setLoading(true);
+      setError('');
+    }
     try {
       const data = await warningLetterService.getWarningLetters();
       setWarningLetters(Array.isArray(data) ? data : []);
     } catch (err) {
-      setError(err.message || 'ไม่สามารถโหลดหนังสือเตือนได้');
+      if (silent) {
+        console.error('Warning letters auto-refresh failed:', err);
+      } else {
+        setError(err.message || 'ไม่สามารถโหลดหนังสือเตือนได้');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     fetchWarningLetters();
+  }, [fetchWarningLetters]);
+
+  useEffect(() => {
+    let disposed = false;
+    let inFlight = false;
+    const tick = async () => {
+      if (disposed || inFlight || document.visibilityState === 'hidden') return;
+      inFlight = true;
+      try {
+        await fetchWarningLetters({ silent: true });
+      } finally {
+        inFlight = false;
+      }
+    };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') tick();
+    };
+    const interval = window.setInterval(tick, 30000);
+    window.addEventListener('focus', tick);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      disposed = true;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', tick);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [fetchWarningLetters]);
 
   const createWarningLetter = useCallback(async (payload) => {

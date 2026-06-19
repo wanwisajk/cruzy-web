@@ -49,6 +49,18 @@ const DEFAULT_OPTIONS = {
   bankAccountBranches: { order: [{ column: 'bank_account_id', ascending: true }, { column: 'branch_id', ascending: true }] }
 };
 
+function selectedEntries(keys) {
+  const allEntries = Object.entries(TABLES);
+  if (!keys) return allEntries;
+  const requested = String(keys)
+    .split(',')
+    .map((key) => key.trim())
+    .filter(Boolean);
+  if (!requested.length) return allEntries;
+  const allowed = new Set(requested);
+  return allEntries.filter(([key]) => allowed.has(key));
+}
+
 async function fetchConsoleTable({ key, table, select, fromDate, toDate }) {
   let query = supabase.from(table).select(select);
   const dateColumn = DATE_FILTERS[key];
@@ -70,7 +82,7 @@ exports.getConsoleData = async (req, res) => {
   try {
     const fromDate = req.query.from || req.query.from_date;
     const toDate = req.query.to || req.query.to_date;
-    const entries = Object.entries(TABLES);
+    const entries = selectedEntries(req.query.keys || req.query.tables);
     const rows = await Promise.all(entries.map(([key, table]) => {
       const select = key === 'users'
         ? 'id, username, name, role, scope_type, scope_value, created_at'
@@ -84,7 +96,7 @@ exports.getConsoleData = async (req, res) => {
     }));
 
     const payload = Object.fromEntries(entries.map(([key], index) => [key, rows[index]]));
-    payload.users = payload.users.map(normalizeUser);
+    if (payload.users) payload.users = payload.users.map(normalizeUser);
     res.json(payload);
   } catch (error) {
     console.error('console data failed:', error);

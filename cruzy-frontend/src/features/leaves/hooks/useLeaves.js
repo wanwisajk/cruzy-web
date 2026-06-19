@@ -29,9 +29,12 @@ export function useLeaves(initialLeaves = []) {
   }, []);
 
   useEffect(() => {
-    if (!initialLeaves?.length) {
-      fetchLeaves();
+    if (initialLeaves?.length) {
+      setLeaves(normalizeLeaves(initialLeaves));
+      setLoading(false);
+      return;
     }
+    fetchLeaves();
   }, [fetchLeaves, initialLeaves]);
 
   const createLeave = useCallback(async (payload) => {
