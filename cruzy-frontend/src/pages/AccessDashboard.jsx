@@ -1,4 +1,4 @@
-import { Loader2, Shield } from "lucide-react";
+import { Loader2, Shield, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Badge } from "../components/ui/Badge";
 import { Modal } from "../components/Modal";
@@ -7,11 +7,14 @@ import { accessMutations } from "../features/access/services/accessService.js";
 import { Content, Table } from "../components/ui/Layout";
 
 export default function AccessDashboard({ user, fallbackData }) {
-  const { accessData, loading, error, refreshAccessData } = useAccess(fallbackData);
+  const isOwner = user?.role === "owner";
+  const { accessData, loading, error, refreshAccessData } = useAccess(fallbackData, { enabled: isOwner });
   const [showUserModal, setShowUserModal] = useState(false);
   const [modalMode, setModalMode] = useState("create");
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [form, setForm] = useState({
     username: "",
     name: "",
@@ -63,7 +66,7 @@ export default function AccessDashboard({ user, fallbackData }) {
     });
   }, [branches, employees, regions]);
 
-  if (!(user.role === "owner" || user.scope === "all")) {
+  if (!isOwner) {
     return (
       <Content title="ไม่มีสิทธิ์" icon={Shield} stats={[]}>
         <div className="card p-10 text-center text-danger">
@@ -73,7 +76,7 @@ export default function AccessDashboard({ user, fallbackData }) {
     );
   }
 
-  const canManage = user.role === "owner" || user.scope === "all";
+  const canManage = isOwner;
   const tableHeaders = canManage
     ? ["Username", "ชื่อ", "สิทธิ์", "ขอบเขต", ""]
     : ["Username", "ชื่อ", "สิทธิ์", "ขอบเขต"];
@@ -176,6 +179,25 @@ export default function AccessDashboard({ user, fallbackData }) {
       alert(err.message || err);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const closeDeleteModal = () => {
+    if (deleting) return;
+    setDeleteTarget(null);
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!deleteTarget) return;
+    try {
+      setDeleting(true);
+      await accessMutations.deleteUser(deleteTarget.id ?? deleteTarget.username);
+      await refreshAccessData();
+      setDeleteTarget(null);
+    } catch (err) {
+      alert(err.message || err);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -351,6 +373,58 @@ export default function AccessDashboard({ user, fallbackData }) {
           </div>
         </Modal>
 
+        <Modal
+          title={deleteTarget ? "ยืนยันการลบผู้ใช้งาน" : ""}
+          onClose={closeDeleteModal}
+          footer={
+            <>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={closeDeleteModal}
+                disabled={deleting}
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={confirmDeleteUser}
+                disabled={deleting}
+              >
+                {deleting ? "กำลังลบ..." : "ลบผู้ใช้งาน"}
+              </button>
+            </>
+          }
+        >
+          {deleteTarget ? (
+            <div className="grid gap-4">
+              <div className="flex items-start gap-3 rounded-xl border border-red-100 bg-red-50 p-4">
+                <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-red-100 text-red-600">
+                  <Trash2 size={20} />
+                </span>
+                <div className="min-w-0">
+                  <div className="body-strong text-red-700">
+                    ต้องการลบผู้ใช้งานนี้ใช่ไหม?
+                  </div>
+                  <div className="mt-1 body-text text-slate-600">
+                    ระบบจะลบสิทธิ์ของผู้ใช้งานออก และเก็บประวัติรายการเดิมไว้โดยไม่ผูกกับผู้ใช้นี้
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <div className="caption text-slate-500">ผู้ใช้งานที่จะลบ</div>
+                <div className="mt-1 body-strong text-slate-900">
+                  {deleteTarget.name || "-"}
+                </div>
+                <div className="caption text-slate-500">
+                  @{deleteTarget.username || deleteTarget.id}
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </Modal>
+
         {loading ? (
           <div className="card p-6 text-center">
             <Loader2 className="mx-auto mb-4 animate-spin" size={28} />
@@ -382,16 +456,7 @@ export default function AccessDashboard({ user, fallbackData }) {
                           </button>
                           <button
                             type="button"
-                            onClick={async () => {
-                              try {
-                                if (!window.confirm("ลบผู้ใช้นี้จริงหรือไม่?"))
-                                  return;
-                                await accessMutations.deleteUser(item.id);
-                                await refreshAccessData();
-                              } catch (err) {
-                                alert(err.message || err);
-                              }
-                            }}
+                            onClick={() => setDeleteTarget(item)}
                             className="btn btn-danger btn-sm"
                           >
                             ลบ

@@ -19,7 +19,6 @@ export function Shell({ data, user, currentTab, setCurrentTab, currentBranch, se
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const branches = getScopeBranches(data, user);
   const availableMenus = menus.filter((menu) => {
-    if (menu.id === 'access') return user.scope === 'all';
     if (menu.ownerOnly) return user.role === 'owner';
     return true;
   });

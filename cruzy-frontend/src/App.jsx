@@ -22,9 +22,14 @@ import AccessDashboard from './pages/AccessDashboard.jsx';
 
 const sessionKey = 'cruzyAdminSession';
 
-function currentMonthRange(date = new Date()) {
-  const firstDay = new Date(date.getFullYear(), date.getMonth(), 1);
-  const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+function currentWeekRange(date = new Date()) {
+  const current = new Date(date);
+  current.setHours(0, 0, 0, 0);
+  const dayOfWeek = current.getDay();
+  const firstDay = new Date(current);
+  firstDay.setDate(current.getDate() - ((dayOfWeek + 6) % 7));
+  const lastDay = new Date(firstDay);
+  lastDay.setDate(firstDay.getDate() + 6);
   return { from: fmtDate(firstDay), to: fmtDate(lastDay) };
 }
 
@@ -33,8 +38,8 @@ export default function App() {
   const [data, setData] = useState(null);
   const [currentTab, setCurrentTab] = useState('schedule');
   const [currentBranch, setCurrentBranch] = useState('all');
-  const [from, setFrom] = useState(() => currentMonthRange().from);
-  const [to, setTo] = useState(() => currentMonthRange().to);
+  const [from, setFrom] = useState(() => currentWeekRange().from);
+  const [to, setTo] = useState(() => currentWeekRange().to);
   const [booting, setBooting] = useState(true);
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState('');
@@ -46,7 +51,7 @@ export default function App() {
     bootFromSession();
   }, []);
 
-  async function loadData(range = currentMonthRange()) {
+  async function loadData(range = currentWeekRange()) {
     const payload = await api.consoleData(range);
     const hydrated = hydrateConsoleData(payload);
     setData(hydrated);

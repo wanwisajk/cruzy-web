@@ -18,14 +18,18 @@ function normalizeInitialData(data = {}) {
   };
 }
 
-export function useAccess(initialData) {
+export function useAccess(initialData, { enabled = true } = {}) {
   const initialAccessData = normalizeInitialData(initialData);
-  const hasInitialUsers = initialAccessData.users.length > 0;
+  const hasInitialUsers = enabled && initialAccessData.users.length > 0;
   const [accessData, setAccessData] = useState(() => initialAccessData);
   const [loading, setLoading] = useState(!hasInitialUsers);
   const [error, setError] = useState('');
 
   const fetchAccessData = useCallback(async () => {
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError('');
     try {
@@ -41,16 +45,22 @@ export function useAccess(initialData) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [enabled]);
 
   useEffect(() => {
+    if (!enabled) {
+      setAccessData(normalizeInitialData({}));
+      setLoading(false);
+      setError('');
+      return;
+    }
     if (hasInitialUsers) {
       setAccessData(initialAccessData);
       setLoading(false);
       return;
     }
     fetchAccessData();
-  }, [fetchAccessData, hasInitialUsers, initialData]);
+  }, [enabled, fetchAccessData, hasInitialUsers, initialData]);
 
   return {
     accessData,

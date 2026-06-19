@@ -3,6 +3,8 @@ const controller = require('./accessController');
 
 const router = express.Router();
 
+router.use(controller.requireOwner);
+
 router.get('/', controller.getAccessData);
 router.get('/users', controller.listUsers);
 router.post('/users', controller.createUser);

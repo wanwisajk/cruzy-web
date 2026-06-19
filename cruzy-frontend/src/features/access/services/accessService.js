@@ -14,7 +14,7 @@ export const accessMutations = {
     method: 'PATCH',
     body: JSON.stringify(body)
   }),
-  deleteUser: (id) => request(`/access/users/${id}`, {
+  deleteUser: (id) => request(`/access/users/${encodeURIComponent(id)}`, {
     method: 'DELETE'
   })
 };

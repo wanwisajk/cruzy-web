@@ -2,124 +2,126 @@ import { CalendarDays } from "lucide-react";
 import { Button } from "./ui/Button";
 import { fmtDate, thaiLongDate } from "../lib/date";
 
-export function DateBar({ from, to, setFrom, setTo }) {
-  function getActivePreset() {
-    const today = new Date();
-    const todayStr = fmtDate(today);
+function startOfLocalDay(date = new Date()) {
+  const value = new Date(date);
+  value.setHours(0, 0, 0, 0);
+  return value;
+}
 
-    if (from === todayStr && to === todayStr) return "today";
+function rangeFor(type, anchor = new Date()) {
+  const current = startOfLocalDay(anchor);
 
-    const dayOfWeek = today.getDay();
-    const firstDay = new Date(today);
-    firstDay.setDate(today.getDate() - ((dayOfWeek + 6) % 7));
-    const lastDay = new Date(firstDay);
-    lastDay.setDate(firstDay.getDate() + 6);
-    if (from === fmtDate(firstDay) && to === fmtDate(lastDay)) return "week";
-
-    const start = new Date(today.getFullYear(), today.getMonth(), 1);
-    const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-    if (from === fmtDate(start) && to === fmtDate(end)) return "month";
-
-    return null;
+  if (type === "today") {
+    const value = fmtDate(current);
+    return { from: value, to: value };
   }
 
-  const activePreset = getActivePreset();
+  if (type === "week") {
+    const dayOfWeek = current.getDay();
+    const firstDay = new Date(current);
+    firstDay.setDate(current.getDate() - ((dayOfWeek + 6) % 7));
+    const lastDay = new Date(firstDay);
+    lastDay.setDate(firstDay.getDate() + 6);
+    return { from: fmtDate(firstDay), to: fmtDate(lastDay) };
+  }
+
+  const start = new Date(current.getFullYear(), current.getMonth(), 1);
+  const end = new Date(current.getFullYear(), current.getMonth() + 1, 0);
+  return { from: fmtDate(start), to: fmtDate(end) };
+}
+
+function activePreset(from, to) {
+  const today = startOfLocalDay();
+  const todayRange = rangeFor("today", today);
+  if (from === todayRange.from && to === todayRange.to) return "today";
+
+  const weekRange = rangeFor("week", today);
+  if (from === weekRange.from && to === weekRange.to) return "week";
+
+  const monthRange = rangeFor("month", today);
+  if (from === monthRange.from && to === monthRange.to) return "month";
+
+  return null;
+}
+
+function rangeText(from, to) {
+  if (!from || !to) return "";
+  if (from === to) return thaiLongDate(from);
+  return `${thaiLongDate(from)} - ${thaiLongDate(to)}`;
+}
+
+export function DateBar({ from, to, setFrom, setTo }) {
+  const selectedPreset = activePreset(from, to);
+
+  function applyRange(type) {
+    const range = rangeFor(type);
+    setFrom(range.from);
+    setTo(range.to);
+  }
 
   function updateFrom(value) {
-    const start = new Date(`${value}T00:00:00`);
-    setFrom(fmtDate(start));
+    setFrom(value);
   }
 
   function updateTo(value) {
-    const end = new Date(`${value}T00:00:00`);
-    setTo(fmtDate(end));
-  }
-
-  function preset(type) {
-    const today = new Date();
-    if (type === "today") {
-      const value = fmtDate(today);
-      setFrom(value);
-      setTo(value);
-      return;
-    }
-    if (type === "week") {
-      const dayOfWeek = today.getDay();
-      const firstDay = new Date(today);
-      firstDay.setDate(today.getDate() - ((dayOfWeek + 6) % 7));
-      const lastDay = new Date(firstDay);
-      lastDay.setDate(firstDay.getDate() + 6);
-      setFrom(fmtDate(firstDay));
-      setTo(fmtDate(lastDay));
-      return;
-    }
-    if (type === "month") {
-      const start = new Date(today.getFullYear(), today.getMonth(), 1);
-      const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-      setFrom(fmtDate(start));
-      setTo(fmtDate(end));
-      return;
-    }
-    const start = new Date(today.getFullYear(), today.getMonth(), 1);
-    setFrom(fmtDate(start));
-    setTo(fmtDate(today));
+    setTo(value);
   }
 
   return (
     <div className="date-bar">
       <div className="date-bar-main">
         <div className="date-range-fields">
-          <div className="date-range-heading">
-            <CalendarDays size={16} className="text-slate-400" />
-            <span className="caption text-slate-500">ช่วงวันที่</span>
+          <div className="date-range-top">
+            <div className="date-range-heading">
+              <span className="date-range-icon">
+                <CalendarDays size={16} />
+              </span>
+              <div>
+                <span className="caption text-slate-500">ช่วงวันที่</span>
+                <div className="date-label">{rangeText(from, to)}</div>
+              </div>
+            </div>
+            <div className="date-preset-row">
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`date-btn ${selectedPreset === "today" ? "active" : ""}`}
+                onClick={() => applyRange("today")}
+              >
+                วันนี้
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`date-btn ${selectedPreset === "week" ? "active" : ""}`}
+                onClick={() => applyRange("week")}
+              >
+                สัปดาห์นี้
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`date-btn ${selectedPreset === "month" ? "active" : ""}`}
+                onClick={() => applyRange("month")}
+              >
+                เดือนนี้
+              </Button>
+            </div>
           </div>
           <div className="date-range-inputs">
             <input
               type="date"
-              value={from}
+              value={from || ""}
               onChange={(event) => updateFrom(event.target.value)}
-              className="rounded-lg border border-slate-200 px-3 py-2 caption outline-none focus:border-cruzy"
             />
             <span className="caption text-slate-400">ถึง</span>
             <input
               type="date"
-              value={to}
+              value={to || ""}
               onChange={(event) => updateTo(event.target.value)}
-              className="rounded-lg border border-slate-200 px-3 py-2 caption outline-none focus:border-cruzy"
             />
           </div>
         </div>
-        <div className="date-preset-row">
-          <Button
-            variant="ghost"
-            size="sm"
-            className={`date-btn ${activePreset === "today" ? "active" : ""}`}
-            onClick={() => preset("today")}
-          >
-            วันนี้
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm" 
-            className={`date-btn ${activePreset === "week" ? "active" : ""}`}
-            onClick={() => preset("week")}
-          >
-            สัปดาห์นี้
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className={`date-btn ${activePreset === "month" ? "active" : ""}`}
-            onClick={() => preset("month")}
-          >
-            เดือนนี้
-          </Button>
-        </div>
-      </div>
-      <div className="date-label">
-        {from === to
-          ? thaiLongDate(from)
-          : `${thaiLongDate(from)} - ${thaiLongDate(to)}`}
       </div>
     </div>
   );
