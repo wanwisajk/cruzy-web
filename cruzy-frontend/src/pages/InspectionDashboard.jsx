@@ -326,6 +326,7 @@ function attachmentMatchesItem(attachment, item) {
       .map((value) => textValue(value).trim().toLowerCase())
       .includes(normalizedKey);
   }
+  if (!attachmentItemLabel) return false;
   return itemKeys.includes(textValue(attachmentItemLabel).trim().toLowerCase());
 }
 
@@ -362,7 +363,12 @@ function buildDetailSections(setting, inspectionItems, attachments) {
         sectionLabel: section.label,
         itemKey,
         detail: textValue(saved?.detail || item.description || item.note, ''),
-        photos: imageAttachments.filter((attachment) => attachmentMatchesItem(attachment, { sectionKey: section.key, itemKey })),
+        photos: imageAttachments.filter((attachment) => attachmentMatchesItem(attachment, {
+          ...item,
+          sectionKey: section.key,
+          sectionLabel: section.label,
+          itemKey
+        })),
         savedPhotoCount: saved?.photoCount || 0,
         hasData: Boolean(saved)
       };
@@ -389,6 +395,8 @@ function buildDetailSections(setting, inspectionItems, attachments) {
       minPhotos: Math.max(1, Number(item.minPhotos ?? item.min_photos ?? 1) || 1),
       photos: imageAttachments.filter((attachment) => attachmentMatchesItem(attachment, {
         sectionKey: item.sectionKey || 'saved',
+        sectionLabel: item.sectionLabel || 'ข้อมูลที่บันทึก',
+        label: item.label,
         itemKey: item.itemKey || item.key
       }))
     };

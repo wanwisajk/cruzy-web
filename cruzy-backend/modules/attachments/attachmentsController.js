@@ -54,6 +54,57 @@ function parseDataUrl(dataUrl) {
   }
 }
 
+function extensionForContentType(contentType) {
+  if (contentType === 'image/png') return '.png';
+  if (contentType === 'image/webp') return '.webp';
+  if (contentType === 'application/pdf') return '.pdf';
+  return '.jpg';
+}
+
+function isDataUrl(value) {
+  return String(value || '').startsWith('data:');
+}
+
+async function uploadDataUrlAttachment(row) {
+  if (!isDataUrl(row.file_url)) return row;
+
+  const file = parseDataUrl(row.file_url);
+  if (!file) {
+    const error = new Error('ข้อมูลรูปภาพไม่ถูกต้อง');
+    error.status = 400;
+    throw error;
+  }
+
+  const validTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+  if (!validTypes.includes(file.contentType)) {
+    const error = new Error('รองรับเฉพาะไฟล์ PDF, PNG, WebP และ JPEG เท่านั้น');
+    error.status = 400;
+    throw error;
+  }
+
+  const fileName = safeFileName(row.file_name || `upload_${Date.now()}${extensionForContentType(file.contentType)}`);
+  const storagePath = `${row.entity_type}/${row.entity_id}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${fileName}`;
+  const { error: uploadError } = await supabase.storage
+    .from(DOCUMENTS_BUCKET)
+    .upload(storagePath, file.buffer, {
+      contentType: file.contentType,
+      cacheControl: '3600',
+      upsert: false
+    });
+  if (uploadError) throw uploadError;
+
+  const { data: publicData } = supabase.storage.from(DOCUMENTS_BUCKET).getPublicUrl(storagePath);
+  return {
+    ...row,
+    file_url: publicData.publicUrl,
+    storage_bucket: DOCUMENTS_BUCKET,
+    storage_path: storagePath,
+    file_name: fileName,
+    file_type: row.file_type || file.contentType,
+    file_size: row.file_size || file.buffer.length
+  };
+}
+
 exports.listAttachments = async (req, res) => {
   try {
     const entityType = req.query.entity_type || req.query.entityType;
@@ -81,9 +132,10 @@ exports.listAttachments = async (req, res) => {
 
 exports.createAttachment = async (req, res) => {
   try {
-    const payload = cleanAttachmentPayload(req.body);
+    let payload = cleanAttachmentPayload(req.body);
     if (!required(res, payload, ['entity_type', 'entity_id', 'file_url'])) return;
     if (payload.entity_id === null) return res.status(400).json({ message: 'entityId ต้องเป็นตัวเลข' });
+    payload = await uploadDataUrlAttachment(payload);
 
     const { data, error } = await supabase.from(TABLES.attachments).insert([payload]).select().single();
     if (error) throw error;
@@ -95,11 +147,12 @@ exports.createAttachment = async (req, res) => {
 
 exports.createAttachments = async (req, res) => {
   try {
-    const rows = Array.isArray(req.body.attachments) ? req.body.attachments.map(cleanAttachmentPayload) : [];
+    let rows = Array.isArray(req.body.attachments) ? req.body.attachments.map(cleanAttachmentPayload) : [];
     if (!rows.length) return res.status(400).json({ message: 'ต้องมีไฟล์แนบอย่างน้อย 1 รายการ' });
     if (rows.some((row) => !row.entity_type || row.entity_id === null || !row.file_url)) {
       return res.status(400).json({ message: 'ข้อมูลไฟล์แนบไม่ครบถ้วน' });
     }
+    rows = await Promise.all(rows.map(uploadDataUrlAttachment));
 
     const { data, error } = await supabase.from(TABLES.attachments).insert(rows).select();
     if (error) throw error;

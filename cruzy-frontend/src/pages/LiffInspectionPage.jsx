@@ -291,6 +291,7 @@ export default function LiffInspectionPage() {
   }));
   const [itemImages, setItemImages] = useState({});
   const [existingAttachments, setExistingAttachments] = useState([]);
+  const [imagePreview, setImagePreview] = useState(null);
   const [reviewNote, setReviewNote] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -670,15 +671,14 @@ export default function LiffInspectionPage() {
                             {photos.map((attachment, index) => {
                               const url = attachmentUrl(attachment);
                               return (
-                                <a
+                                <button
                                   key={attachment.id || `${url}_${index}`}
-                                  href={url}
-                                  target="_blank"
-                                  rel="noreferrer"
+                                  type="button"
+                                  onClick={() => setImagePreview({ url, title: attachmentMetadata(attachment).itemLabel || itemLabel })}
                                   className="aspect-square overflow-hidden rounded-xl border border-slate-200 bg-white"
                                 >
                                   <img src={url} alt={attachmentMetadata(attachment).itemLabel || itemLabel} className="h-full w-full object-cover" />
-                                </a>
+                                </button>
                               );
                             })}
                           </div>
@@ -705,15 +705,14 @@ export default function LiffInspectionPage() {
                     const url = attachmentUrl(attachment);
                     const title = attachmentMetadata(attachment).itemLabel || attachmentMetadata(attachment).source || attachment.file_name || `รูป ${index + 1}`;
                     return (
-                      <a
+                      <button
                         key={attachment.id || `${url}_${index}`}
-                        href={url}
-                        target="_blank"
-                        rel="noreferrer"
+                        type="button"
+                        onClick={() => setImagePreview({ url, title: textValue(title, `รูป ${index + 1}`) })}
                         className="aspect-square overflow-hidden rounded-xl border border-amber-200 bg-white"
                       >
                         <img src={url} alt={textValue(title, `รูป ${index + 1}`)} className="h-full w-full object-cover" />
-                      </a>
+                      </button>
                     );
                   })}
                 </div>
@@ -793,7 +792,13 @@ export default function LiffInspectionPage() {
                           <div className="mt-3 grid grid-cols-3 gap-2">
                             {images.map((image, index) => (
                               <div key={`${image.fileName}_${index}`} className="relative aspect-square overflow-hidden rounded-xl border border-slate-200 bg-white">
-                                <img src={image.fileUrl} alt={image.fileName || itemLabel} className="h-full w-full object-cover" />
+                                <button
+                                  type="button"
+                                  onClick={() => setImagePreview({ url: image.fileUrl, title: image.fileName || itemLabel })}
+                                  className="h-full w-full"
+                                >
+                                  <img src={image.fileUrl} alt={image.fileName || itemLabel} className="h-full w-full object-cover" />
+                                </button>
                                 <button
                                   type="button"
                                   onClick={() => removeImage(itemWithSection, index)}
@@ -859,6 +864,28 @@ export default function LiffInspectionPage() {
           </button>
         ) : null}
       </div>
+      {imagePreview ? (
+        <div className="fixed inset-0 z-50 flex flex-col bg-black/95 text-white" role="dialog" aria-modal="true">
+          <div className="flex items-center justify-between gap-3 px-4 py-3">
+            <div className="min-w-0 truncate body-strong">{imagePreview.title || 'รูปตรวจร้าน'}</div>
+            <button
+              type="button"
+              onClick={() => setImagePreview(null)}
+              className="rounded-full bg-white/15 px-3 py-1.5 caption-bold"
+            >
+              ปิด
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={() => setImagePreview(null)}
+            className="flex min-h-0 flex-1 items-center justify-center p-3"
+            aria-label="ปิดรูปเต็มจอ"
+          >
+            <img src={imagePreview.url} alt={imagePreview.title || 'รูปตรวจร้าน'} className="max-h-full max-w-full object-contain" />
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
