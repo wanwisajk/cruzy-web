@@ -459,20 +459,35 @@ export default function LiffInspectionPage() {
                             ))}
                           </div>
                         ) : null}
-                        <label className="btn btn-secondary mt-3 w-full cursor-pointer">
-                          <Camera size={16} /> เพิ่มรูปหัวข้อนี้
-                          <input
-                            type="file"
-                            accept="image/*"
-                            capture="environment"
-                            multiple
-                            className="hidden"
-                            onChange={(event) => {
-                              addImages(itemWithSection, event.target.files);
-                              event.target.value = '';
-                            }}
-                          />
-                        </label>
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                          <label className="btn btn-secondary w-full cursor-pointer">
+                            <Camera size={16} /> ถ่ายรูป
+                            <input
+                              type="file"
+                              accept="image/*"
+                              capture="environment"
+                              multiple
+                              className="hidden"
+                              onChange={(event) => {
+                                addImages(itemWithSection, event.target.files);
+                                event.target.value = '';
+                              }}
+                            />
+                          </label>
+                          <label className="btn btn-secondary w-full cursor-pointer">
+                            <UploadCloud size={16} /> เลือกรูป
+                            <input
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              className="hidden"
+                              onChange={(event) => {
+                                addImages(itemWithSection, event.target.files);
+                                event.target.value = '';
+                              }}
+                            />
+                          </label>
+                        </div>
                       </div>
                     );
                   })}
