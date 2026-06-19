@@ -171,14 +171,21 @@ function makeStableKey(value, fallback) {
 }
 
 function normalizeSectionItems(items = [], sectionKey = 'section', fallbackPrefix = 'item') {
-  return normalizeConfigList(items).map((item, index) => ({
-    ...item,
-    key: item.key || makeStableKey(item.label, `${fallbackPrefix}_${index + 1}`),
-    label: item.label,
-    sectionKey,
-    photoRequired: item.photoRequired !== false && item.photo_required !== false,
-    minPhotos: Math.max(1, Number(item.minPhotos ?? item.min_photos ?? 1) || 1),
-  }));
+  const seen = new Map();
+  return normalizeConfigList(items).map((item, index) => {
+    const baseKey = makeStableKey(item.key || item.label, `${fallbackPrefix}_${index + 1}`);
+    const count = seen.get(baseKey) || 0;
+    seen.set(baseKey, count + 1);
+    const key = count ? `${baseKey}_${index + 1}` : baseKey;
+    return {
+      ...item,
+      key,
+      label: item.label,
+      sectionKey,
+      photoRequired: item.photoRequired !== false && item.photo_required !== false,
+      minPhotos: Math.max(1, Number(item.minPhotos ?? item.min_photos ?? 1) || 1),
+    };
+  });
 }
 
 const GENERAL_PHOTO_KEYS = ['opening_general', 'closing_general'];
@@ -237,13 +244,20 @@ function normalizeInspectionSectionsFromChecklists(checklists = []) {
     const items = normalizeSectionItems(checklists, 'general', 'check');
     return items.length ? [{ key: 'general', label: 'รายการตรวจ', items }] : [];
   }
+  const seen = new Map();
   return checklists.map((section, sectionIndex) => {
     if (typeof section === 'string') {
-      const key = makeStableKey(section, `section_${sectionIndex + 1}`);
+      const baseKey = makeStableKey(section, `section_${sectionIndex + 1}`);
+      const count = seen.get(baseKey) || 0;
+      seen.set(baseKey, count + 1);
+      const key = count ? `${baseKey}_${sectionIndex + 1}` : baseKey;
       return { key, label: section, items: [] };
     }
     const label = textValue(section.label ?? section.name ?? section.title ?? section.key, `โซน ${sectionIndex + 1}`);
-    const key = section.key || section.id || makeStableKey(label, `section_${sectionIndex + 1}`);
+    const baseKey = makeStableKey(section.key || section.id || label, `section_${sectionIndex + 1}`);
+    const count = seen.get(baseKey) || 0;
+    seen.set(baseKey, count + 1);
+    const key = count ? `${baseKey}_${sectionIndex + 1}` : baseKey;
     return {
       ...section,
       key,
@@ -305,8 +319,14 @@ function attachmentMatchesItem(attachment, item) {
     title: item.title,
     id: item.id
   });
-  return itemKeys.includes(textValue(attachmentItemKey).trim().toLowerCase())
-    || itemKeys.includes(textValue(attachmentItemLabel).trim().toLowerCase());
+  if (attachmentItemKey) {
+    const normalizedKey = textValue(attachmentItemKey).trim().toLowerCase();
+    return [item.itemKey, item.key, item.id]
+      .filter((value) => value !== undefined && value !== null && value !== '')
+      .map((value) => textValue(value).trim().toLowerCase())
+      .includes(normalizedKey);
+  }
+  return itemKeys.includes(textValue(attachmentItemLabel).trim().toLowerCase());
 }
 
 function buildSavedItemMap(inspectionItems) {

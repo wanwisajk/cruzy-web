@@ -45,14 +45,21 @@ function normalizeConfigList(items = []) {
 }
 
 function normalizeSectionItems(items = [], sectionKey = 'section', fallbackPrefix = 'item') {
-  return normalizeConfigList(items).map((item, index) => ({
-    ...item,
-    key: item.key || makeStableKey(item.label, `${fallbackPrefix}_${index + 1}`),
-    label: item.label,
-    sectionKey,
-    photoRequired: item.photoRequired !== false && item.photo_required !== false,
-    minPhotos: Math.max(1, Number(item.minPhotos ?? item.min_photos ?? 1) || 1),
-  }));
+  const seen = new Map();
+  return normalizeConfigList(items).map((item, index) => {
+    const baseKey = makeStableKey(item.key || item.label, `${fallbackPrefix}_${index + 1}`);
+    const count = seen.get(baseKey) || 0;
+    seen.set(baseKey, count + 1);
+    const key = count ? `${baseKey}_${index + 1}` : baseKey;
+    return {
+      ...item,
+      key,
+      label: item.label,
+      sectionKey,
+      photoRequired: item.photoRequired !== false && item.photo_required !== false,
+      minPhotos: Math.max(1, Number(item.minPhotos ?? item.min_photos ?? 1) || 1),
+    };
+  });
 }
 
 function normalizeInspectionSectionsFromChecklists(checklists = []) {
@@ -62,14 +69,21 @@ function normalizeInspectionSectionsFromChecklists(checklists = []) {
     const items = normalizeSectionItems(checklists, 'general', 'check');
     return items.length ? [{ key: 'general', label: 'รายการตรวจ', items }] : [];
   }
+  const seen = new Map();
   return checklists
     .map((section, sectionIndex) => {
       if (typeof section === 'string') {
-        const key = makeStableKey(section, `section_${sectionIndex + 1}`);
+        const baseKey = makeStableKey(section, `section_${sectionIndex + 1}`);
+        const count = seen.get(baseKey) || 0;
+        seen.set(baseKey, count + 1);
+        const key = count ? `${baseKey}_${sectionIndex + 1}` : baseKey;
         return { key, label: section, items: [] };
       }
       const label = textValue(section.label ?? section.name ?? section.title ?? section.key, `โซน ${sectionIndex + 1}`);
-      const key = makeStableKey(section.key ?? section.id ?? label, `section_${sectionIndex + 1}`);
+      const baseKey = makeStableKey(section.key ?? section.id ?? label, `section_${sectionIndex + 1}`);
+      const count = seen.get(baseKey) || 0;
+      seen.set(baseKey, count + 1);
+      const key = count ? `${baseKey}_${sectionIndex + 1}` : baseKey;
       return {
         ...section,
         key,
@@ -251,8 +265,14 @@ function attachmentMatchesItem(attachment, item) {
     item.title,
     item.id,
   ].filter((value) => value !== undefined && value !== null && value !== '').map((value) => textValue(value).trim().toLowerCase());
-  return itemKeys.includes(textValue(attachmentItemKey).trim().toLowerCase())
-    || itemKeys.includes(textValue(attachmentItemLabel).trim().toLowerCase());
+  if (attachmentItemKey) {
+    const normalizedKey = textValue(attachmentItemKey).trim().toLowerCase();
+    return [item.itemKey, item.key, item.id]
+      .filter((value) => value !== undefined && value !== null && value !== '')
+      .map((value) => textValue(value).trim().toLowerCase())
+      .includes(normalizedKey);
+  }
+  return itemKeys.includes(textValue(attachmentItemLabel).trim().toLowerCase());
 }
 
 export default function LiffInspectionPage() {
@@ -793,7 +813,6 @@ export default function LiffInspectionPage() {
                               type="file"
                               accept="image/*"
                               capture="environment"
-                              multiple
                               className="hidden"
                               onChange={(event) => {
                                 addImages(itemWithSection, event.target.files);
