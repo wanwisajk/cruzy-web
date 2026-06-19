@@ -382,8 +382,35 @@ function normalizeDepositLocal(row) {
     verifyTime: timeText(row.verified_at || row.verifyTime),
     slipUrl: row.slip_url || row.slipUrl || '',
     attachments: row.attachments || [],
+    slipOcrStatus: row.slip_ocr_status || row.slipOcrStatus || 'unchecked',
+    slipOcrAmount: row.slip_ocr_amount === null || row.slip_ocr_amount === undefined ? (row.slipOcrAmount ?? null) : Number(row.slip_ocr_amount),
+    slipOcrConfidence: row.slip_ocr_confidence === null || row.slip_ocr_confidence === undefined ? (row.slipOcrConfidence ?? null) : Number(row.slip_ocr_confidence),
+    slipOcrText: row.slip_ocr_text || row.slipOcrText || '',
+    slipOcrCheckedAt: row.slip_ocr_checked_at || row.slipOcrCheckedAt || null,
     status: row.status || 'waiting'
   };
+}
+
+function parseSlipAmount(text, expectedAmount) {
+  const normalized = String(text || '').replace(/[฿,]/g, '').replace(/\s+/g, ' ');
+  const numbers = Array.from(normalized.matchAll(/(?:^|[^\d])(\d{1,7}(?:\.\d{1,2})?)(?!\d)/g))
+    .map((match) => Number(match[1]))
+    .filter((value) => Number.isFinite(value) && value > 0 && value < 10000000);
+  if (!numbers.length) return null;
+  const expected = Number(expectedAmount || 0);
+  if (expected > 0) {
+    return numbers.reduce((closest, value) => (
+      Math.abs(value - expected) < Math.abs(closest - expected) ? value : closest
+    ), numbers[0]);
+  }
+  return numbers.sort((a, b) => b - a)[0];
+}
+
+function slipOcrTone(status) {
+  if (status === 'matched') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+  if (status === 'mismatch') return 'bg-rose-50 text-rose-700 border-rose-200';
+  if (status === 'unreadable') return 'bg-amber-50 text-amber-700 border-amber-200';
+  return 'bg-slate-50 text-slate-500 border-slate-200';
 }
 
 export function DepositEditorModal({ data, deposit, mode, onClose, onSaved, onUpsert }) {
@@ -397,13 +424,27 @@ export function DepositEditorModal({ data, deposit, mode, onClose, onSaved, onUp
     bankAccountId: deposit?.bankAccId || '',
     depositedBy: deposit?.depositedBy || '',
     slipUrl: deposit?.slipUrl || '',
-    status: deposit?.status || 'waiting'
+    status: deposit?.status || 'waiting',
+    slipOcrStatus: deposit?.slipOcrStatus || 'unchecked',
+    slipOcrAmount: deposit?.slipOcrAmount ?? '',
+    slipOcrConfidence: deposit?.slipOcrConfidence ?? '',
+    slipOcrText: deposit?.slipOcrText || '',
+    slipOcrCheckedAt: deposit?.slipOcrCheckedAt || ''
   });
   const [newSlipImages, setNewSlipImages] = useState([]);
+  const [newSlipFiles, setNewSlipFiles] = useState([]);
+  const [checkingSlip, setCheckingSlip] = useState(false);
+  const [ocrMessage, setOcrMessage] = useState('');
   const [saving, setSaving] = useState(false);
+  const availableBankAccounts = data.bankAccounts.filter((account) => {
+    const branchIds = (account.branchIds || []).map(String);
+    return !branchIds.length || branchIds.includes(String(form.branchId));
+  });
 
   async function filesToDataUrls(fileList) {
     const files = Array.from(fileList || []).filter((file) => file.type.startsWith('image/'));
+    setNewSlipFiles(files);
+    setOcrMessage('');
     return Promise.all(files.map((file) => new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result);
@@ -412,20 +453,94 @@ export function DepositEditorModal({ data, deposit, mode, onClose, onSaved, onUp
     })));
   }
 
+  async function checkSlipOcr() {
+    const file = newSlipFiles[0];
+    if (!file) {
+      setOcrMessage('เลือกรูปสลิปก่อนตรวจ');
+      return;
+    }
+    setCheckingSlip(true);
+    setOcrMessage('');
+    try {
+      const { createWorker } = await import('tesseract.js');
+      const worker = await createWorker('eng');
+      const { data: ocr } = await worker.recognize(file);
+      await worker.terminate();
+      const text = ocr.text || '';
+      const amount = parseSlipAmount(text, form.depositedAmount);
+      const expected = Number(form.depositedAmount || 0);
+      const matched = amount !== null && expected > 0 && Math.abs(amount - expected) < 0.01;
+      const status = amount === null ? 'unreadable' : matched ? 'matched' : 'mismatch';
+      setForm((current) => ({
+        ...current,
+        slipOcrStatus: status,
+        slipOcrAmount: amount ?? '',
+        slipOcrConfidence: Math.round(Number(ocr.confidence || 0)),
+        slipOcrText: text,
+        slipOcrCheckedAt: new Date().toISOString()
+      }));
+      setOcrMessage(
+        amount === null
+          ? 'อ่านยอดเงินจากสลิปไม่ได้'
+          : matched
+            ? `ยอดในสลิปตรงกับที่กรอก: ฿${money(amount)}`
+            : `ยอดในสลิปที่อ่านได้ ฿${money(amount)} ไม่ตรงกับยอดที่กรอก ฿${money(expected)}`
+      );
+    } catch (error) {
+      setOcrMessage(error.message || 'ตรวจสลิปไม่สำเร็จ');
+      setForm((current) => ({
+        ...current,
+        slipOcrStatus: 'unreadable',
+        slipOcrCheckedAt: new Date().toISOString()
+      }));
+    } finally {
+      setCheckingSlip(false);
+    }
+  }
+
   async function save() {
     setSaving(true);
     try {
-      const payload = { ...form, slipUrl: form.slipUrl || null };
+      const payload = {
+        ...form,
+        slipUrl: form.slipUrl || null,
+        slipOcrAmount: form.slipOcrAmount === '' ? null : form.slipOcrAmount,
+        slipOcrConfidence: form.slipOcrConfidence === '' ? null : form.slipOcrConfidence,
+        slipOcrText: form.slipOcrText || null,
+        slipOcrCheckedAt: form.slipOcrCheckedAt || null
+      };
       const result = deposit ? await salesDashboardService.updateCashDeposit(deposit.id, payload) : await salesDashboardService.createCashDeposit(payload);
       const saved = normalizeDepositLocal(result.data);
 
-      if (newSlipImages.length) {
-        const created = await salesDashboardService.createAttachments(newSlipImages.map((fileUrl) => ({
-          entityType: 'cash_deposit', entityId: saved.id, fileUrl
-        })));
-        saved.attachments = [...(deposit?.attachments || []), ...(created.data || []).map((r) => ({
-          id: String(r.id), entityType: r.entity_type || r.entityType, entityId: String(r.entity_id || r.entityId), fileUrl: r.file_url || r.fileUrl
-        }))];
+      if (newSlipFiles.length) {
+        const uploadedAttachments = await Promise.all(
+          newSlipFiles.map((file) => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = async () => {
+              try {
+                const uploaded = await salesDashboardService.uploadAttachment({
+                  entityType: 'cash_deposit',
+                  entityId: saved.id,
+                  fileData: reader.result,
+                  fileName: file.name
+                });
+                resolve({
+                  id: String(uploaded.data.id),
+                  entityType: uploaded.data.entity_type || uploaded.data.entityType,
+                  entityId: String(uploaded.data.entity_id || uploaded.data.entityId),
+                  fileUrl: uploaded.data.file_url || uploaded.data.fileUrl,
+                  fileName: uploaded.data.file_name || uploaded.data.fileName || file.name,
+                  fileType: uploaded.data.file_type || uploaded.data.fileType || file.type
+                });
+              } catch (err) {
+                reject(err);
+              }
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          }))
+        );
+        saved.attachments = [...(deposit?.attachments || []), ...uploadedAttachments];
         saved.slip = true;
       } else {
         saved.attachments = deposit?.attachments || [];
@@ -455,6 +570,7 @@ export function DepositEditorModal({ data, deposit, mode, onClose, onSaved, onUp
           ['ธนาคารบัญชีปลายทาง', account ? `${account.bankShort} (${account.accNo})` : '—'],
           ['พนักงานผู้นำฝาก', employeeById(data, deposit.depositedBy)?.nickname || deposit.depositedBy],
           ['ตรวจสอบสลิป', deposit.slip ? 'พบคลังรูปภาพหลักฐาน' : 'ไม่มีสลิป'],
+          ['ผล OCR สลิป', deposit.slipOcrStatus === 'matched' ? `ยอดตรง ฿${money(deposit.slipOcrAmount)}` : deposit.slipOcrStatus === 'mismatch' ? `ยอดไม่ตรง อ่านได้ ฿${money(deposit.slipOcrAmount)}` : deposit.slipOcrStatus === 'unreadable' ? 'อ่านสลิปไม่ได้' : 'ยังไม่ได้ตรวจ'],
           ['สถานะระบบตรวจสอบ', deposit.status]
         ]} />
         <div className="space-y-1.5">
@@ -469,10 +585,10 @@ export function DepositEditorModal({ data, deposit, mode, onClose, onSaved, onUp
     <ModalFrame title={deposit ? '✏️ แก้ไขบันทึกนำฝากเงินสด' : '➕ เพิ่มบันทึกนำฝากเงินสดใหม่'} onClose={onClose} footer={<><button className="px-4 py-2 body-emphasis text-gray-600 hover:bg-gray-100 rounded-xl transition-colors" onClick={onClose}>ยกเลิก</button><button className="px-5 py-2 body-strong bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-colors" onClick={save} disabled={saving}>{saving ? 'กำลังบันทึก...' : 'บันทึกข้อมูลนำฝาก'}</button></>}>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 body-text">
         <label className="flex flex-col gap-1 body-emphasis text-gray-700">วันที่ฝากเงิน<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="date" value={form.depositDate} onChange={(e) => setForm({ ...form, depositDate: e.target.value })} /></label>
-        <label className="flex flex-col gap-1 body-emphasis text-gray-700">สาขาต้นทาง<select className="px-3 py-2 border border-gray-200 rounded-xl bg-white outline-none" value={form.branchId} onChange={(e) => setForm({ ...form, branchId: e.target.value })}>{data.branches.map((b) => <option key={b.id} value={b.id}>{b.code} - {b.name}</option>)}</select></label>
+        <label className="flex flex-col gap-1 body-emphasis text-gray-700">สาขาต้นทาง<select className="px-3 py-2 border border-gray-200 rounded-xl bg-white outline-none" value={form.branchId} onChange={(e) => setForm({ ...form, branchId: e.target.value, bankAccountId: '' })}>{data.branches.map((b) => <option key={b.id} value={b.id}>{b.code} - {b.name}</option>)}</select></label>
         <label className="flex flex-col gap-1 body-emphasis text-gray-700">ยอดเงินระบบประเมิน<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="number" value={form.expectedAmount} onChange={(e) => setForm({ ...form, expectedAmount: e.target.value })} /></label>
         <label className="flex flex-col gap-1 body-emphasis text-gray-700">ยอดนำฝากสลิปจริง<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="number" value={form.depositedAmount} onChange={(e) => setForm({ ...form, depositedAmount: e.target.value })} /></label>
-        <label className="flex flex-col gap-1 body-emphasis text-gray-700">เข้าบัญชีธนาคาร<select className="px-3 py-2 border border-gray-200 rounded-xl bg-white outline-none" value={form.bankAccountId} onChange={(e) => setForm({ ...form, bankAccountId: e.target.value })}><option value="">- เลือกบัญชีปลายทาง -</option>{data.bankAccounts.map((acc) => <option key={acc.id} value={acc.id}>{acc.bankShort} - {acc.accNo}</option>)}</select></label>
+        <label className="flex flex-col gap-1 body-emphasis text-gray-700">เข้าบัญชีธนาคาร<select className="px-3 py-2 border border-gray-200 rounded-xl bg-white outline-none" value={form.bankAccountId} onChange={(e) => setForm({ ...form, bankAccountId: e.target.value })}><option value="">- เลือกบัญชีปลายทาง -</option>{availableBankAccounts.map((acc) => <option key={acc.id} value={acc.id}>{acc.bankShort} - {acc.accNo}</option>)}</select></label>
         <label className="flex flex-col gap-1 body-emphasis text-gray-700">พนักงานผู้นำฝาก<select className="px-3 py-2 border border-gray-200 rounded-xl bg-white outline-none" value={form.depositedBy} onChange={(e) => setForm({ ...form, depositedBy: e.target.value })}><option value="">- เลือกรายชื่อ -</option>{data.employees.map((emp) => <option key={emp.id} value={emp.id}>{emp.nickname || emp.name}</option>)}</select></label>
 
         <div className="sm:col-span-2 flex flex-col gap-1 body-emphasis text-gray-700">
@@ -480,6 +596,25 @@ export function DepositEditorModal({ data, deposit, mode, onClose, onSaved, onUp
           <input className="px-3 py-2 border border-gray-200 rounded-xl caption" type="file" accept="image/*" multiple onChange={async (e) => setNewSlipImages(await filesToDataUrls(e.target.files))} />
         </div>
         <label className="sm:col-span-2 flex flex-col gap-1 body-emphasis text-gray-700">หรือระบุเป็นลิงก์ภาพ (Slip URL)<input className="px-3 py-2 border border-gray-200 rounded-xl caption" value={form.slipUrl} onChange={(e) => setForm({ ...form, slipUrl: e.target.value })} /></label>
+        <div className="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="body-strong text-gray-800">ตรวจสลิปด้วย OCR ฟรี</div>
+              <div className="caption text-gray-500">อ่านจากรูปแรกที่เลือก แล้วเทียบกับยอดนำฝากสลิปจริง</div>
+            </div>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={checkSlipOcr} disabled={checkingSlip || !newSlipFiles.length}>
+              {checkingSlip ? 'กำลังตรวจ...' : 'ตรวจสลิป'}
+            </button>
+          </div>
+          {form.slipOcrStatus && form.slipOcrStatus !== 'unchecked' ? (
+            <div className={`mt-3 rounded-lg border px-3 py-2 body-text ${slipOcrTone(form.slipOcrStatus)}`}>
+              {ocrMessage || (form.slipOcrAmount ? `ยอดที่ OCR อ่านได้ ฿${money(form.slipOcrAmount)}` : 'OCR อ่านยอดไม่ได้')}
+              {form.slipOcrConfidence !== '' ? <span className="ml-2 caption">confidence {form.slipOcrConfidence}%</span> : null}
+            </div>
+          ) : ocrMessage ? (
+            <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 body-text text-amber-700">{ocrMessage}</div>
+          ) : null}
+        </div>
         <div className="sm:col-span-2"><ImagePreviewGrid images={[...(deposit?.attachments || []), ...newSlipImages].filter(Boolean)} /></div>
         <label className="sm:col-span-2 flex flex-col gap-1 body-emphasis text-gray-700">สถานะขั้นตอนตรวจสอบ<select className="px-3 py-2 border border-gray-200 rounded-xl bg-white" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
           <option value="waiting">รอฝากเงิน / กำลังเดินทาง</option>
@@ -492,6 +627,7 @@ export function DepositEditorModal({ data, deposit, mode, onClose, onSaved, onUp
 }
 
 function normalizeBankAccountLocal(row) {
+  const branchIds = row.branch_ids || row.branchIds || [];
   return {
     id: row.id,
     bank: row.bank_name || row.bank,
@@ -500,11 +636,19 @@ function normalizeBankAccountLocal(row) {
     accNo: row.account_no || row.accNo,
     accName: row.account_name || row.accName,
     type: row.account_type || row.type || 'ออมทรัพย์',
-    active: row.is_active === undefined ? row.active !== false : row.is_active !== false
+    active: row.is_active === undefined ? row.active !== false : row.is_active !== false,
+    branchIds: branchIds.map(String)
   };
 }
 
-export function AccountFormModal({ account, mode = 'create', onClose, onSaved, onCreated, onUpdated }) {
+function accountBranchLabels(branches = [], branchIds = []) {
+  const ids = new Set((branchIds || []).map(String));
+  const selected = branches.filter((branch) => ids.has(String(branch.id)));
+  if (!selected.length) return 'ทุกสาขา';
+  return selected.map((branch) => branch.code || branch.name || branch.id).join(', ');
+}
+
+export function AccountFormModal({ account, branches = [], mode = 'create', onClose, onSaved, onCreated, onUpdated }) {
   const readonly = mode === 'view';
   const [form, setForm] = useState({
     bankName: account?.bank || 'กสิกรไทย',
@@ -512,9 +656,20 @@ export function AccountFormModal({ account, mode = 'create', onClose, onSaved, o
     accountNo: account?.accNo || '',
     accountName: account?.accName || 'บจก. ครูซี่',
     accountType: account?.type || 'ออมทรัพย์',
-    colorCode: account?.color || '#138F2D'
+    colorCode: account?.color || '#138F2D',
+    branchIds: (account?.branchIds || []).map(String)
   });
   const [saving, setSaving] = useState(false);
+
+  function toggleBranch(branchId) {
+    const value = String(branchId);
+    setForm((current) => {
+      const currentIds = new Set((current.branchIds || []).map(String));
+      if (currentIds.has(value)) currentIds.delete(value);
+      else currentIds.add(value);
+      return { ...current, branchIds: Array.from(currentIds) };
+    });
+  }
 
   async function save() {
     setSaving(true);
@@ -541,6 +696,7 @@ export function AccountFormModal({ account, mode = 'create', onClose, onSaved, o
           ['หมายเลขบัญชี', account.accNo],
           ['ชื่อเจ้าของบัญชี', account.accName],
           ['ประเภทเงินฝาก', account.type],
+          ['เชื่อมกับสาขา', accountBranchLabels(branches, account.branchIds)],
           ['สถานะเปิดรับเงิน', account.active ? 'เปิดการใช้งานให้พนักงานหน้าร้านกดเลือกได้' : 'ปิดรับชั่วคราว']
         ]} />
       </ModalFrame>
@@ -556,6 +712,28 @@ export function AccountFormModal({ account, mode = 'create', onClose, onSaved, o
         <label className="flex flex-col gap-1 body-emphasis text-gray-700">ชื่อผู้ถือบัญชี<input className="px-3 py-2 border border-gray-200 rounded-xl" value={form.accountName} onChange={(e) => setForm({ ...form, accountName: e.target.value })} /></label>
         <label className="flex flex-col gap-1 body-emphasis text-gray-700">ประเภทสมุดบัญชี<input className="px-3 py-2 border border-gray-200 rounded-xl" value={form.accountType} onChange={(e) => setForm({ ...form, accountType: e.target.value })} /></label>
         <label className="flex flex-col gap-1 body-emphasis text-gray-700">ธีมสีสัญลักษณ์ธนาคาร<input className="w-full h-10 border border-gray-200 rounded-xl cursor-pointer p-1" type="color" value={form.colorCode} onChange={(e) => setForm({ ...form, colorCode: e.target.value })} /></label>
+        <div className="sm:col-span-2 flex flex-col gap-2 body-emphasis text-gray-700">
+          <div>เชื่อมบัญชีกับสาขา</div>
+          <div className="grid max-h-56 gap-2 overflow-y-auto rounded-xl border border-gray-200 bg-slate-50 p-3 sm:grid-cols-2">
+            {branches.length ? branches.map((branch) => {
+              const checked = (form.branchIds || []).map(String).includes(String(branch.id));
+              return (
+                <label key={branch.id} className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 body-text text-gray-700 ring-1 ring-gray-100">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleBranch(branch.id)}
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="truncate">{branch.code} - {branch.name}</span>
+                </label>
+              );
+            }) : (
+              <div className="body-text text-gray-500">ยังไม่มีข้อมูลสาขา</div>
+            )}
+          </div>
+          <div className="caption text-gray-500">ไม่เลือกสาขาใด = ใช้บัญชีนี้ได้ทุกสาขา</div>
+        </div>
       </div>
     </ModalFrame>
   );

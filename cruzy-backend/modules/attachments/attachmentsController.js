@@ -20,7 +20,8 @@ function cleanAttachmentPayload(body) {
   return {
     entity_type: body.entityType || body.entity_type,
     entity_id: parseInteger(body.entityId ?? body.entity_id),
-    file_url: body.fileUrl || body.file_url
+    file_url: body.fileUrl || body.file_url,
+    metadata: body.metadata && typeof body.metadata === 'object' ? body.metadata : {}
   };
 }
 
@@ -111,6 +112,7 @@ exports.uploadAttachment = async (req, res) => {
     const entityId = parseInteger(req.body.entityId ?? req.body.entity_id);
     const fileData = req.body.fileData || req.body.file_data;
     let fileName = req.body.fileName || req.body.file_name;
+    const metadata = req.body.metadata && typeof req.body.metadata === 'object' ? req.body.metadata : {};
     
     console.log('[uploadAttachment] Initial values:', { entityType, entityId, fileDataExists: !!fileData, fileName });
     
@@ -163,7 +165,8 @@ const { error: uploadError } = await supabase.storage
       storage_path: storagePath,
       file_name: safeFileName_result,
       file_type: file.contentType,
-      file_size: file.buffer.length
+      file_size: file.buffer.length,
+      metadata
     };
     
     console.log('[uploadAttachment] Inserting to DB:', { entity_type: payload.entity_type, entity_id: payload.entity_id });

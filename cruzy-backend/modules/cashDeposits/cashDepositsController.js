@@ -14,8 +14,28 @@ function cleanCashDepositPayload(body) {
     bank_account_id: body.bankAccountId || body.bank_account_id,
     deposited_by: body.depositedBy || body.deposited_by,
     verified_by: body.verifiedBy || body.verified_by,
-    verified_at: body.verifiedAt || body.verified_at
+    verified_at: body.verifiedAt || body.verified_at,
+    slip_ocr_status: body.slipOcrStatus || body.slip_ocr_status,
+    slip_ocr_amount: body.slipOcrAmount !== undefined || body.slip_ocr_amount !== undefined ? toNumber(body.slipOcrAmount ?? body.slip_ocr_amount) : undefined,
+    slip_ocr_confidence: body.slipOcrConfidence !== undefined || body.slip_ocr_confidence !== undefined ? toNumber(body.slipOcrConfidence ?? body.slip_ocr_confidence) : undefined,
+    slip_ocr_text: body.slipOcrText || body.slip_ocr_text,
+    slip_ocr_checked_at: body.slipOcrCheckedAt || body.slip_ocr_checked_at
   };
+}
+
+function stripSlipOcrFields(payload) {
+  const cleaned = { ...payload };
+  delete cleaned.slip_ocr_status;
+  delete cleaned.slip_ocr_amount;
+  delete cleaned.slip_ocr_confidence;
+  delete cleaned.slip_ocr_text;
+  delete cleaned.slip_ocr_checked_at;
+  return cleaned;
+}
+
+function isMissingSlipOcrColumn(error) {
+  return String(error?.code || '').toUpperCase().includes('PGRST204')
+    && String(error?.message || '').includes('slip_ocr_');
 }
 
 exports.listCashDeposits = async (_req, res) => {
@@ -60,10 +80,20 @@ exports.createCashDeposit = async (req, res) => {
       bank_account_id: body.bankAccountId || null,
       deposited_by: body.depositedBy || null,
       verified_by: body.verifiedBy || null,
-      verified_at: body.verifiedAt || null
+      verified_at: body.verifiedAt || null,
+      slip_ocr_status: body.slipOcrStatus || 'unchecked',
+      slip_ocr_amount: body.slipOcrAmount !== undefined ? toNumber(body.slipOcrAmount) : null,
+      slip_ocr_confidence: body.slipOcrConfidence !== undefined ? toNumber(body.slipOcrConfidence) : null,
+      slip_ocr_text: body.slipOcrText || null,
+      slip_ocr_checked_at: body.slipOcrCheckedAt || null
     };
     
-    const { data, error } = await supabase.from(TABLES.cashDeposits).insert([payload]).select().single();
+    let { data, error } = await supabase.from(TABLES.cashDeposits).insert([payload]).select().single();
+    if (error && isMissingSlipOcrColumn(error)) {
+      const fallback = await supabase.from(TABLES.cashDeposits).insert([stripSlipOcrFields(payload)]).select().single();
+      data = fallback.data;
+      error = fallback.error;
+    }
     if (error) throw error;
     res.status(201).json({ message: 'บันทึกรายการฝากเงินสำเร็จ', data });
   } catch (error) {
@@ -91,7 +121,12 @@ exports.updateCashDeposit = async (req, res) => {
     Object.keys(update).forEach((key) => update[key] === undefined && delete update[key]);
     if (update.branch_id === null) return res.status(400).json({ message: 'branchId ต้องเป็นตัวเลข' });
     
-    const { data, error } = await supabase.from(TABLES.cashDeposits).update(update).eq('id', depositId).select().single();
+    let { data, error } = await supabase.from(TABLES.cashDeposits).update(update).eq('id', depositId).select().single();
+    if (error && isMissingSlipOcrColumn(error)) {
+      const fallback = await supabase.from(TABLES.cashDeposits).update(stripSlipOcrFields(update)).eq('id', depositId).select().single();
+      data = fallback.data;
+      error = fallback.error;
+    }
     if (error) throw error;
     res.json({ message: 'อัปเดตรายการฝากเงินสำเร็จ', data });
   } catch (error) {

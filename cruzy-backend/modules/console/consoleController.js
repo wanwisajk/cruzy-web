@@ -12,6 +12,7 @@ const OPTIONAL_KEYS = [
   'leaveBalances',
   'salesLogs',
   'attachments',
+  'bankAccountBranches',
   'systemAuditLogs',
   'salarySummaries'
 ];
@@ -44,7 +45,8 @@ const DEFAULT_OPTIONS = {
   systemAuditLogs: { order: { column: 'created_at', ascending: false }, limit: 1000 },
   salarySummaries: { order: [{ column: 'salary_month', ascending: false }, { column: 'employee_id', ascending: true }] },
   warningLetters: { order: [{ column: 'issue_date', ascending: false }, { column: 'employee_id', ascending: true }] },
-  bankAccounts: { order: [{ column: 'is_active', ascending: false }, { column: 'bank_short', ascending: true }] }
+  bankAccounts: { order: [{ column: 'is_active', ascending: false }, { column: 'bank_short', ascending: true }] },
+  bankAccountBranches: { order: [{ column: 'bank_account_id', ascending: true }, { column: 'branch_id', ascending: true }] }
 };
 
 async function fetchConsoleTable({ key, table, select, fromDate, toDate }) {

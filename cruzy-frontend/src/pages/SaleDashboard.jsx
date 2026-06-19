@@ -154,6 +154,15 @@ export default function SaleDashboard({ data, user, currentBranch, from, to, onR
   const upsertDeposit = (dep, isEdit) => setDeposits((rows) => isEdit ? rows.map((r) => r.id === dep.id ? { ...r, ...dep } : r) : [...rows, dep]);
   const updateAccount = (acc) => setBankAccounts((rows) => rows.map((r) => r.id === acc.id ? { ...r, ...acc } : r));
 
+  function bankAccountBranchText(account) {
+    const ids = new Set((account.branchIds || []).map(String));
+    if (!ids.size) return 'ทุกสาขา';
+    return localData.branches
+      .filter((branch) => ids.has(String(branch.id)))
+      .map((branch) => branch.code || branch.name)
+      .join(', ') || 'ทุกสาขา';
+  }
+
   const renderSalesTab = () => {
     const totalSales = visibleSales.reduce((sum, sale) => sum + sale.total, 0);
     const totalCash = visibleSales.reduce((sum, sale) => sum + sale.cash, 0);
@@ -498,7 +507,10 @@ export default function SaleDashboard({ data, user, currentBranch, from, to, onR
             </div>
 
             <div className="caption-strong text-gray-600 pt-3 flex justify-between items-center">
-              <div>ชื่อบัญชี: <span className="body-strong text-gray-900">{account.accName}</span></div>
+              <div>
+                <div>ชื่อบัญชี: <span className="body-strong text-gray-900">{account.accName}</span></div>
+                <div className="mt-1 caption text-gray-500">สาขาที่เชื่อม: {bankAccountBranchText(account)}</div>
+              </div>
               <div className="action-cluster">
                 <button className="icon-action" onClick={() => setEditor({ type: 'account', mode: 'view', item: account })}><Eye size={13} /></button>
                 <button className="icon-action info" onClick={() => setEditor({ type: 'account', mode: 'edit', item: account })}><Pencil size={13} /></button>
@@ -528,10 +540,10 @@ export default function SaleDashboard({ data, user, currentBranch, from, to, onR
       </div>
 
       <SalesLogModal data={localData} sale={modalSale} onClose={() => setModalSale(null)} />
-      {showAccountForm && <AccountFormModal onClose={() => setShowAccountForm(false)} onSaved={flash} onCreated={(acc) => setBankAccounts((rows) => [...rows, acc])} onUpdated={updateAccount} />}
+      {showAccountForm && <AccountFormModal branches={localData.branches} onClose={() => setShowAccountForm(false)} onSaved={flash} onCreated={(acc) => setBankAccounts((rows) => [...rows, acc])} onUpdated={updateAccount} />}
       {editor?.type === 'sale' && <SalesEditorModal data={localData} sale={editor.item} mode={editor.mode} onClose={() => setEditor(null)} onSaved={flash} onUpsert={upsertSale} />}
       {editor?.type === 'deposit' && <DepositEditorModal data={localData} deposit={editor.item} mode={editor.mode} onClose={() => setEditor(null)} onSaved={flash} onUpsert={upsertDeposit} />}
-      {editor?.type === 'account' && <AccountFormModal account={editor.item} mode={editor.mode} onClose={() => setEditor(null)} onSaved={flash} onCreated={(acc) => setBankAccounts((rows) => [...rows, acc])} onUpdated={updateAccount} />}
+      {editor?.type === 'account' && <AccountFormModal account={editor.item} branches={localData.branches} mode={editor.mode} onClose={() => setEditor(null)} onSaved={flash} onCreated={(acc) => setBankAccounts((rows) => [...rows, acc])} onUpdated={updateAccount} />}
 
       {toast && (
         <div className="fixed bottom-5 right-5 z-50 animate-in fade-in slide-in-from-bottom-5 duration-150">

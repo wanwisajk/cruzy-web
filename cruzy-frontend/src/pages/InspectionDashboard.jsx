@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Image, ListChecks, RefreshCcw, Search, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Image, ListChecks, Plus, RefreshCcw, Search, Trash2, UploadCloud, X } from 'lucide-react';
 import { thaiLongDate, thaiShortDate } from '../lib/date';
 import { useInspection } from '../features/inspection/hooks/useInspection.js';
 
@@ -89,18 +89,28 @@ function closingStatusFor(item, branch, date) {
 
 function formatInspectionItem(item) {
   if (typeof item === 'string') {
-    return { label: item, passed: true };
+    return { label: item, passed: true, photoCount: 0 };
   }
   if (item === null || item === undefined) {
-    return { label: '-', passed: false };
+    return { label: '-', passed: false, photoCount: 0 };
   }
   if (typeof item === 'object') {
     const label = item.label || item.name || item.title || Object.keys(item)[0] || '';
-    const passed = item.status === 'pass' || item.passed === true || item.ok === true || item.value === 'pass';
+    const photoCount = Number(item.photoCount ?? item.photo_count ?? item.photos?.length ?? 0) || 0;
+    const passed = item.status === 'pass' || item.status === 'submitted' || item.passed === true || item.ok === true || item.value === 'pass' || photoCount > 0;
     const detail = item.value !== undefined && item.value !== true && item.value !== false ? item.value : item.note || item.description;
-    return { label, passed, detail };
+    return {
+      ...item,
+      label,
+      passed,
+      detail,
+      photoCount,
+      sectionKey: item.sectionKey || item.section_key,
+      sectionLabel: item.sectionLabel || item.section_label,
+      itemKey: item.itemKey || item.item_key || item.key
+    };
   }
-  return { label: String(item), passed: false };
+  return { label: String(item), passed: false, photoCount: 0 };
 }
 
 function normalizeConfigList(items = []) {
@@ -115,39 +125,212 @@ function normalizeConfigList(items = []) {
   }).filter((item) => item.label);
 }
 
-function itemLookupKeys(item) {
-  return [item.key, item.label, item.name, item.title, item.id]
-    .filter((value) => value !== undefined && value !== null && value !== '')
-    .map((value) => String(value).trim().toLowerCase());
+function makeStableKey(value, fallback) {
+  const cleaned = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/[^\p{L}\p{N}_-]+/gu, '');
+  return cleaned || fallback;
 }
 
-function buildDbItemMap(inspectionItems) {
+function normalizeSectionItems(items = [], sectionKey = 'section', fallbackPrefix = 'item') {
+  return normalizeConfigList(items).map((item, index) => ({
+    ...item,
+    key: item.key || makeStableKey(item.label, `${fallbackPrefix}_${index + 1}`),
+    label: item.label,
+    sectionKey,
+    photoRequired: item.photoRequired !== false && item.photo_required !== false,
+    minPhotos: Math.max(1, Number(item.minPhotos ?? item.min_photos ?? 1) || 1),
+  }));
+}
+
+const GENERAL_PHOTO_KEYS = ['opening_general', 'closing_general'];
+
+function isInspectionItemRequiredPhoto(item) {
+  if (!item || typeof item !== 'object') return true;
+  const key = item.key || item.id || item.source;
+  return !GENERAL_PHOTO_KEYS.includes(String(key || ''));
+}
+
+function normalizeGeneralPhotoSettings(requiredPhotos = []) {
+  const defaults = {
+    opening: { key: 'opening_general', source: 'opening_general', label: 'รูปเปิดร้าน', minPhotos: 1, photoRequired: true },
+    closing: { key: 'closing_general', source: 'closing_general', label: 'รูปปิดร้าน', minPhotos: 1, photoRequired: true }
+  };
+  if (!Array.isArray(requiredPhotos)) return defaults;
+  return requiredPhotos.reduce((settings, item) => {
+    if (!item || typeof item !== 'object') return settings;
+    const source = item.source || item.key || item.id;
+    const target = source === 'opening_general' ? 'opening' : source === 'closing_general' ? 'closing' : '';
+    if (!target) return settings;
+    const minPhotos = Math.max(0, Number(item.minPhotos ?? item.min_photos ?? 1) || 0);
+    return {
+      ...settings,
+      [target]: {
+        ...settings[target],
+        ...item,
+        key: settings[target].key,
+        source: settings[target].source,
+        label: settings[target].label,
+        minPhotos,
+        photoRequired: item.photoRequired !== false && item.photo_required !== false && minPhotos > 0
+      }
+    };
+  }, defaults);
+}
+
+function serializeGeneralPhotoSettings(photoSettings = {}) {
+  const settings = {
+    ...normalizeGeneralPhotoSettings([]),
+    ...photoSettings
+  };
+  return ['opening', 'closing'].map((key) => ({
+    key: settings[key].key,
+    source: settings[key].source,
+    label: settings[key].label,
+    minPhotos: Math.max(0, Number(settings[key].minPhotos) || 0),
+    photoRequired: Math.max(0, Number(settings[key].minPhotos) || 0) > 0
+  }));
+}
+
+function normalizeInspectionSectionsFromChecklists(checklists = []) {
+  if (!Array.isArray(checklists)) return [];
+  const hasSectionShape = checklists.some((item) => item && typeof item === 'object' && Array.isArray(item.items));
+  if (!hasSectionShape) {
+    const items = normalizeSectionItems(checklists, 'general', 'check');
+    return items.length ? [{ key: 'general', label: 'รายการตรวจ', items }] : [];
+  }
+  return checklists.map((section, sectionIndex) => {
+    if (typeof section === 'string') {
+      const key = makeStableKey(section, `section_${sectionIndex + 1}`);
+      return { key, label: section, items: [] };
+    }
+    const label = section.label || section.name || section.title || section.key || `โซน ${sectionIndex + 1}`;
+    const key = section.key || section.id || makeStableKey(label, `section_${sectionIndex + 1}`);
+    return {
+      ...section,
+      key,
+      label,
+      items: normalizeSectionItems(section.items || [], key, `${key}_item`)
+    };
+  }).filter((section) => section.label);
+}
+
+function buildInspectionSections(setting = {}) {
+  const sections = normalizeInspectionSectionsFromChecklists(setting.checklists || []);
+  const productItems = normalizeSectionItems(setting.required_products || [], 'required_products', 'product');
+  if (productItems.length) {
+    sections.push({ key: 'required_products', label: 'สินค้าที่ต้องตรวจ', items: productItems });
+  }
+  const requiredPhotoItems = normalizeSectionItems((setting.required_photos || []).filter(isInspectionItemRequiredPhoto), 'required_photos', 'photo');
+  if (!sections.length && requiredPhotoItems.length) {
+    sections.push({ key: 'required_photos', label: 'รูปที่ต้องถ่าย', items: requiredPhotoItems });
+  }
+  return sections.filter((section) => section.items?.length);
+}
+
+function flattenInspectionSections(sections = []) {
+  return sections.flatMap((section) => (section.items || []).map((item) => ({
+    ...item,
+    sectionKey: section.key,
+    sectionLabel: section.label,
+    itemKey: item.key
+  })));
+}
+
+function attachmentMetadata(attachment) {
+  return attachment?.metadata && typeof attachment.metadata === 'object' ? attachment.metadata : {};
+}
+
+function attachmentMatchesItem(attachment, item) {
+  const metadata = attachmentMetadata(attachment);
+  if (!metadata.itemKey && !metadata.item_key) return false;
+  const attachmentItemKey = String(metadata.itemKey || metadata.item_key);
+  const attachmentSectionKey = metadata.sectionKey || metadata.section_key;
+  if (attachmentSectionKey && String(attachmentSectionKey) !== String(item.sectionKey)) return false;
+  return attachmentItemKey === String(item.itemKey || item.key);
+}
+
+function buildSavedItemMap(inspectionItems) {
   const rows = Array.isArray(inspectionItems)
     ? inspectionItems
     : Object.entries(inspectionItems || {}).map(([key, value]) => ({ key, label: key, value }));
   return rows.reduce((map, rawItem) => {
     const item = formatInspectionItem(rawItem);
     const source = typeof rawItem === 'object' && rawItem ? rawItem : {};
-    itemLookupKeys({ ...source, label: item.label }).forEach((key) => {
+    const keys = [
+      item.sectionKey && item.itemKey ? `${item.sectionKey}:${item.itemKey}` : '',
+      item.itemKey,
+      ...itemLookupKeys({ ...source, label: item.label })
+    ].filter(Boolean).map((value) => String(value).trim().toLowerCase());
+    keys.forEach((key) => {
       if (!map.has(key)) map.set(key, { ...item, raw: rawItem });
     });
     return map;
   }, new Map());
 }
 
-function buildConfiguredInspectionRows(configItems, inspectionItems, category) {
-  const dbMap = buildDbItemMap(inspectionItems);
-  return normalizeConfigList(configItems).map((configItem) => {
-    const matchKey = itemLookupKeys(configItem).find((key) => dbMap.has(key));
-    const saved = matchKey ? dbMap.get(matchKey) : null;
+function buildDetailSections(setting, inspectionItems, attachments) {
+  const savedMap = buildSavedItemMap(inspectionItems);
+  const imageAttachments = (attachments || []).filter(isImageAttachment);
+  const sections = buildInspectionSections(setting).map((section) => ({
+    ...section,
+    items: section.items.map((item) => {
+      const itemKey = item.key;
+      const saved = savedMap.get(`${section.key}:${itemKey}`.toLowerCase())
+        || savedMap.get(String(itemKey).toLowerCase())
+        || itemLookupKeys(item).map((key) => savedMap.get(key)).find(Boolean);
+      const row = {
+        ...item,
+        sectionKey: section.key,
+        sectionLabel: section.label,
+        itemKey,
+        detail: saved?.detail || item.description || item.note || '',
+        photos: imageAttachments.filter((attachment) => attachmentMatchesItem(attachment, { sectionKey: section.key, itemKey })),
+        savedPhotoCount: saved?.photoCount || 0,
+        hasData: Boolean(saved)
+      };
+      const photoCount = row.photos.length || row.savedPhotoCount;
+      return {
+        ...row,
+        photoCount,
+        passed: photoCount >= row.minPhotos
+      };
+    })
+  })).filter((section) => section.items.length);
+
+  if (sections.length) return sections;
+
+  const fallbackItems = Array.isArray(inspectionItems)
+    ? inspectionItems
+    : Object.entries(inspectionItems || {}).map(([key, value]) => ({ key, label: key, value }));
+  const items = fallbackItems.map((rawItem, index) => {
+    const item = formatInspectionItem(rawItem);
     return {
-      category,
-      label: configItem.label,
-      detail: saved?.detail || configItem.description || configItem.note || '',
-      passed: saved ? saved.passed : false,
-      hasData: Boolean(saved)
+      ...item,
+      key: item.itemKey || item.key || makeStableKey(item.label, `saved_${index + 1}`),
+      itemKey: item.itemKey || item.key || makeStableKey(item.label, `saved_${index + 1}`),
+      sectionKey: item.sectionKey || 'saved',
+      sectionLabel: item.sectionLabel || 'ข้อมูลที่บันทึก',
+      minPhotos: Math.max(1, Number(item.minPhotos ?? item.min_photos ?? 1) || 1),
+      photos: imageAttachments.filter((attachment) => attachmentMatchesItem(attachment, {
+        sectionKey: item.sectionKey || 'saved',
+        itemKey: item.itemKey || item.key
+      }))
     };
   });
+  return items.length ? [{ key: 'saved', label: 'ข้อมูลที่บันทึก', items }] : [];
+}
+
+function unassignedImageAttachments(attachments = []) {
+  return attachments.filter((attachment) => isImageAttachment(attachment) && !(attachmentMetadata(attachment).itemKey || attachmentMetadata(attachment).item_key));
+}
+
+function itemLookupKeys(item) {
+  return [item.key, item.label, item.name, item.title, item.id]
+    .filter((value) => value !== undefined && value !== null && value !== '')
+    .map((value) => String(value).trim().toLowerCase());
 }
 
 function rangeDays(from, to) {
@@ -172,7 +355,15 @@ function filesToDataUrls(fileList) {
 }
 
 function attachmentUrl(attachment) {
-  return attachment?.file_url || attachment?.fileUrl || '';
+  return attachment?.file_url || attachment?.fileUrl || attachment?.url || attachment?.file || '';
+}
+
+function isImageAttachment(attachment) {
+  const fileType = String(attachment?.file_type || attachment?.fileType || '').toLowerCase();
+  if (fileType.startsWith('image/')) return true;
+  const url = attachmentUrl(attachment);
+  if (typeof url === 'string' && url.startsWith('data:image/')) return true;
+  return Boolean(String(url || '').match(/\.(jpe?g|png|gif|webp|svg)(?:[?#].*)?$/i));
 }
 
 function SearchInput({ value, onChange }) {
@@ -215,9 +406,11 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
     submitTime: new Date().toTimeString().slice(0, 5),
     closeTime: '',
     submittedBy: '',
-    note: '',
-    images: []
+    images: [],
+    closingImages: [],
+    itemImages: {}
   }));
+  const [reviewNote, setReviewNote] = useState('');
   const [imagePreview, setImagePreview] = useState(null);
   const {
     branches,
@@ -238,6 +431,7 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
     openInspectionDetail,
     saveReview,
     saveOpeningInspection,
+    addInspectionAttachments,
     saveSettings,
     setDetailOpen,
     setSettingsEdit
@@ -366,25 +560,34 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
   const detailEmployee = employeeMap[detailInspection?.submitted_by] || { name: detailInspection?.submitted_by || '-' };
   const detailOpeningMeta = detailInspection ? openingStatusFor(detailInspection, detailBranch, detailInspection.work_date) : null;
   const detailClosingMeta = detailInspection ? closingStatusFor(detailInspection, detailBranch, detailInspection.work_date) : null;
+  const detailLocked = detailInspection?.status === 'pass';
   const detailAttachments = detailInspection?.attachments || [];
   const currentSettingsMap = useMemo(
     () => Object.fromEntries(settings.map((setting) => [setting.branch_id, setting])),
     [settings]
   );
   const detailSetting = detailInspection ? currentSettingsMap[detailInspection.branch_id] || {} : {};
-  const detailChecklistRows = detailInspection
-    ? buildConfiguredInspectionRows(detailSetting.checklists || [], detailInspection.inspection_items, 'Checklist')
+  const detailPhotoSettings = normalizeGeneralPhotoSettings(detailSetting.required_photos || []);
+  const detailInspectionSections = detailInspection
+    ? buildDetailSections(detailSetting, detailInspection.inspection_items, detailAttachments)
     : [];
-  const detailProductRows = detailInspection
-    ? buildConfiguredInspectionRows(detailSetting.required_products || [], detailInspection.inspection_items, 'สินค้าที่ต้องตรวจ')
-    : [];
-  const detailFallbackRows = detailInspection && !detailChecklistRows.length && !detailProductRows.length
-    ? (Array.isArray(detailInspection.inspection_items)
-        ? detailInspection.inspection_items
-        : Object.entries(detailInspection.inspection_items || {}).map(([key, value]) => ({ label: key, value })))
-      .map((rawItem) => ({ ...formatInspectionItem(rawItem), hasData: true, category: 'ข้อมูลที่บันทึก' }))
-    : [];
-  const detailRequiredPhotoRows = normalizeConfigList(detailSetting.required_photos || []);
+  const detailUnassignedImages = unassignedImageAttachments(detailAttachments);
+  const detailOpeningImages = detailUnassignedImages.filter((attachment) => attachmentMetadata(attachment).source === 'opening_general');
+  const detailClosingImages = detailUnassignedImages.filter((attachment) => attachmentMetadata(attachment).source === 'closing_general');
+  const detailInspectionRequiredCount = detailInspectionSections.reduce((sum, section) => (
+    sum + section.items.reduce((itemSum, item) => itemSum + (item.photoRequired === false ? 0 : item.minPhotos), 0)
+  ), 0);
+  const detailInspectionSubmittedCount = detailInspectionSections.reduce((sum, section) => (
+    sum + section.items.reduce((itemSum, item) => itemSum + Math.min(item.photoCount || 0, item.photoRequired === false ? 0 : item.minPhotos), 0)
+  ), 0);
+  const detailGeneralRequiredCount = detailPhotoSettings.opening.minPhotos + detailPhotoSettings.closing.minPhotos;
+  const detailGeneralSubmittedCount = Math.min(detailOpeningImages.length, detailPhotoSettings.opening.minPhotos) + Math.min(detailClosingImages.length, detailPhotoSettings.closing.minPhotos);
+  const detailRequiredCount = detailInspectionRequiredCount + detailGeneralRequiredCount;
+  const detailSubmittedCount = detailInspectionSubmittedCount + detailGeneralSubmittedCount;
+  const openingSetting = openingForm.branchId ? currentSettingsMap[Number(openingForm.branchId)] || currentSettingsMap[openingForm.branchId] || {} : {};
+  const openingPhotoSettings = normalizeGeneralPhotoSettings(openingSetting.required_photos || []);
+  const openingInspectionSections = buildInspectionSections(openingSetting);
+  const openingInspectionItems = flattenInspectionSections(openingInspectionSections);
 
   const openingFormBranch = branchMap[openingForm.branchId];
   const openingFormTargetTime = openingFormBranch ? branchOpeningTime(openingFormBranch, openingForm.workDate) : '10:00';
@@ -402,13 +605,79 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
     return Math.max(0, targetMinutes - closeMinutes);
   }, [openingForm.closeTime, openingFormCloseTargetTime]);
 
+  useEffect(() => {
+    setReviewNote(detailInspection?.manager_note || '');
+  }, [detailInspection?.id, detailInspection?.manager_note]);
+
   function setOpeningField(field) {
-    return (event) => setOpeningForm((current) => ({ ...current, [field]: event.target.value }));
+    return (event) => setOpeningForm((current) => ({
+      ...current,
+      [field]: event.target.value,
+      ...(field === 'branchId' ? { itemImages: {} } : {})
+    }));
+  }
+
+  function buildDetailInspectionItems() {
+    return detailInspectionSections.flatMap((section) => section.items.map((item) => ({
+      category: section.key === 'required_products' ? 'required_product' : 'checklist',
+      sectionKey: section.key,
+      sectionLabel: section.label,
+      itemKey: item.itemKey || item.key,
+      key: item.itemKey || item.key,
+      label: item.label,
+      photoRequired: item.photoRequired !== false,
+      minPhotos: item.minPhotos,
+      photoCount: item.photoCount || 0,
+      passed: item.passed,
+      status: item.passed ? 'submitted' : 'missing_photo',
+      value: item.passed ? 'ส่งรูปแล้ว' : 'ยังขาดรูป'
+    })));
   }
 
   async function setOpeningImages(event) {
+    const input = event.currentTarget;
     const images = await filesToDataUrls(event.target.files);
-    setOpeningForm((current) => ({ ...current, images }));
+    setOpeningForm((current) => ({ ...current, images: [...current.images, ...images] }));
+    input.value = '';
+  }
+
+  async function setClosingImages(event) {
+    const input = event.currentTarget;
+    const images = await filesToDataUrls(event.target.files);
+    setOpeningForm((current) => ({ ...current, closingImages: [...current.closingImages, ...images] }));
+    input.value = '';
+  }
+
+  async function setOpeningItemImages(item, event) {
+    const input = event.currentTarget;
+    const images = await filesToDataUrls(event.target.files);
+    const key = `${item.sectionKey}:${item.itemKey || item.key}`;
+    setOpeningForm((current) => ({
+      ...current,
+      itemImages: {
+        ...current.itemImages,
+        [key]: [...(current.itemImages[key] || []), ...images]
+      }
+    }));
+    input.value = '';
+  }
+
+  function removeOpeningImage(field, index) {
+    setOpeningForm((current) => ({
+      ...current,
+      [field]: (current[field] || []).filter((_, currentIndex) => currentIndex !== index)
+    }));
+  }
+
+  function removeOpeningItemImage(item, index) {
+    const key = `${item.sectionKey}:${item.itemKey || item.key}`;
+    setOpeningForm((current) => ({
+      ...current,
+      itemImages: {
+        ...current.itemImages,
+        [key]: (current.itemImages[key] || []).filter((_, currentIndex) => currentIndex !== index)
+      }
+    }));
   }
 
   async function submitOpeningForm(event) {
@@ -417,6 +686,46 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
     if (!openingForm.branchId || !openingForm.workDate || !openingForm.submitTime) {
       return;
     }
+    const structuredItems = openingInspectionItems.map((item) => {
+      const key = `${item.sectionKey}:${item.itemKey || item.key}`;
+      const photoCount = openingForm.itemImages[key]?.length || 0;
+      const passed = item.photoRequired === false || photoCount >= item.minPhotos;
+      return {
+        category: item.sectionKey === 'required_products' ? 'required_product' : 'checklist',
+        sectionKey: item.sectionKey,
+        sectionLabel: item.sectionLabel,
+        itemKey: item.itemKey || item.key,
+        key: item.itemKey || item.key,
+        label: item.label,
+        photoRequired: item.photoRequired !== false,
+        minPhotos: item.minPhotos,
+        photoCount,
+        passed,
+        status: passed ? 'submitted' : 'missing_photo',
+        value: passed ? 'ส่งรูปแล้ว' : 'ยังขาดรูป'
+      };
+    });
+    const itemAttachments = openingInspectionItems.flatMap((item) => {
+      const key = `${item.sectionKey}:${item.itemKey || item.key}`;
+      return (openingForm.itemImages[key] || []).map((fileUrl) => ({
+        fileUrl,
+        metadata: {
+          sectionKey: item.sectionKey,
+          sectionLabel: item.sectionLabel,
+          itemKey: item.itemKey || item.key,
+          itemLabel: item.label,
+          source: 'inspection_item'
+        }
+      }));
+    });
+    const generalAttachments = openingForm.images.map((fileUrl) => ({
+      fileUrl,
+      metadata: { source: 'opening_general' }
+    }));
+    const closingAttachments = openingForm.closingImages.map((fileUrl) => ({
+      fileUrl,
+      metadata: { source: 'closing_general' }
+    }));
     const payload = {
       branch_id: openingForm.branchId,
       work_date: openingForm.workDate,
@@ -424,21 +733,185 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
       close_time: openingForm.closeTime || null,
       submitted_by: openingForm.submittedBy || null,
       status: 'pending',
-      inspection_items: [{ label: 'เปิดร้าน', passed: true, value: openingForm.note || 'บันทึกเปิดร้าน' }],
-      manager_note: openingForm.note || null,
+      inspection_items: structuredItems.length ? structuredItems : [{ label: 'เปิดร้าน', passed: true, value: 'บันทึกเปิดร้าน' }],
+      manager_note: null,
       is_late: openingFormLateMinutes > 0,
       late_minutes: openingFormLateMinutes,
-      score: 0,
-      photo_count: openingForm.images.length
+      photo_count: generalAttachments.length + closingAttachments.length + itemAttachments.length
     };
-    await saveOpeningInspection(payload, openingForm.images);
+    await saveOpeningInspection(payload, [...generalAttachments, ...closingAttachments, ...itemAttachments]);
     setOpeningForm((current) => ({
       ...current,
-      note: '',
       closeTime: '',
-      images: []
+      images: [],
+      closingImages: [],
+      itemImages: {}
     }));
     formElement.reset();
+  }
+
+  async function addDetailItemImages(item, event) {
+    const input = event.currentTarget;
+    const images = await filesToDataUrls(event.target.files);
+    input.value = '';
+    if (!images.length || !detailId || detailLocked) return;
+    await addInspectionAttachments(detailId, images.map((fileUrl) => ({
+      fileUrl,
+      metadata: {
+        sectionKey: item.sectionKey,
+        sectionLabel: item.sectionLabel,
+        itemKey: item.itemKey || item.key,
+        itemLabel: item.label,
+        source: 'inspection_item'
+      }
+    })));
+  }
+
+  async function addDetailGeneralImages(source, event) {
+    const input = event.currentTarget;
+    const images = await filesToDataUrls(event.target.files);
+    input.value = '';
+    if (!images.length || !detailId || detailLocked) return;
+    await addInspectionAttachments(detailId, images.map((fileUrl) => ({
+      fileUrl,
+      metadata: { source }
+    })));
+  }
+
+  function buildReviewPayload() {
+    return {
+      inspection_items: buildDetailInspectionItems(),
+      manager_note: reviewNote.trim() || null
+    };
+  }
+
+  function updateSettingsValues(updater) {
+    setSettingsEdit((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        values: typeof updater === 'function' ? updater(current.values) : { ...current.values, ...updater }
+      };
+    });
+  }
+
+  function addInspectionSection() {
+    updateSettingsValues((values) => {
+      const sections = values.inspectionSections || [];
+      const label = `โซน ${sections.length + 1}`;
+      return {
+        ...values,
+        inspectionSections: [
+          ...sections,
+          {
+            key: makeStableKey(label, `section_${sections.length + 1}`),
+            label,
+            items: []
+          }
+        ]
+      };
+    });
+  }
+
+  function updateInspectionSection(sectionIndex, patch) {
+    updateSettingsValues((values) => ({
+      ...values,
+      inspectionSections: (values.inspectionSections || []).map((section, index) => (
+        index === sectionIndex
+          ? {
+              ...section,
+              ...patch,
+              key: patch.label && (!section.key || section.key.startsWith('โซน_') || section.key.startsWith('section_'))
+                ? makeStableKey(patch.label, section.key || `section_${index + 1}`)
+                : section.key
+            }
+          : section
+      ))
+    }));
+  }
+
+  function removeInspectionSection(sectionIndex) {
+    updateSettingsValues((values) => ({
+      ...values,
+      inspectionSections: (values.inspectionSections || []).filter((_, index) => index !== sectionIndex)
+    }));
+  }
+
+  function addInspectionItem(sectionIndex) {
+    updateSettingsValues((values) => ({
+      ...values,
+      inspectionSections: (values.inspectionSections || []).map((section, index) => {
+        if (index !== sectionIndex) return section;
+        const items = section.items || [];
+        const label = `ข้อ ${items.length + 1}`;
+        return {
+          ...section,
+          items: [
+            ...items,
+            {
+              key: makeStableKey(label, `${section.key || `section_${sectionIndex + 1}`}_item_${items.length + 1}`),
+              label,
+              minPhotos: 1,
+              photoRequired: true
+            }
+          ]
+        };
+      })
+    }));
+  }
+
+  function updateInspectionItem(sectionIndex, itemIndex, patch) {
+    updateSettingsValues((values) => ({
+      ...values,
+      inspectionSections: (values.inspectionSections || []).map((section, index) => {
+        if (index !== sectionIndex) return section;
+        return {
+          ...section,
+          items: (section.items || []).map((item, currentItemIndex) => (
+            currentItemIndex === itemIndex
+              ? {
+                  ...item,
+                  ...patch,
+                  key: patch.label && (!item.key || item.key.startsWith('ข้อ_') || item.key.startsWith('item_'))
+                    ? makeStableKey(patch.label, item.key || `${section.key || `section_${sectionIndex + 1}`}_item_${itemIndex + 1}`)
+                    : item.key,
+                  minPhotos: patch.minPhotos !== undefined ? Math.max(1, Number(patch.minPhotos) || 1) : item.minPhotos
+                }
+              : item
+          ))
+        };
+      })
+    }));
+  }
+
+  function removeInspectionItem(sectionIndex, itemIndex) {
+    updateSettingsValues((values) => ({
+      ...values,
+      inspectionSections: (values.inspectionSections || []).map((section, index) => (
+        index === sectionIndex
+          ? { ...section, items: (section.items || []).filter((_, currentItemIndex) => currentItemIndex !== itemIndex) }
+          : section
+      ))
+    }));
+  }
+
+  function updateGeneralPhotoSetting(type, patch) {
+    updateSettingsValues((values) => {
+      const currentSettings = normalizeGeneralPhotoSettings(serializeGeneralPhotoSettings(values.photoSettings || {}));
+      const minPhotos = patch.minPhotos !== undefined ? Math.max(0, Number(patch.minPhotos) || 0) : currentSettings[type].minPhotos;
+      return {
+        ...values,
+        photoSettings: {
+          ...currentSettings,
+          [type]: {
+            ...currentSettings[type],
+            ...patch,
+            minPhotos,
+            photoRequired: minPhotos > 0
+          }
+        }
+      };
+    });
   }
 
   return (
@@ -548,7 +1021,7 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
                   </div>
                 </div>
 
-                <div className="mt-4 grid gap-3 md:grid-cols-6">
+                <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-7">
                   <label className="caption-bold text-slate-500">
                     สาขา
                     <select value={openingForm.branchId} onChange={setOpeningField('branchId')} className="input mt-1 w-full">
@@ -582,39 +1055,134 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
                   <label className="caption-bold text-slate-500">
                     รูปเปิดร้าน
                     <input type="file" accept="image/*" multiple onChange={setOpeningImages} className="input input-file-compact mt-1 w-full" />
+                    <span className="mt-1 block caption text-slate-400">ต้องมี {openingPhotoSettings.opening.minPhotos} รูป</span>
                   </label>
-                </div>
-
-                <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_auto]">
                   <label className="caption-bold text-slate-500">
-                    หมายเหตุ
-                    <input type="text" value={openingForm.note} onChange={setOpeningField('note')} placeholder="เช่น เปิดร้านเรียบร้อย ถ่ายรูปหน้าร้าน/เคาน์เตอร์แล้ว" className="input mt-1 w-full" />
+                    รูปปิดร้าน
+                    <input type="file" accept="image/*" multiple onChange={setClosingImages} className="input input-file-compact mt-1 w-full" />
+                    <span className="mt-1 block caption text-slate-400">ต้องมี {openingPhotoSettings.closing.minPhotos} รูป</span>
                   </label>
-                  <div className="flex items-end">
-                    <button type="submit" disabled={savingReview || !openingForm.branchId || !openingForm.workDate || !openingForm.submitTime} className="btn btn-primary w-full lg:w-auto">
-                      {savingReview ? 'กำลังบันทึก...' : 'บันทึกเปิดร้าน'}
-                    </button>
-                  </div>
                 </div>
 
-                {openingForm.images.length ? (
-                  <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
-                    {openingForm.images.map((image, index) => (
-                      <div key={`${image.slice(0, 24)}_${index}`} className="aspect-square overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-                        <img src={image} alt={`opening-${index + 1}`} className="h-full w-full object-cover" />
+                <div className="mt-3 flex justify-end">
+                  <button type="submit" disabled={savingReview || !openingForm.branchId || !openingForm.workDate || !openingForm.submitTime} className="btn btn-primary w-full sm:w-auto">
+                    {savingReview ? 'กำลังบันทึก...' : 'บันทึกเปิดร้าน'}
+                  </button>
+                </div>
+
+                {openingForm.images.length || openingForm.closingImages.length ? (
+                  <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <span className="caption-bold text-slate-500">รูปเปิดร้าน</span>
+                        <Pill className={openingForm.images.length >= openingPhotoSettings.opening.minPhotos ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'}>
+                          {openingForm.images.length}/{openingPhotoSettings.opening.minPhotos}
+                        </Pill>
                       </div>
-                    ))}
+                      {openingForm.images.length ? (
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                          {openingForm.images.map((image, index) => (
+                            <div key={`${image.slice(0, 24)}_${index}`} className="relative aspect-square overflow-hidden rounded-xl border border-slate-200 bg-white">
+                              <img src={image} alt={`opening-${index + 1}`} className="h-full w-full object-cover" />
+                              <button
+                                type="button"
+                                onClick={() => removeOpeningImage('images', index)}
+                                className="absolute right-1.5 top-1.5 rounded-full bg-white/90 p-1 text-red-600 shadow-sm hover:bg-white"
+                                aria-label="ลบรูปเปิดร้าน"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : <div className="rounded-lg border border-dashed border-slate-300 bg-white px-3 py-4 text-center caption text-slate-500">ยังไม่มีรูป</div>}
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <span className="caption-bold text-slate-500">รูปปิดร้าน</span>
+                        <Pill className={openingForm.closingImages.length >= openingPhotoSettings.closing.minPhotos ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'}>
+                          {openingForm.closingImages.length}/{openingPhotoSettings.closing.minPhotos}
+                        </Pill>
+                      </div>
+                      {openingForm.closingImages.length ? (
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                          {openingForm.closingImages.map((image, index) => (
+                            <div key={`${image.slice(0, 24)}_${index}`} className="relative aspect-square overflow-hidden rounded-xl border border-slate-200 bg-white">
+                              <img src={image} alt={`closing-${index + 1}`} className="h-full w-full object-cover" />
+                              <button
+                                type="button"
+                                onClick={() => removeOpeningImage('closingImages', index)}
+                                className="absolute right-1.5 top-1.5 rounded-full bg-white/90 p-1 text-red-600 shadow-sm hover:bg-white"
+                                aria-label="ลบรูปปิดร้าน"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : <div className="rounded-lg border border-dashed border-slate-300 bg-white px-3 py-4 text-center caption text-slate-500">ยังไม่มีรูป</div>}
+                    </div>
+                  </div>
+                ) : null}
+
+                {openingInspectionSections.length ? (
+                  <div className="mt-4 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex items-center gap-2 body-strong text-slate-900">
+                      <UploadCloud size={16} /> รูปตามจุดตรวจ
+                    </div>
+                    <div className="grid gap-3 lg:grid-cols-2">
+                      {openingInspectionSections.map((section) => (
+                        <div key={section.key} className="rounded-xl border border-slate-200 bg-white p-3">
+                          <div className="mb-3 body-strong text-slate-900">{section.label}</div>
+                          <div className="space-y-3">
+                            {section.items.map((item) => {
+                              const row = { ...item, sectionKey: section.key, sectionLabel: section.label, itemKey: item.key };
+                              const key = `${row.sectionKey}:${row.itemKey}`;
+                              const images = openingForm.itemImages[key] || [];
+                              return (
+                                <div key={key} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                    <div>
+                                      <div className="body-strong text-slate-900">{row.label}</div>
+                                      <div className="caption text-slate-500">ต้องมีรูป {row.minPhotos} รูป</div>
+                                    </div>
+                                    <label className="btn btn-secondary btn-sm cursor-pointer">
+                                      <Image size={14} /> เพิ่มรูป {images.length ? `(${images.length})` : ''}
+                                      <input type="file" accept="image/*" multiple onChange={(event) => setOpeningItemImages(row, event)} className="hidden" />
+                                    </label>
+                                  </div>
+                                  {images.length ? (
+                                    <div className="mt-3 grid grid-cols-3 gap-2">
+                                      {images.map((image, index) => (
+                                        <div key={`${image.slice(0, 24)}_${index}`} className="relative aspect-square overflow-hidden rounded-lg border border-slate-200 bg-white">
+                                          <img src={image} alt={`${row.label}-${index + 1}`} className="h-full w-full object-cover" />
+                                          <button
+                                            type="button"
+                                            onClick={() => removeOpeningItemImage(row, index)}
+                                            className="absolute right-1 top-1 rounded-full bg-white/90 p-1 text-red-600 shadow-sm hover:bg-white"
+                                            aria-label={`ลบรูป ${row.label}`}
+                                          >
+                                            <X size={13} />
+                                          </button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <div className="mt-3 rounded-lg border border-dashed border-slate-300 bg-white px-3 py-4 text-center caption text-slate-500">ยังไม่มีรูป</div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ) : null}
               </form>
 
-              {summaryCounts.missing ? (
-                <div className="surface-warning p-4 body-text">📭 มี {summaryCounts.missing} สาขา×วัน ที่ยังไม่มีรายการตรวจร้าน</div>
-              ) : null}
               <div className="table-shell">
                 <div className="border-b border-slate-100 px-4 py-3">
-                  <div className="body-strong text-slate-900">📅 สถานะเปิดร้าน × สาขา</div>
-                  <div className="mt-1 caption text-slate-500">ข้อมูลจาก DB ตาราง store_inspections: เวลาเปิด-ปิด, เปิดสาย, ปิดก่อนเวลา, หรือยังไม่บันทึก</div>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="min-w-full border-collapse body-text">
@@ -622,7 +1190,7 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
                       <tr>
                         <th className="sticky left-0 z-10 min-w-[180px] border-r border-slate-200 bg-slate-50 px-4 py-3 text-left">สาขา</th>
                         {rangeDates.map((date) => (
-                          <th key={date} className="min-w-[150px] whitespace-nowrap px-3 py-3 text-center">
+                          <th key={date} className="min-w-[150px] whitespace-nowrap px-2 py-3 text-center">
                             <div className="body-strong text-slate-700">{thaiShortDate(date)}</div>
                             <div className="mt-0.5 caption body-emphasis text-slate-400">{date}</div>
                           </th>
@@ -642,39 +1210,40 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
                               const meta = openingStatusFor(item, branch, date);
                               const closeMeta = closingStatusFor(item, branch, date);
                               return (
-                                <td key={`${branch.id}_${date}`} className="px-3 py-3 align-top">
+                                <td key={`${branch.id}_${date}`} className="px-2 py-2 align-top">
                                   <button
                                     type="button"
                                     onClick={() => item ? openInspectionDetail(item.id) : undefined}
-                                    className={`w-full rounded-xl border px-3 py-2 text-left transition ${meta.tone} ${item ? 'hover:shadow-sm' : 'cursor-default'}`}
+                                    className={`block w-full overflow-hidden rounded-xl border border-slate-200 text-left transition ${item ? 'hover:shadow-sm' : 'cursor-default'}`}
                                   >
-                                    <div className="flex items-center gap-2">
-                                      <span className={`h-2 w-2 rounded-full ${meta.dot}`} />
-                                      <span className="caption-bold">{meta.label}</span>
-                                    </div>
-                                    <div className="mt-1 heading-3 body-strong leading-none">{meta.detail}</div>
-                                    <div className="mt-1 caption body-strong opacity-80">เวลาเปิดสาขา {meta.targetTime}</div>
-                                    {meta.lateMinutes ? (
-                                      <div className="mt-0.5 caption body-strong opacity-80">สาย {meta.lateMinutes} นาที</div>
-                                    ) : item?.employee?.name ? (
-                                      <div className="mt-0.5 truncate caption body-strong opacity-80">{item.employee.name}</div>
-                                    ) : (
-                                      <div className="mt-0.5 caption body-strong opacity-70">ไม่มีข้อมูลเปิดร้าน</div>
-                                    )}
-                                    {item ? (
-                                      <div className={`mt-2 rounded-lg border px-2 py-1 ${closeMeta.tone}`}>
-                                        <div className="flex items-center gap-2">
-                                          <span className={`h-1.5 w-1.5 rounded-full ${closeMeta.dot}`} />
-                                          <span className="caption-bold">{closeMeta.label}</span>
-                                        </div>
-                                        <div className="mt-0.5 caption body-strong opacity-80">
-                                          ปิดจริง {closeMeta.detail} · เป้า {closeMeta.targetTime}
-                                        </div>
-                                        {closeMeta.earlyMinutes ? (
-                                          <div className="mt-0.5 caption body-strong opacity-80">ก่อนเวลา {closeMeta.earlyMinutes} นาที</div>
-                                        ) : null}
+                                    <div className={`min-h-[74px] px-2.5 py-2 ${meta.tone}`}>
+                                      <div className="flex items-center gap-2">
+                                        <span className={`h-2 w-2 rounded-full ${meta.dot}`} />
+                                        <span className="caption-bold">{meta.label}</span>
                                       </div>
-                                    ) : null}
+                                      <div className="mt-1 body-strong leading-none">{meta.detail}</div>
+                                      <div className="mt-0.5 caption body-strong opacity-80">เปิด {meta.targetTime}</div>
+                                      {meta.lateMinutes ? (
+                                        <div className="caption body-strong opacity-80">สาย {meta.lateMinutes} นาที</div>
+                                      ) : item?.employee?.name ? (
+                                        <div className="truncate caption body-strong opacity-80">{item.employee.name}</div>
+                                      ) : (
+                                        <div className="caption body-strong opacity-70">ไม่มีข้อมูล</div>
+                                      )}
+                                    </div>
+                                    <div className={`min-h-[74px] border-t border-white/70 px-2.5 py-2 ${closeMeta.tone}`}>
+                                      <div className="flex items-center gap-2">
+                                        <span className={`h-2 w-2 rounded-full ${closeMeta.dot}`} />
+                                        <span className="caption-bold">{closeMeta.label}</span>
+                                      </div>
+                                      <div className="mt-1 body-strong leading-none">{closeMeta.detail}</div>
+                                      <div className="mt-0.5 caption body-strong opacity-80">ปิด {closeMeta.targetTime}</div>
+                                      {closeMeta.earlyMinutes ? (
+                                        <div className="caption body-strong opacity-80">ก่อน {closeMeta.earlyMinutes} นาที</div>
+                                      ) : (
+                                        <div className="caption body-strong opacity-70">{item?.close_time ? 'ปิดตามเวลา' : 'ไม่มีข้อมูล'}</div>
+                                      )}
+                                    </div>
                                   </button>
                                 </td>
                               );
@@ -733,7 +1302,6 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
                       <th className="whitespace-nowrap px-4 py-3 text-left">ผู้ส่ง</th>
                       <th className="whitespace-nowrap px-4 py-3 text-left">เวลาส่ง</th>
                       <th className="whitespace-nowrap px-4 py-3 text-left">เวลาปิด</th>
-                      <th className="whitespace-nowrap px-4 py-3 text-left">คะแนน</th>
                       <th className="whitespace-nowrap px-4 py-3 text-left">จำนวนรูป</th>
                       <th className="whitespace-nowrap px-4 py-3 text-left">สถานะ</th>
                       <th className="whitespace-nowrap px-4 py-3 text-left">ผู้ตรวจ</th>
@@ -755,7 +1323,6 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
                               {item.close_time || '-'}
                             </span>
                           </td>
-                          <td className="px-4 py-3">{item.score ?? '-'}</td>
                           <td className="px-4 py-3">{item.photo_count ?? 0}</td>
                           <td className="px-4 py-3"><span className={`inline-flex rounded-full px-3 py-1 caption body-strong ${formatBadge(item.status)}`}>{item.status || 'pending'}</span></td>
                           <td className="px-4 py-3">{item.reviewed_by || '-'}</td>
@@ -794,6 +1361,8 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
                   checklists: [],
                   required_products: [],
                 };
+                const configSections = buildInspectionSections(config);
+                const configPhotoSettings = normalizeGeneralPhotoSettings(config.required_photos || []);
                 return (
                   <div key={branch.id} className="section-card-sm">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -803,7 +1372,16 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
                       </div>
                       <button
                         type="button"
-                        onClick={() => setSettingsEdit({ branchId: branch.id, values: { ...config, requiredPhotos: config.required_photos || [], checklists: config.checklists || [], requiredProducts: config.required_products || [] } })}
+                        onClick={() => setSettingsEdit({
+                          branchId: branch.id,
+                          values: {
+                            ...config,
+                            photoSettings: configPhotoSettings,
+                            inspectionSections: normalizeInspectionSectionsFromChecklists(config.checklists || []),
+                            requiredPhotos: (config.required_photos || []).filter(isInspectionItemRequiredPhoto),
+                            requiredProducts: config.required_products || []
+                          }
+                        })}
                         className="btn btn-secondary"
                       >
                         แก้ไข
@@ -811,32 +1389,30 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
                     </div>
                     <div className="mt-4 grid gap-3 sm:grid-cols-2">
                       <div className="section-card-soft body-text text-slate-700">
-                        <div className="caption text-slate-500">CCTV</div>
-                        <div className="mt-2 heading-3 text-slate-900">{config.cctv_count || 0}</div>
+                        <div className="caption text-slate-500">รูปเปิดร้าน</div>
+                        <div className="mt-2 body-strong text-slate-900">ต้องมี {configPhotoSettings.opening.minPhotos} รูป</div>
                       </div>
                       <div className="section-card-soft body-text text-slate-700">
-                        <div className="caption text-slate-500">จำนวนชั้นวาง</div>
-                        <div className="mt-2 heading-3 text-slate-900">{config.shelf_count || 0}</div>
+                        <div className="caption text-slate-500">รูปปิดร้าน</div>
+                        <div className="mt-2 body-strong text-slate-900">ต้องมี {configPhotoSettings.closing.minPhotos} รูป</div>
                       </div>
                     </div>
-                    <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                      <div className="section-card-soft body-text text-slate-700">
-                        <div className="caption text-slate-500">รูปที่ต้องถ่าย</div>
-                        <div className="mt-2 space-y-1 body-text text-slate-600">
-                          {(config.required_photos || []).length ? config.required_photos.map((item, index) => <div key={index}>• {item}</div>) : <div>-</div>}
-                        </div>
-                      </div>
-                      <div className="section-card-soft body-text text-slate-700">
-                        <div className="caption text-slate-500">Checklist</div>
-                        <div className="mt-2 space-y-1 body-text text-slate-600">
-                          {(config.checklists || []).length ? config.checklists.map((item, index) => <div key={index}>• {item}</div>) : <div>-</div>}
-                        </div>
-                      </div>
-                      <div className="section-card-soft body-text text-slate-700">
-                        <div className="caption text-slate-500">สินค้าที่ต้องเช็ค</div>
-                        <div className="mt-2 space-y-1 body-text text-slate-600">
-                          {(config.required_products || []).length ? config.required_products.map((item, index) => <div key={index}>• {item}</div>) : <div>-</div>}
-                        </div>
+                    <div className="mt-4 section-card-soft body-text text-slate-700">
+                      <div className="caption text-slate-500">โซนและรูปที่ต้องส่ง</div>
+                      <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                        {configSections.length ? configSections.map((section) => (
+                          <div key={section.key} className="rounded-xl border border-slate-200 bg-white p-3">
+                            <div className="body-strong text-slate-900">{section.label}</div>
+                            <div className="mt-2 space-y-1 body-text text-slate-600">
+                              {section.items.map((item) => (
+                                <div key={item.key} className="flex items-center justify-between gap-2">
+                                  <span>{item.label}</span>
+                                  <span className="caption text-slate-500">{item.minPhotos} รูป</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )) : <div>-</div>}
                       </div>
                     </div>
                   </div>
@@ -930,7 +1506,7 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
                       <div className="mt-2 body-strong text-slate-900">{thaiLongDate(detailInspection.work_date)}</div>
                     </div>
                   </div>
-                  <div className="grid gap-4 sm:grid-cols-4">
+                  <div className="grid gap-4 sm:grid-cols-3">
                     <div className="rounded-xl border border-slate-200 bg-white p-4">
                       <div className="caption text-slate-500">ผู้ส่ง</div>
                       <div className="mt-2 body-strong text-slate-900">{detailEmployee.name}</div>
@@ -938,10 +1514,6 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
                     <div className="rounded-xl border border-slate-200 bg-white p-4">
                       <div className="caption text-slate-500">เวลาส่ง</div>
                       <div className="mt-2 body-strong text-slate-900">{detailInspection.submit_time || '-'}</div>
-                    </div>
-                    <div className="rounded-xl border border-slate-200 bg-white p-4">
-                      <div className="caption text-slate-500">คะแนน</div>
-                      <div className="mt-2 body-strong text-slate-900">{detailInspection.score ?? '-'}</div>
                     </div>
                     <div className="rounded-xl border border-slate-200 bg-white p-4">
                       <div className="caption text-slate-500">จำนวนรูป</div>
@@ -958,130 +1530,168 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
                       <div className="mt-2 body-strong text-slate-900">{detailInspection.review_time || '-'}</div>
                     </div>
                   </div>
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="caption uppercase tracking-[0.12em] text-slate-500">หมายเหตุ</div>
-                    <div className="mt-2 body-text text-slate-700">{detailInspection.manager_note || '-'}</div>
-                  </div>
-                  <div className="grid gap-4 lg:grid-cols-2">
-                    <div className="rounded-xl border border-slate-200 bg-white p-4">
-                      <div className="mb-3 flex items-center gap-2 body-strong text-slate-900">
-                        <ListChecks size={16} /> Checklist
-                      </div>
-                      <div className="space-y-2">
-                        {detailChecklistRows.length ? (
-                          detailChecklistRows.map((item, index) => (
-                            <div key={`${item.label}_${index}`} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                              <div>
-                                <div className="body-strong text-slate-900">{item.label}</div>
-                                {item.detail ? <div className="caption text-slate-500">{item.detail}</div> : null}
-                              </div>
-                              <Pill className={item.hasData ? (item.passed ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700') : 'bg-slate-100 text-slate-500'}>
-                                {item.hasData ? (item.passed ? 'Pass' : 'Fail') : 'ไม่มีข้อมูล'}
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <div className="mb-3 flex items-center gap-2 body-strong text-slate-900"><Image size={16} /> รูปเปิด-ปิดร้าน</div>
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      {[
+                        { key: 'opening', label: 'รูปเปิดร้าน', rows: detailOpeningImages, minPhotos: detailPhotoSettings.opening.minPhotos, source: 'opening_general' },
+                        { key: 'closing', label: 'รูปปิดร้าน', rows: detailClosingImages, minPhotos: detailPhotoSettings.closing.minPhotos, source: 'closing_general' },
+                      ].map((group) => (
+                        <div key={group.key} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="body-strong text-slate-900">{group.label}</div>
+                              <Pill className={group.rows.length >= group.minPhotos ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'}>
+                                {group.rows.length}/{group.minPhotos}
                               </Pill>
                             </div>
-                          ))
-                        ) : null}
-                        {detailProductRows.length ? (
-                          <div className="pt-2">
-                            <div className="mb-2 caption-bold uppercase tracking-[0.12em] text-slate-500">สินค้าที่ต้องตรวจ</div>
-                            <div className="space-y-2">
-                              {detailProductRows.map((item, index) => (
-                                <div key={`${item.label}_${index}`} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                            <label className={`btn btn-secondary btn-sm ${detailLocked ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
+                              <Image size={14} /> เพิ่มรูป
+                              <input
+                                type="file"
+                                accept="image/*"
+                                multiple
+                                onChange={(event) => addDetailGeneralImages(group.source, event)}
+                                className="hidden"
+                                disabled={savingReview || detailLocked}
+                              />
+                            </label>
+                          </div>
+                          {group.rows.length ? (
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              {group.rows.map((attachment, index) => {
+                                const url = attachmentUrl(attachment);
+                                return (
+                                  <div key={attachment.id || `${url}_${index}`} className="overflow-hidden rounded-xl border border-slate-200 bg-white p-3">
+                                    <button
+                                      type="button"
+                                      onClick={() => setImagePreview({ url, title: `${group.label} ${index + 1}` })}
+                                      className="block w-full overflow-hidden rounded-xl bg-slate-50 text-left"
+                                    >
+                                      <img src={url} alt={`${group.key}-${index + 1}`} className="h-36 w-full object-cover transition hover:scale-[1.02]" />
+                                    </button>
+                                    <div className="mt-2 truncate caption body-strong text-slate-500">{attachment.file_name || `${group.label} ${index + 1}`}</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div className="rounded-xl border border-dashed border-slate-300 bg-white px-3 py-6 text-center body-text text-slate-500">ยังไม่มีรูป</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-center gap-2 body-strong text-slate-900">
+                        <ListChecks size={16} /> จุดตรวจและรูปหลักฐาน
+                      </div>
+                      <Pill className={detailSubmittedCount >= detailRequiredCount && detailRequiredCount > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'}>
+                        {detailSubmittedCount}/{detailRequiredCount || 0} รูปที่ต้องมี
+                      </Pill>
+                    </div>
+                    <div className="space-y-4">
+                      {detailInspectionSections.length ? detailInspectionSections.map((section) => (
+                        <div key={section.key} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                          <div className="mb-3 body-strong text-slate-900">{section.label}</div>
+                          <div className="grid gap-3 lg:grid-cols-2">
+                            {section.items.map((item) => (
+                              <div key={`${section.key}_${item.itemKey || item.key}`} className="rounded-xl border border-slate-200 bg-white p-3">
+                                <div className="flex items-start justify-between gap-3">
                                   <div>
                                     <div className="body-strong text-slate-900">{item.label}</div>
                                     {item.detail ? <div className="caption text-slate-500">{item.detail}</div> : null}
                                   </div>
-                                  <Pill className={item.hasData ? (item.passed ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700') : 'bg-slate-100 text-slate-500'}>
-                                    {item.hasData ? (item.passed ? 'Pass' : 'Fail') : 'ไม่มีข้อมูล'}
+                                  <Pill className={item.passed ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}>
+                                    {item.passed ? 'ครบ' : `ขาด ${Math.max(0, item.minPhotos - (item.photoCount || 0))}`}
                                   </Pill>
                                 </div>
-                              ))}
-                            </div>
-                          </div>
-                        ) : null}
-                        {detailFallbackRows.length ? (
-                          detailFallbackRows.map((item, index) => (
-                            <div key={`${item.label}_${index}`} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                              <div>
-                                <div className="body-strong text-slate-900">{item.label}</div>
-                                {item.detail ? <div className="caption text-slate-500">{item.detail}</div> : null}
+                                <div className="mt-3 grid grid-cols-2 gap-2">
+                                  {item.photos.length ? item.photos.map((attachment, index) => {
+                                    const url = attachmentUrl(attachment);
+                                    return (
+                                      <button
+                                        key={attachment.id || `${url}_${index}`}
+                                        type="button"
+                                        onClick={() => setImagePreview({ url, title: attachmentMetadata(attachment).itemLabel || item.label })}
+                                        className="aspect-square overflow-hidden rounded-lg border border-slate-200 bg-slate-50 text-left"
+                                      >
+                                        <img src={url} alt={`${item.label}-${index + 1}`} className="h-full w-full object-cover transition hover:scale-[1.02]" />
+                                      </button>
+                                    );
+                                  }) : (
+                                    <div className="col-span-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-8 text-center body-text text-slate-500">ยังไม่มีรูป</div>
+                                  )}
+                                </div>
+                                <label className={`btn btn-secondary btn-sm mt-3 ${detailLocked ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
+                                  <Image size={14} /> เพิ่มรูปหัวข้อนี้
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    multiple
+                                    onChange={(event) => addDetailItemImages(item, event)}
+                                    className="hidden"
+                                    disabled={savingReview || detailLocked}
+                                  />
+                                </label>
                               </div>
-                              <Pill className={item.passed ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}>{item.passed ? 'Pass' : 'Fail'}</Pill>
-                            </div>
-                          ))
-                        ) : null}
-                        {!detailChecklistRows.length && !detailProductRows.length && !detailFallbackRows.length ? (
-                          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 body-text text-slate-500">ไม่มี Checklist ของสาขานี้</div>
-                        ) : null}
-                        <div className="rounded-xl border border-slate-200 bg-white px-3 py-3">
-                          <div className="caption-bold uppercase tracking-[0.12em] text-slate-500">รูปที่ต้องถ่ายตามสาขา</div>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {detailRequiredPhotoRows.length ? detailRequiredPhotoRows.map((item, index) => (
-                              <Pill key={`${item.label}_${index}`} className="bg-blue-50 text-blue-700">{item.label}</Pill>
-                            )) : <span className="body-text text-slate-500">-</span>}
+                            ))}
                           </div>
                         </div>
-                      </div>
-                    </div>
-                    <div className="rounded-xl border border-slate-200 bg-white p-4">
-                      <div className="mb-3 flex items-center gap-2 body-strong text-slate-900"><Image size={16} /> รูปภาพ</div>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        {detailAttachments.length ? (
-                          detailAttachments.map((attachment, index) => {
-                            const url = attachmentUrl(attachment);
-                            return (
-                            <div key={attachment.id || `${url}_${index}`} className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-3">
-                              <button
-                                type="button"
-                                onClick={() => setImagePreview({ url, title: attachment.file_name || `รูปที่ ${index + 1}` })}
-                                className="block w-full overflow-hidden rounded-xl bg-white text-left"
-                              >
-                                <img src={url} alt={`inspection-${index + 1}`} className="h-36 w-full object-cover transition hover:scale-[1.02]" />
-                              </button>
-                              <div className="mt-2 flex items-center justify-between gap-2">
-                                <div className="truncate caption body-strong text-slate-500">{attachment.file_name || `รูปที่ ${index + 1}`}</div>
-                                <a href={url} target="_blank" rel="noreferrer" className="shrink-0 rounded-full bg-slate-900 px-2.5 py-1 caption body-strong text-white hover:bg-slate-700">
-                                  เปิดไฟล์
-                                </a>
-                              </div>
-                            </div>
-                            );
-                          })
-                        ) : (
-                          <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center body-text text-slate-500">ไม่มีรูปภาพ</div>
-                        )}
-                      </div>
+                      )) : (
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 body-text text-slate-500">ไม่มี Checklist ของสาขานี้</div>
+                      )}
                     </div>
                   </div>
-                  <details className="rounded-xl border border-slate-200 bg-white p-4">
-                    <summary className="cursor-pointer body-strong text-slate-900">ข้อมูลดิบจาก DB</summary>
-                    <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-slate-950 p-4 caption text-slate-100">{JSON.stringify(detailInspection, null, 2)}</pre>
-                  </details>
                 </div>
               ) : (
                 <div className="surface-muted p-8 text-center body-text">เลือกการตรวจร้านเพื่อดูรายละเอียด</div>
               )}
             </div>
-            <div className="mt-6 flex flex-col gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:justify-end">
-              <button type="button" onClick={() => setDetailOpen(false)} className="btn btn-secondary">
-                ปิด
-              </button>
-              <button
-                type="button"
-                onClick={() => saveReview(detailId, 'issues')}
-                disabled={savingReview || detailLoading}
-                className="btn btn-warning disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                มีปัญหา
-              </button>
-              <button
-                type="button"
-                onClick={() => saveReview(detailId, 'pass')}
-                disabled={savingReview || detailLoading}
-                className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                อนุมัติ
-              </button>
+            <div className="mt-6 grid gap-3 border-t border-slate-200 pt-4 lg:grid-cols-[minmax(260px,1fr)_auto] lg:items-end">
+              {!detailLocked ? (
+                <label className="block">
+                  <div className="mb-1 caption uppercase tracking-[0.12em] text-slate-500">หมายเหตุผู้ตรวจ</div>
+                  <input
+                    type="text"
+                    value={reviewNote}
+                    onChange={(event) => setReviewNote(event.target.value)}
+                    placeholder="บันทึกหมายเหตุหรือปัญหาที่พบก่อนอนุมัติ"
+                    className="input h-11 w-full bg-white"
+                  />
+                </label>
+              ) : <div />}
+              <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                <button type="button" onClick={() => setDetailOpen(false)} className="btn btn-secondary">
+                  ปิด
+                </button>
+                {detailLocked ? (
+                  <div className="flex h-11 items-center rounded-xl bg-emerald-50 px-4 caption-bold text-emerald-700 ring-1 ring-emerald-100">
+                    อนุมัติแล้ว
+                  </div>
+                ) : null}
+                {!detailLocked ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => saveReview(detailId, 'issues', buildReviewPayload())}
+                      disabled={savingReview || detailLoading}
+                      className="btn btn-warning disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      มีปัญหา
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => saveReview(detailId, 'pass', buildReviewPayload())}
+                      disabled={savingReview || detailLoading}
+                      className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      อนุมัติ
+                    </button>
+                  </>
+                ) : null}
+              </div>
             </div>
           </div>
         </div>
@@ -1120,53 +1730,108 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
                 <X size={18} />
               </button>
             </div>
-            <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="mb-2 block caption-strong uppercase tracking-[0.2em] text-slate-500">CCTV</label>
-                <input
-                  type="number"
-                  value={settingsEdit.values.cctvCount}
-                  onChange={(event) => setSettingsEdit((prev) => ({ ...prev, values: { ...prev.values, cctvCount: event.target.value } }))}
-                  className="input w-full"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block caption-strong uppercase tracking-[0.2em] text-slate-500">จำนวนชั้นวาง</label>
-                <input
-                  type="number"
-                  value={settingsEdit.values.shelfCount}
-                  onChange={(event) => setSettingsEdit((prev) => ({ ...prev, values: { ...prev.values, shelfCount: event.target.value } }))}
-                  className="input w-full"
-                />
+            <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="body-strong text-slate-900">รูปเปิดร้าน/ปิดร้าน</div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <label className="caption-bold text-slate-500">
+                  รูปเปิดร้าน
+                  <input
+                    type="number"
+                    min="0"
+                    value={settingsEdit.values.photoSettings?.opening?.minPhotos ?? 1}
+                    onChange={(event) => updateGeneralPhotoSetting('opening', { minPhotos: event.target.value })}
+                    className="input mt-1 w-full"
+                  />
+                </label>
+                <label className="caption-bold text-slate-500">
+                  รูปปิดร้าน
+                  <input
+                    type="number"
+                    min="0"
+                    value={settingsEdit.values.photoSettings?.closing?.minPhotos ?? 1}
+                    onChange={(event) => updateGeneralPhotoSetting('closing', { minPhotos: event.target.value })}
+                    className="input mt-1 w-full"
+                  />
+                </label>
               </div>
             </div>
-            <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="mb-2 block caption-strong uppercase tracking-[0.2em] text-slate-500">รูปที่ต้องถ่าย</label>
-                <textarea
-                  rows="4"
-                  value={(settingsEdit.values.requiredPhotos || []).join('\n')}
-                  onChange={(event) => setSettingsEdit((prev) => ({ ...prev, values: { ...prev.values, requiredPhotos: event.target.value.split('\n').map((value) => value.trim()).filter(Boolean) } }))}
-                  className="input w-full min-h-28"
-                />
+            <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="body-strong text-slate-900">โซนตรวจและรูปที่ต้องส่ง</div>
+                  <div className="mt-1 caption text-slate-500">เช่น หน้าร้าน หลังร้าน เคาน์เตอร์ ชั้นวาง</div>
+                </div>
+                <button type="button" onClick={addInspectionSection} className="btn btn-secondary btn-sm">
+                  <Plus size={14} /> เพิ่มโซน
+                </button>
               </div>
-              <div>
-                <label className="mb-2 block caption-strong uppercase tracking-[0.2em] text-slate-500">Checklist</label>
-                <textarea
-                  rows="4"
-                  value={(settingsEdit.values.checklists || []).join('\n')}
-                  onChange={(event) => setSettingsEdit((prev) => ({ ...prev, values: { ...prev.values, checklists: event.target.value.split('\n').map((value) => value.trim()).filter(Boolean) } }))}
-                  className="input w-full min-h-28"
-                />
+              <div className="mt-4 space-y-3">
+                {(settingsEdit.values.inspectionSections || []).length ? settingsEdit.values.inspectionSections.map((section, sectionIndex) => (
+                  <div key={section.key || sectionIndex} className="rounded-xl border border-slate-200 bg-white p-3">
+                    <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+                      <label className="caption-bold text-slate-500">
+                        ชื่อโซน
+                        <input
+                          type="text"
+                          value={section.label || ''}
+                          onChange={(event) => updateInspectionSection(sectionIndex, { label: event.target.value })}
+                          className="input mt-1 w-full"
+                        />
+                      </label>
+                      <div className="flex items-end gap-2">
+                        <button type="button" onClick={() => addInspectionItem(sectionIndex)} className="btn btn-secondary btn-sm">
+                          <Plus size={14} /> เพิ่มข้อ
+                        </button>
+                        <button type="button" onClick={() => removeInspectionSection(sectionIndex)} className="icon-btn text-red-600" aria-label="ลบโซน">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      {(section.items || []).length ? section.items.map((item, itemIndex) => (
+                        <div key={item.key || itemIndex} className="grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[1fr_110px_auto]">
+                          <label className="caption-bold text-slate-500">
+                            ข้อย่อย
+                            <input
+                              type="text"
+                              value={item.label || ''}
+                              onChange={(event) => updateInspectionItem(sectionIndex, itemIndex, { label: event.target.value })}
+                              className="input mt-1 w-full"
+                            />
+                          </label>
+                          <label className="caption-bold text-slate-500">
+                            จำนวนรูป
+                            <input
+                              type="number"
+                              min="1"
+                              value={item.minPhotos || 1}
+                              onChange={(event) => updateInspectionItem(sectionIndex, itemIndex, { minPhotos: event.target.value })}
+                              className="input mt-1 w-full"
+                            />
+                          </label>
+                          <div className="flex items-end justify-end">
+                            <button type="button" onClick={() => removeInspectionItem(sectionIndex, itemIndex)} className="icon-btn text-red-600" aria-label="ลบข้อย่อย">
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      )) : (
+                        <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-center body-text text-slate-500">ยังไม่มีข้อย่อย</div>
+                      )}
+                    </div>
+                  </div>
+                )) : (
+                  <div className="rounded-xl border border-dashed border-slate-300 bg-white px-3 py-6 text-center body-text text-slate-500">ยังไม่มีโซนตรวจ</div>
+                )}
               </div>
             </div>
             <div className="mt-6">
               <label className="mb-2 block caption-strong uppercase tracking-[0.2em] text-slate-500">สินค้าที่ต้องเช็ค</label>
               <textarea
-                rows="4"
-                value={(settingsEdit.values.requiredProducts || []).join('\n')}
-                onChange={(event) => setSettingsEdit((prev) => ({ ...prev, values: { ...prev.values, requiredProducts: event.target.value.split('\n').map((value) => value.trim()).filter(Boolean) } }))}
-                className="input w-full min-h-28"
+                rows="3"
+                value={(settingsEdit.values.requiredProducts || []).map((item) => typeof item === 'string' ? item : item.label || item.name || '').join('\n')}
+                onChange={(event) => updateSettingsValues({ requiredProducts: event.target.value.split('\n').map((value) => value.trim()).filter(Boolean) })}
+                className="input w-full min-h-24"
               />
             </div>
             <div className="mt-6 flex flex-col gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:justify-end">
@@ -1175,7 +1840,13 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
               </button>
               <button
                 type="button"
-                onClick={() => saveSettings(settingsEdit.branchId, settingsEdit.values)}
+                onClick={() => saveSettings(settingsEdit.branchId, {
+                  ...settingsEdit.values,
+                  requiredPhotos: [
+                    ...serializeGeneralPhotoSettings(settingsEdit.values.photoSettings || {}),
+                    ...(settingsEdit.values.requiredPhotos || [])
+                  ]
+                })}
                 disabled={savingSettings}
                 className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -1194,4 +1865,3 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
     </div>
   );
 }
-

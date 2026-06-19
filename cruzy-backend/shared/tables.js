@@ -17,6 +17,7 @@ module.exports = {
   attendance: 'attendance',
   attendanceAlerts: 'attendance_alerts',
   bankAccounts: 'bank_accounts',
+  bankAccountBranches: 'bank_account_branches',
   storeInspections: 'store_inspections',
   inspectionSettings: 'inspection_settings',
   inspectionLogs: 'inspection_logs',

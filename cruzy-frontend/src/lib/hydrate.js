@@ -189,16 +189,27 @@ export function hydrateConsoleData(data = {}) {
     };
   });
   state.sales = (data.sales || []).map((row) => mapSaleRow(row, state.salesLogs, state.attachments));
-  state.bankAccounts = (data.bankAccounts || []).map((bank) => ({
-    id: bank.id,
-    bank: bank.bank_name,
-    bankShort: bank.bank_short,
-    color: bank.color_code || '#138F2D',
-    accNo: bank.account_no,
-    accName: bank.account_name,
-    type: bank.account_type || 'ออมทรัพย์',
-    active: bank.is_active !== false
-  }));
+  const bankAccountBranches = (data.bankAccountBranches || data.bank_account_branches || []).reduce((map, row) => {
+    const key = String(row.bank_account_id ?? row.bankAccountId);
+    const current = map.get(key) || [];
+    current.push(row.branch_id ?? row.branchId);
+    map.set(key, current);
+    return map;
+  }, new Map());
+  state.bankAccounts = (data.bankAccounts || []).map((bank) => {
+    const branchIds = bank.branch_ids || bank.branchIds || bankAccountBranches.get(String(bank.id)) || [];
+    return {
+      id: bank.id,
+      bank: bank.bank_name,
+      bankShort: bank.bank_short,
+      color: bank.color_code || '#138F2D',
+      accNo: bank.account_no,
+      accName: bank.account_name,
+      type: bank.account_type || 'ออมทรัพย์',
+      active: bank.is_active !== false,
+      branchIds: branchIds.map(String)
+    };
+  });
   state.deposits = (data.cashDeposits || []).map((row) => mapDepositRow(row, state.attachments));
   state.attendance = (data.attendance || []).map((row) => ({
     id: String(row.id),
@@ -398,7 +409,7 @@ function mapSaleRow(row, salesLogs = [], attachments = []) {
 function mapDepositRow(row, attachments = []) {
   const id = String(row.id);
   const files = attachments.filter((file) => file.entityType === 'cash_deposit' && String(file.entityId) === id);
-  return { id, date: row.deposit_date || row.date, bid: row.branch_id, expected: Number(row.expected_amount || 0), deposited: Number(row.deposited_amount || 0), slip: Boolean(row.slip_url || files.length), slipUrl: row.slip_url || files[0]?.fileUrl || '', attachments: files, bankAccId: row.bank_account_id || null, depositedBy: row.deposited_by === null || row.deposited_by === undefined ? null : String(row.deposited_by), verifiedBy: row.verified_by || null, verifyTime: formatDbTime(row.verified_at), status: row.status || 'waiting' };
+  return { id, date: row.deposit_date || row.date, bid: row.branch_id, expected: Number(row.expected_amount || 0), deposited: Number(row.deposited_amount || 0), slip: Boolean(row.slip_url || files.length), slipUrl: row.slip_url || files[0]?.fileUrl || '', attachments: files, bankAccId: row.bank_account_id || null, depositedBy: row.deposited_by === null || row.deposited_by === undefined ? null : String(row.deposited_by), verifiedBy: row.verified_by || null, verifyTime: formatDbTime(row.verified_at), status: row.status || 'waiting', slipOcrStatus: row.slip_ocr_status || 'unchecked', slipOcrAmount: row.slip_ocr_amount === null || row.slip_ocr_amount === undefined ? null : Number(row.slip_ocr_amount), slipOcrConfidence: row.slip_ocr_confidence === null || row.slip_ocr_confidence === undefined ? null : Number(row.slip_ocr_confidence), slipOcrText: row.slip_ocr_text || '', slipOcrCheckedAt: row.slip_ocr_checked_at || null };
 }
 
 function mapSalesLogRow(row) {

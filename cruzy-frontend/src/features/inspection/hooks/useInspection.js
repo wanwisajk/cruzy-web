@@ -34,11 +34,14 @@ function mergeBranchHours(branches = [], staffingRules = []) {
 }
 
 function normalizeAttachment(row) {
-  const fileUrl = row.file_url || row.fileUrl || '';
+  const fileUrl = row.file_url || row.fileUrl || row.url || row.file || '';
   return {
     ...row,
     entity_type: row.entity_type || row.entityType,
     entity_id: row.entity_id ?? row.entityId,
+    file_name: row.file_name || row.fileName || row.name || '',
+    file_type: row.file_type || row.fileType || '',
+    metadata: row.metadata && typeof row.metadata === 'object' ? row.metadata : {},
     file_url: fileUrl,
     fileUrl
   };
@@ -47,7 +50,7 @@ function normalizeAttachment(row) {
 function isInspectionAttachment(attachment, id) {
   const entityType = attachment.entity_type || attachment.entityType;
   const entityId = attachment.entity_id ?? attachment.entityId;
-  return ['inspection', 'store_inspection'].includes(entityType) && String(entityId) === String(id);
+  return ['inspection', 'store_inspection', 'store_inspections'].includes(entityType) && String(entityId) === String(id);
 }
 
 export function useInspection({ user, from, to, currentBranch }) {
@@ -105,15 +108,27 @@ export function useInspection({ user, from, to, currentBranch }) {
     setDetailInspection(null);
     setError('');
     try {
-      const [inspection, attachments] = await Promise.all([
+      const [inspection, attachmentsByType, storedAttachments] = await Promise.all([
         inspectionService.getInspection(id),
-        inspectionService.getAttachments({ entityType: 'inspection', entityId: id }),
+        Promise.all([
+          inspectionService.getAttachments({ entityType: 'inspection', entityId: id }),
+          inspectionService.getAttachments({ entityType: 'store_inspection', entityId: id }),
+          inspectionService.getAttachments({ entityType: 'store_inspections', entityId: id }),
+        ]),
+        inspectionService.getAttachments({ entityId: id }),
       ]);
+      const attachmentRows = [...attachmentsByType.flat(), ...(Array.isArray(storedAttachments) ? storedAttachments : [])];
+      const attachmentMap = new Map();
+      attachmentRows
+        .filter((attachment) => isInspectionAttachment(attachment, id))
+        .map(normalizeAttachment)
+        .forEach((attachment) => {
+          const key = String(attachment.id || attachment.fileUrl || attachment.file_url || `${attachment.entity_type}_${attachment.entity_id}`);
+          if (!attachmentMap.has(key)) attachmentMap.set(key, attachment);
+        });
       setDetailInspection({
         ...inspection,
-        attachments: Array.isArray(attachments)
-          ? attachments.filter((attachment) => isInspectionAttachment(attachment, id)).map(normalizeAttachment)
-          : [],
+        attachments: Array.from(attachmentMap.values()),
       });
     } catch (err) {
       setError(err.message || 'ไม่สามารถโหลดรายละเอียดได้');
@@ -128,7 +143,7 @@ export function useInspection({ user, from, to, currentBranch }) {
     loadInspectionDetail(id);
   }, [loadInspectionDetail]);
 
-  const saveReview = useCallback(async (id, status) => {
+  const saveReview = useCallback(async (id, status, extraPayload = {}) => {
     setSavingReview(true);
     setError('');
     try {
@@ -136,6 +151,7 @@ export function useInspection({ user, from, to, currentBranch }) {
       const reviewTime = now.toTimeString().slice(0, 8);
       const userName = user?.name || user?.username || 'dashboard';
       const result = await inspectionService.updateInspection(id, {
+        ...extraPayload,
         status,
         reviewed_by: userName,
         review_time: reviewTime,
@@ -163,17 +179,19 @@ export function useInspection({ user, from, to, currentBranch }) {
     setSavingReview(true);
     setError('');
     try {
+      const attachmentInputs = imageDataUrls.map((entry) => (typeof entry === 'string' ? { fileUrl: entry, metadata: {} } : entry));
       const result = await inspectionService.createInspection({
         ...payload,
-        photo_count: imageDataUrls.length
+        photo_count: attachmentInputs.length
       });
       const created = result?.data || result;
       let createdAttachments = [];
-      if (imageDataUrls.length) {
-        const attachmentResult = await inspectionService.createAttachments(imageDataUrls.map((fileUrl) => ({
-          entityType: 'inspection',
+      if (attachmentInputs.length) {
+        const attachmentResult = await inspectionService.createAttachments(attachmentInputs.map((attachment) => ({
+          entityType: 'store_inspection',
           entityId: created.id,
-          fileUrl
+          fileUrl: attachment.fileUrl,
+          metadata: attachment.metadata || {}
         })));
         createdAttachments = (attachmentResult?.data || []).map(normalizeAttachment);
       }
@@ -201,16 +219,57 @@ export function useInspection({ user, from, to, currentBranch }) {
     }
   }, [from, to, user]);
 
+  const addInspectionAttachments = useCallback(async (id, imageDataUrls = []) => {
+    setSavingReview(true);
+    setError('');
+    try {
+      const attachmentInputs = imageDataUrls.map((entry) => (typeof entry === 'string' ? { fileUrl: entry, metadata: {} } : entry));
+      if (!attachmentInputs.length) return [];
+      const attachmentResult = await inspectionService.createAttachments(attachmentInputs.map((attachment) => ({
+        entityType: 'store_inspection',
+        entityId: id,
+        fileUrl: attachment.fileUrl,
+        metadata: attachment.metadata || {}
+      })));
+      const createdAttachments = (attachmentResult?.data || []).map(normalizeAttachment);
+      const currentPhotoCount = String(detailInspection?.id) === String(id)
+        ? Number(detailInspection.photo_count || detailInspection.attachments?.length || 0)
+        : 0;
+      const nextPhotoCount = currentPhotoCount + createdAttachments.length;
+      setDetailInspection((current) => {
+        if (!current || String(current.id) !== String(id)) return current;
+        return {
+          ...current,
+          photo_count: nextPhotoCount,
+          attachments: [...(current.attachments || []), ...createdAttachments]
+        };
+      });
+      setInspections((prev) => prev.map((item) => (
+        String(item.id) === String(id)
+          ? { ...item, photo_count: Number(item.photo_count || 0) + createdAttachments.length }
+          : item
+      )));
+      await inspectionService.updateInspection(id, { photo_count: nextPhotoCount });
+      setToast('เพิ่มรูปแล้ว');
+      return createdAttachments;
+    } catch (err) {
+      setError(err.message || 'ไม่สามารถเพิ่มรูปได้');
+      throw err;
+    } finally {
+      setSavingReview(false);
+    }
+  }, [detailInspection?.id, detailInspection?.photo_count, detailInspection?.attachments]);
+
   const saveSettings = useCallback(async (branchId, values) => {
     setSavingSettings(true);
     setError('');
     try {
       const payload = {
         branch_id: branchId,
-        cctv_count: Number(values.cctvCount) || 0,
-        shelf_count: Number(values.shelfCount) || 0,
-        required_photos: values.requiredPhotos,
-        checklists: values.checklists,
+        cctv_count: 0,
+        shelf_count: 0,
+        required_photos: values.requiredPhotos || [],
+        checklists: values.inspectionSections || values.checklists || [],
         required_products: values.requiredProducts,
       };
       const result = await inspectionService.upsertInspectionSetting(payload);
@@ -250,6 +309,7 @@ export function useInspection({ user, from, to, currentBranch }) {
     openInspectionDetail,
     saveReview,
     saveOpeningInspection,
+    addInspectionAttachments,
     saveSettings,
     setDetailOpen,
     setSettingsEdit
