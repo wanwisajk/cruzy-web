@@ -3,7 +3,7 @@ const { parseInteger, required, sendError, toNumber } = require('../../shared/ht
 const TABLES = require('../../shared/tables');
 const INSPECTION_SELECT = 'id, branch_id, work_date, submitted_by, submit_time, close_time, status, inspection_items, reviewed_by, review_time, manager_note, score, photo_count, is_late, late_minutes, created_at';
 const BRANCH_SELECT = 'id, name, code, region_id';
-const EMPLOYEE_SELECT = 'id, name, position';
+const EMPLOYEE_SELECT = 'id, name, nickname, position, line_user_id';
 const SETTINGS_SELECT = 'id, branch_id, cctv_count, shelf_count, required_photos, checklists, required_products, updated_at';
 const STAFFING_RULE_SELECT = 'branch_id, day_of_week, shift_start, shift_end, is_active';
 

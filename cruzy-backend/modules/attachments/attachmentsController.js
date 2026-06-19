@@ -21,6 +21,9 @@ function cleanAttachmentPayload(body) {
     entity_type: body.entityType || body.entity_type,
     entity_id: parseInteger(body.entityId ?? body.entity_id),
     file_url: body.fileUrl || body.file_url,
+    file_name: body.fileName || body.file_name || null,
+    file_type: body.fileType || body.file_type || null,
+    file_size: body.fileSize === undefined && body.file_size === undefined ? null : parseInteger(body.fileSize ?? body.file_size),
     metadata: body.metadata && typeof body.metadata === 'object' ? body.metadata : {}
   };
 }

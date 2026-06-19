@@ -19,6 +19,7 @@ import AlertPage, { buildDisciplineAlerts } from './pages/AlertPage.jsx';
 import WarningLetterPage from './pages/WarningLetterPage.jsx';
 import LogPage from './pages/LogPage.jsx';
 import AccessDashboard from './pages/AccessDashboard.jsx';
+import LiffInspectionPage from './pages/LiffInspectionPage.jsx';
 
 const sessionKey = 'cruzyAdminSession';
 
@@ -146,6 +147,10 @@ export default function App() {
       return;
     }
   }, [location.pathname]);
+
+  if (location.pathname.startsWith('/liff/inspection')) {
+    return <LiffInspectionPage />;
+  }
 
   if (booting) {
     return (
