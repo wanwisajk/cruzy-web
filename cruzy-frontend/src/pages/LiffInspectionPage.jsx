@@ -1,13 +1,27 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Camera, CheckCircle2, Loader2, Store, UploadCloud, UserRound } from 'lucide-react';
+import { AlertCircle, Camera, CheckCircle2, Image, Loader2, Store, UploadCloud, UserRound } from 'lucide-react';
 import { api } from '../lib/api';
 import { fmtDate } from '../lib/date';
 
 const LIFF_SCRIPT_SRC = 'https://static.line-scdn.net/liff/edge/2/sdk.js';
 const GENERAL_PHOTO_KEYS = ['opening_general', 'closing_general'];
 
+function textValue(value, fallback = '') {
+  if (value === null || value === undefined) return fallback;
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  if (typeof value === 'object') {
+    return textValue(
+      value.label ?? value.name ?? value.title ?? value.text ?? value.itemLabel ?? value.item_key ?? value.itemKey ?? value.key,
+      fallback
+    );
+  }
+  return fallback;
+}
+
 function makeStableKey(value, fallback) {
-  const cleaned = String(value || '')
+  const cleaned = textValue(value, fallback)
     .trim()
     .toLowerCase()
     .replace(/\s+/g, '_')
@@ -21,8 +35,9 @@ function normalizeConfigList(items = []) {
     .map((item) => {
       if (typeof item === 'string') return { key: makeStableKey(item, item), label: item };
       if (item && typeof item === 'object') {
-        const label = item.label || item.name || item.title || item.text || item.key || '';
-        return { ...item, key: item.key || item.id || makeStableKey(label, label), label };
+        const label = textValue(item.label ?? item.name ?? item.title ?? item.text ?? item.itemLabel ?? item.key, '');
+        const keySource = textValue(item.key ?? item.id ?? item.itemKey ?? item.item_key, label);
+        return { ...item, key: makeStableKey(keySource, label), label };
       }
       return { key: String(item), label: String(item) };
     })
@@ -53,8 +68,8 @@ function normalizeInspectionSectionsFromChecklists(checklists = []) {
         const key = makeStableKey(section, `section_${sectionIndex + 1}`);
         return { key, label: section, items: [] };
       }
-      const label = section.label || section.name || section.title || section.key || `โซน ${sectionIndex + 1}`;
-      const key = section.key || section.id || makeStableKey(label, `section_${sectionIndex + 1}`);
+      const label = textValue(section.label ?? section.name ?? section.title ?? section.key, `โซน ${sectionIndex + 1}`);
+      const key = makeStableKey(section.key ?? section.id ?? label, `section_${sectionIndex + 1}`);
       return {
         ...section,
         key,
@@ -162,6 +177,53 @@ function today() {
   return fmtDate(new Date());
 }
 
+function hasOpeningMarker(inspection) {
+  const items = inspection?.inspection_items;
+  if (Array.isArray(items)) {
+    return items.some((item) => {
+      const key = textValue(item?.key ?? item?.itemKey ?? item?.label, '').toLowerCase();
+      return key === 'open_shop' || key.includes('เปิดร้าน');
+    });
+  }
+  if (items && typeof items === 'object') {
+    if (items.open_shop) return true;
+    return Object.entries(items).some(([key, value]) => {
+      if (key === 'open_shop' && value) return true;
+      const label = textValue(value?.label ?? value?.key ?? key, '').toLowerCase();
+      return label.includes('เปิดร้าน');
+    });
+  }
+  return Boolean(inspection?.submit_time);
+}
+
+function hasInspectionSubmitted(inspection) {
+  const items = inspection?.inspection_items;
+  if (inspection?.status === 'pass' || inspection?.status === 'issue' || inspection?.status === 'issues') return true;
+  if (Array.isArray(items)) return items.some((item) => item?.status === 'submitted' || item?.photoCount > 0);
+  if (items && typeof items === 'object') {
+    if (items.inspected_shop || items.inspection_source === 'liff') return true;
+    return Object.values(items).some((value) => value && typeof value === 'object' && (value.status === 'submitted' || Number(value.photoCount || 0) > 0));
+  }
+  return false;
+}
+
+function attachmentUrl(attachment) {
+  return attachment?.file_url || attachment?.fileUrl || attachment?.url || attachment?.file || '';
+}
+
+function attachmentMetadata(attachment) {
+  return attachment?.metadata && typeof attachment.metadata === 'object' ? attachment.metadata : {};
+}
+
+function attachmentMatchesItem(attachment, item) {
+  const metadata = attachmentMetadata(attachment);
+  const attachmentItemKey = metadata.itemKey || metadata.item_key;
+  if (!attachmentItemKey) return false;
+  const attachmentSectionKey = metadata.sectionKey || metadata.section_key;
+  if (attachmentSectionKey && String(attachmentSectionKey) !== String(item.sectionKey)) return false;
+  return String(attachmentItemKey) === String(item.itemKey || item.key);
+}
+
 export default function LiffInspectionPage() {
   const query = useMemo(() => new URLSearchParams(window.location.search), []);
   const lockedBranchId = query.get('branchId') || query.get('branch') || '';
@@ -177,8 +239,11 @@ export default function LiffInspectionPage() {
     workDate: query.get('date') || today(),
   }));
   const [itemImages, setItemImages] = useState({});
+  const [existingAttachments, setExistingAttachments] = useState([]);
+  const [reviewNote, setReviewNote] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(null);
 
@@ -222,16 +287,42 @@ export default function LiffInspectionPage() {
   const selectedEmployee = employees.find((employee) => String(employee.id) === String(form.employeeId));
   const selectedSetting = settings.find((setting) => String(setting.branch_id) === String(form.branchId)) || {};
   const openingInspection = inspections.find((inspection) => {
-    const items = inspection.inspection_items && typeof inspection.inspection_items === 'object' ? inspection.inspection_items : {};
     return String(inspection.branch_id) === String(form.branchId)
       && inspection.work_date === form.workDate
-      && items.open_shop;
+      && hasOpeningMarker(inspection);
   });
   const sections = useMemo(() => buildInspectionSections(selectedSetting), [selectedSetting]);
   const items = useMemo(() => flattenSections(sections), [sections]);
   const totalRequired = items.reduce((sum, item) => sum + Math.max(1, Number(item.minPhotos || 1)), 0);
   const totalSelected = items.reduce((sum, item) => sum + (itemImages[`${item.sectionKey}:${item.itemKey}`]?.length || 0), 0);
   const isComplete = totalRequired > 0 && totalSelected >= totalRequired;
+  const submittedInspection = openingInspection && hasInspectionSubmitted(openingInspection) ? openingInspection : null;
+  const isApproved = submittedInspection?.status === 'pass';
+  const existingSubmittedCount = existingAttachments.filter((attachment) => attachmentMetadata(attachment).source === 'liff_inspection').length;
+
+  useEffect(() => {
+    let alive = true;
+    async function loadExistingAttachments() {
+      if (!openingInspection?.id) {
+        setExistingAttachments([]);
+        return;
+      }
+      try {
+        const rows = await api.getAttachments({ entityType: 'store_inspection', entityId: openingInspection.id });
+        if (alive) setExistingAttachments(Array.isArray(rows) ? rows : []);
+      } catch (_err) {
+        if (alive) setExistingAttachments([]);
+      }
+    }
+    loadExistingAttachments();
+    return () => {
+      alive = false;
+    };
+  }, [openingInspection?.id]);
+
+  useEffect(() => {
+    setReviewNote(openingInspection?.manager_note || '');
+  }, [openingInspection?.id, openingInspection?.manager_note]);
 
   async function addImages(item, fileList) {
     const images = await filesToImageEntries(fileList);
@@ -272,7 +363,7 @@ export default function LiffInspectionPage() {
       return (itemImages[key]?.length || 0) < Math.max(1, Number(item.minPhotos || 1));
     });
     if (missingItem) {
-      setError(`กรุณาเพิ่มรูปให้ครบ: ${missingItem.sectionLabel} / ${missingItem.label}`);
+      setError(`กรุณาเพิ่มรูปให้ครบ: ${textValue(missingItem.sectionLabel, 'หัวข้อ')} / ${textValue(missingItem.label, 'รายการตรวจ')}`);
       return;
     }
 
@@ -304,6 +395,8 @@ export default function LiffInspectionPage() {
         inspection_photo_count: totalSelected,
         submitted_by_name: selectedEmployee?.nickname || selectedEmployee?.name || profile?.displayName || null,
       });
+      delete nextInspectionItems.approval_flex_sent_at;
+      delete nextInspectionItems.approval_flex_target_count;
       const submitTime = new Date().toTimeString().slice(0, 5);
 
       const updatedResult = await api.updateInspection(openingInspection.id, {
@@ -336,7 +429,9 @@ export default function LiffInspectionPage() {
         }));
       });
       if (attachments.length) {
-        await api.createAttachments(attachments);
+        const attachmentResult = await api.createAttachments(attachments);
+        const createdAttachments = attachmentResult?.data || [];
+        setExistingAttachments((current) => [...current, ...createdAttachments]);
       }
       await api.createInspectionLog({
         inspection_id: openingInspection.id,
@@ -360,6 +455,46 @@ export default function LiffInspectionPage() {
       setError(err.message || 'ไม่สามารถบันทึกตรวจร้านได้');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function saveReview(status) {
+    if (!submittedInspection?.id || isApproved) return;
+    setReviewing(true);
+    setError('');
+    try {
+      const reviewTime = new Date().toTimeString().slice(0, 8);
+      const reviewer = profile?.displayName || selectedEmployee?.nickname || selectedEmployee?.name || 'LIFF';
+      const result = await api.updateInspection(submittedInspection.id, {
+        status,
+        reviewed_by: reviewer,
+        review_time: reviewTime,
+        manager_note: reviewNote.trim() || null,
+        line_notified: false,
+      });
+      const updated = result?.data || result;
+      await api.createInspectionLog({
+        inspection_id: submittedInspection.id,
+        user_name: reviewer,
+        action: status === 'pass' ? 'approve' : 'reject',
+        description: status === 'pass' ? 'อนุมัติการตรวจร้านจาก LIFF' : 'บันทึกปัญหาการตรวจร้านจาก LIFF',
+        source: 'liff',
+      });
+      setInspections((current) => current.map((inspection) => (
+        String(inspection.id) === String(submittedInspection.id)
+          ? { ...inspection, ...updated }
+          : inspection
+      )));
+      setSuccess({
+        id: submittedInspection.id,
+        branch: selectedBranch?.name || selectedBranch?.code || form.branchId,
+        count: existingSubmittedCount,
+        reviewStatus: status,
+      });
+    } catch (err) {
+      setError(err.message || 'ไม่สามารถบันทึกผลตรวจได้');
+    } finally {
+      setReviewing(false);
     }
   }
 
@@ -405,13 +540,130 @@ export default function LiffInspectionPage() {
         {success ? (
           <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-emerald-800">
             <div className="flex items-center gap-2 body-strong">
-              <CheckCircle2 size={18} /> ส่งรูปตรวจร้านแล้ว
+              <CheckCircle2 size={18} />
+              {success.reviewStatus ? 'บันทึกผลตรวจแล้ว' : 'ส่งรูปตรวจร้านแล้ว'}
             </div>
-            <div className="mt-1 caption">เลขที่ #{success.id} · {success.branch} · {success.count} รูป</div>
+            <div className="mt-1 caption">
+              เลขที่ #{success.id} · {success.branch} · {success.count} รูป
+              {success.reviewStatus ? ` · ${success.reviewStatus === 'pass' ? 'อนุมัติ' : 'มีปัญหา'}` : ''}
+            </div>
           </div>
         ) : null}
 
-        {form.branchId ? (
+        {submittedInspection ? (
+          <div className="grid gap-4">
+            <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="body-strong">รายละเอียดตรวจร้าน</div>
+                  <div className="caption text-slate-500">
+                    #{submittedInspection.id} · {selectedBranch?.code || form.branchId} · {form.workDate}
+                  </div>
+                </div>
+                <span className={`rounded-full px-3 py-1 caption-bold ${
+                  submittedInspection.status === 'pass'
+                    ? 'bg-emerald-100 text-emerald-700'
+                    : submittedInspection.status === 'issue'
+                      ? 'bg-orange-100 text-orange-700'
+                      : 'bg-blue-100 text-blue-700'
+                }`}>
+                  {submittedInspection.status === 'pass' ? 'อนุมัติแล้ว' : submittedInspection.status === 'issue' ? 'มีปัญหา' : 'รอตรวจ'}
+                </span>
+              </div>
+              <div className="mt-3 grid gap-2 rounded-xl bg-slate-50 p-3 caption text-slate-600">
+                <div>ผู้ตรวจ: {selectedEmployee?.nickname || selectedEmployee?.name || form.employeeId || '-'}</div>
+                <div>รูปตรวจร้าน: {existingSubmittedCount} รูป</div>
+                {submittedInspection.reviewed_by ? <div>ผู้อนุมัติ/ผู้ตรวจสอบ: {submittedInspection.reviewed_by}</div> : null}
+                {submittedInspection.manager_note ? <div>หมายเหตุเดิม: {submittedInspection.manager_note}</div> : null}
+              </div>
+            </div>
+
+            {sections.map((section) => (
+              <div key={section.key} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+                <div className="mb-3 body-strong">{textValue(section.label, 'หัวข้อตรวจ')}</div>
+                <div className="grid gap-3">
+                  {section.items.map((item) => {
+                    const itemLabel = textValue(item.label, 'รายการตรวจ');
+                    const itemRef = { ...item, sectionKey: section.key, itemKey: item.key };
+                    const photos = existingAttachments.filter((attachment) => attachmentMatchesItem(attachment, itemRef));
+                    const required = Math.max(1, Number(item.minPhotos || 1));
+                    return (
+                      <div key={`${section.key}:${item.key}`} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="body-strong text-slate-900">{itemLabel}</div>
+                            <div className="caption text-slate-500">ต้องมีอย่างน้อย {required} รูป</div>
+                          </div>
+                          <span className={`rounded-full px-2.5 py-1 caption-bold ${photos.length >= required ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                            {photos.length}/{required}
+                          </span>
+                        </div>
+                        {photos.length ? (
+                          <div className="mt-3 grid grid-cols-3 gap-2">
+                            {photos.map((attachment, index) => {
+                              const url = attachmentUrl(attachment);
+                              return (
+                                <a
+                                  key={attachment.id || `${url}_${index}`}
+                                  href={url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="aspect-square overflow-hidden rounded-xl border border-slate-200 bg-white"
+                                >
+                                  <img src={url} alt={attachmentMetadata(attachment).itemLabel || itemLabel} className="h-full w-full object-cover" />
+                                </a>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="mt-3 flex items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-white px-3 py-8 caption text-slate-500">
+                            <Image size={16} /> ยังไม่มีรูปหัวข้อนี้
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+
+            {isApproved ? (
+              <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-center body-strong text-emerald-700">
+                รายการนี้อนุมัติแล้ว
+              </div>
+            ) : (
+              <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+                <label className="form-label">
+                  หมายเหตุผู้ตรวจ
+                  <textarea
+                    className="field min-h-24 resize-none py-3"
+                    value={reviewNote}
+                    onChange={(event) => setReviewNote(event.target.value)}
+                    placeholder="ใส่หมายเหตุหรือปัญหาที่พบ"
+                  />
+                </label>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-warning"
+                    disabled={reviewing}
+                    onClick={() => saveReview('issue')}
+                  >
+                    มีปัญหา
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={reviewing}
+                    onClick={() => saveReview('pass')}
+                  >
+                    {reviewing ? 'กำลังบันทึก...' : 'อนุมัติ'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : form.branchId ? (
           <div className="grid gap-4">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -424,10 +676,12 @@ export default function LiffInspectionPage() {
             </div>
             {sections.map((section) => (
               <div key={section.key} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-                <div className="mb-3 body-strong">{section.label}</div>
+                <div className="mb-3 body-strong">{textValue(section.label, 'หัวข้อตรวจ')}</div>
                 <div className="grid gap-3">
                   {section.items.map((item) => {
-                    const itemWithSection = { ...item, sectionKey: section.key, sectionLabel: section.label, itemKey: item.key };
+                    const itemLabel = textValue(item.label, 'รายการตรวจ');
+                    const sectionLabel = textValue(section.label, 'หัวข้อตรวจ');
+                    const itemWithSection = { ...item, label: itemLabel, sectionKey: section.key, sectionLabel, itemKey: item.key };
                     const key = `${section.key}:${item.key}`;
                     const images = itemImages[key] || [];
                     const required = Math.max(1, Number(item.minPhotos || 1));
@@ -435,7 +689,7 @@ export default function LiffInspectionPage() {
                       <div key={key} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <div className="body-strong text-slate-900">{item.label}</div>
+                            <div className="body-strong text-slate-900">{itemLabel}</div>
                             <div className="caption text-slate-500">ต้องมีอย่างน้อย {required} รูป</div>
                           </div>
                           <span className={`rounded-full px-2.5 py-1 caption-bold ${images.length >= required ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
@@ -446,7 +700,7 @@ export default function LiffInspectionPage() {
                           <div className="mt-3 grid grid-cols-3 gap-2">
                             {images.map((image, index) => (
                               <div key={`${image.fileName}_${index}`} className="relative aspect-square overflow-hidden rounded-xl border border-slate-200 bg-white">
-                                <img src={image.fileUrl} alt={image.fileName || item.label} className="h-full w-full object-cover" />
+                                <img src={image.fileUrl} alt={image.fileName || itemLabel} className="h-full w-full object-cover" />
                                 <button
                                   type="button"
                                   onClick={() => removeImage(itemWithSection, index)}
@@ -501,15 +755,17 @@ export default function LiffInspectionPage() {
           </div>
         )}
 
-        <button
-          type="button"
-          className="btn btn-primary sticky bottom-4 min-h-12 w-full shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={saving || !form.branchId || !isComplete}
-          onClick={submitInspection}
-        >
-          {saving ? <Loader2 className="animate-spin" size={18} /> : <UploadCloud size={18} />}
-          {saving ? 'กำลังส่งรูป...' : 'ส่งตรวจร้าน'}
-        </button>
+        {!submittedInspection ? (
+          <button
+            type="button"
+            className="btn btn-primary sticky bottom-4 min-h-12 w-full shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={saving || !form.branchId || !isComplete}
+            onClick={submitInspection}
+          >
+            {saving ? <Loader2 className="animate-spin" size={18} /> : <UploadCloud size={18} />}
+            {saving ? 'กำลังส่งรูป...' : 'ส่งตรวจร้าน'}
+          </button>
+        ) : null}
       </div>
     </div>
   );

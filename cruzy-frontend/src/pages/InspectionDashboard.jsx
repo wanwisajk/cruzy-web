@@ -95,10 +95,11 @@ function formatInspectionItem(item) {
     return { label: '-', passed: false, photoCount: 0 };
   }
   if (typeof item === 'object') {
-    const label = item.label || item.name || item.title || Object.keys(item)[0] || '';
+    const label = textValue(item.label ?? item.name ?? item.title, Object.keys(item)[0] || '');
     const photoCount = Number(item.photoCount ?? item.photo_count ?? item.photos?.length ?? 0) || 0;
     const passed = item.status === 'pass' || item.status === 'submitted' || item.passed === true || item.ok === true || item.value === 'pass' || photoCount > 0;
-    const detail = item.value !== undefined && item.value !== true && item.value !== false ? item.value : item.note || item.description;
+    const rawDetail = item.value !== undefined && item.value !== true && item.value !== false ? item.value : item.note || item.description;
+    const detail = textValue(rawDetail, '');
     return {
       ...item,
       label,
@@ -113,20 +114,55 @@ function formatInspectionItem(item) {
   return { label: String(item), passed: false, photoCount: 0 };
 }
 
+function textValue(value, fallback = '') {
+  if (value === null || value === undefined) return fallback;
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (typeof value === 'object') {
+    return textValue(
+      value.label ?? value.name ?? value.title ?? value.text ?? value.detail ?? value.status ?? value.key,
+      fallback
+    );
+  }
+  return fallback;
+}
+
+function isSavedInspectionItemObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) && (
+    value.itemKey || value.item_key || value.sectionKey || value.section_key || value.photoCount !== undefined || value.photo_count !== undefined || value.status || value.label
+  );
+}
+
+function normalizeSavedInspectionItems(inspectionItems) {
+  if (Array.isArray(inspectionItems)) return inspectionItems;
+  return Object.entries(inspectionItems || {}).map(([key, value]) => {
+    if (isSavedInspectionItemObject(value)) {
+      return {
+        ...value,
+        key: value.key || value.itemKey || value.item_key || key,
+        itemKey: value.itemKey || value.item_key || value.key || key,
+        label: textValue(value.label, key),
+        sectionKey: value.sectionKey || value.section_key,
+        sectionLabel: textValue(value.sectionLabel || value.section_label, ''),
+      };
+    }
+    return { key, label: key, value };
+  });
+}
+
 function normalizeConfigList(items = []) {
   if (!Array.isArray(items)) return [];
   return items.map((item) => {
     if (typeof item === 'string') return { key: item, label: item };
     if (item && typeof item === 'object') {
-      const label = item.label || item.name || item.title || item.text || item.key || '';
-      return { ...item, key: item.key || item.id || label, label };
+      const label = textValue(item.label ?? item.name ?? item.title ?? item.text ?? item.key, '');
+      return { ...item, key: textValue(item.key ?? item.id ?? label, label), label };
     }
     return { key: String(item), label: String(item) };
   }).filter((item) => item.label);
 }
 
 function makeStableKey(value, fallback) {
-  const cleaned = String(value || '')
+  const cleaned = textValue(value, fallback)
     .trim()
     .toLowerCase()
     .replace(/\s+/g, '_')
@@ -206,7 +242,7 @@ function normalizeInspectionSectionsFromChecklists(checklists = []) {
       const key = makeStableKey(section, `section_${sectionIndex + 1}`);
       return { key, label: section, items: [] };
     }
-    const label = section.label || section.name || section.title || section.key || `โซน ${sectionIndex + 1}`;
+    const label = textValue(section.label ?? section.name ?? section.title ?? section.key, `โซน ${sectionIndex + 1}`);
     const key = section.key || section.id || makeStableKey(label, `section_${sectionIndex + 1}`);
     return {
       ...section,
@@ -253,9 +289,7 @@ function attachmentMatchesItem(attachment, item) {
 }
 
 function buildSavedItemMap(inspectionItems) {
-  const rows = Array.isArray(inspectionItems)
-    ? inspectionItems
-    : Object.entries(inspectionItems || {}).map(([key, value]) => ({ key, label: key, value }));
+  const rows = normalizeSavedInspectionItems(inspectionItems);
   return rows.reduce((map, rawItem) => {
     const item = formatInspectionItem(rawItem);
     const source = typeof rawItem === 'object' && rawItem ? rawItem : {};
@@ -286,7 +320,7 @@ function buildDetailSections(setting, inspectionItems, attachments) {
         sectionKey: section.key,
         sectionLabel: section.label,
         itemKey,
-        detail: saved?.detail || item.description || item.note || '',
+        detail: textValue(saved?.detail || item.description || item.note, ''),
         photos: imageAttachments.filter((attachment) => attachmentMatchesItem(attachment, { sectionKey: section.key, itemKey })),
         savedPhotoCount: saved?.photoCount || 0,
         hasData: Boolean(saved)
@@ -302,9 +336,7 @@ function buildDetailSections(setting, inspectionItems, attachments) {
 
   if (sections.length) return sections;
 
-  const fallbackItems = Array.isArray(inspectionItems)
-    ? inspectionItems
-    : Object.entries(inspectionItems || {}).map(([key, value]) => ({ key, label: key, value }));
+  const fallbackItems = normalizeSavedInspectionItems(inspectionItems);
   const items = fallbackItems.map((rawItem, index) => {
     const item = formatInspectionItem(rawItem);
     return {
@@ -1601,7 +1633,7 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
                                 <div className="flex items-start justify-between gap-3">
                                   <div>
                                     <div className="body-strong text-slate-900">{item.label}</div>
-                                    {item.detail ? <div className="caption text-slate-500">{item.detail}</div> : null}
+                                    {item.detail ? <div className="caption text-slate-500">{textValue(item.detail)}</div> : null}
                                   </div>
                                   <Pill className={item.passed ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}>
                                     {item.passed ? 'ครบ' : `ขาด ${Math.max(0, item.minPhotos - (item.photoCount || 0))}`}

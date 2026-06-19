@@ -133,6 +133,7 @@ function cleanInspectionPayload(body, { partial = false } = {}) {
   if (hasValue(body, 'lateMinutes', 'late_minutes')) payload.late_minutes = toNumber(firstValue(body, 'lateMinutes', 'late_minutes'), 0);
   if (hasValue(body, 'score')) payload.score = toNumber(body.score, 0);
   if (hasValue(body, 'photoCount', 'photo_count')) payload.photo_count = toNumber(firstValue(body, 'photoCount', 'photo_count'), 0);
+  if (hasValue(body, 'lineNotified', 'line_notified')) payload.line_notified = Boolean(firstValue(body, 'lineNotified', 'line_notified'));
   if (!partial && !payload.status) payload.status = 'pass';
   return payload;
 }
