@@ -215,13 +215,44 @@ function attachmentMetadata(attachment) {
   return attachment?.metadata && typeof attachment.metadata === 'object' ? attachment.metadata : {};
 }
 
+function attachmentIdentity(attachment) {
+  return String(attachment?.id || attachmentUrl(attachment) || `${attachment?.entity_type || attachment?.entityType}_${attachment?.entity_id || attachment?.entityId}`);
+}
+
+function attachmentSource(attachment) {
+  const metadata = attachmentMetadata(attachment);
+  if (metadata.source) return metadata.source;
+  const text = `${attachment?.file_name || attachment?.fileName || ''} ${attachment?.storage_path || attachment?.storagePath || ''} ${attachmentUrl(attachment)}`.toLowerCase();
+  if (text.includes('open_shop') || text.includes('opening_general')) return 'opening_general';
+  if (text.includes('close_shop') || text.includes('closing_general')) return 'closing_general';
+  if (metadata.itemKey || metadata.item_key || metadata.itemLabel || metadata.item_label) return 'inspection_item';
+  return '';
+}
+
+function isInspectionPhotoAttachment(attachment) {
+  const source = attachmentSource(attachment);
+  return source !== 'opening_general' && source !== 'closing_general';
+}
+
 function attachmentMatchesItem(attachment, item) {
   const metadata = attachmentMetadata(attachment);
-  const attachmentItemKey = metadata.itemKey || metadata.item_key;
-  if (!attachmentItemKey) return false;
+  const attachmentItemKey = metadata.itemKey || metadata.item_key || metadata.key;
+  const attachmentItemLabel = metadata.itemLabel || metadata.item_label || metadata.label;
+  if (!attachmentItemKey && !attachmentItemLabel) return false;
   const attachmentSectionKey = metadata.sectionKey || metadata.section_key;
+  const attachmentSectionLabel = metadata.sectionLabel || metadata.section_label;
   if (attachmentSectionKey && String(attachmentSectionKey) !== String(item.sectionKey)) return false;
-  return String(attachmentItemKey) === String(item.itemKey || item.key);
+  if (!attachmentSectionKey && attachmentSectionLabel && textValue(attachmentSectionLabel).toLowerCase() !== textValue(item.sectionLabel).toLowerCase()) return false;
+  const itemKeys = [
+    item.itemKey,
+    item.key,
+    item.label,
+    item.name,
+    item.title,
+    item.id,
+  ].filter((value) => value !== undefined && value !== null && value !== '').map((value) => textValue(value).trim().toLowerCase());
+  return itemKeys.includes(textValue(attachmentItemKey).trim().toLowerCase())
+    || itemKeys.includes(textValue(attachmentItemLabel).trim().toLowerCase());
 }
 
 export default function LiffInspectionPage() {
@@ -298,7 +329,23 @@ export default function LiffInspectionPage() {
   const isComplete = totalRequired > 0 && totalSelected >= totalRequired;
   const submittedInspection = openingInspection && hasInspectionSubmitted(openingInspection) ? openingInspection : null;
   const isApproved = submittedInspection?.status === 'pass';
-  const existingSubmittedCount = existingAttachments.filter((attachment) => attachmentMetadata(attachment).source === 'liff_inspection').length;
+  const existingSubmittedCount = existingAttachments.filter(isInspectionPhotoAttachment).length;
+  const matchedExistingImageKeys = useMemo(() => {
+    const keys = new Set();
+    sections.forEach((section) => {
+      section.items.forEach((item) => {
+        const itemRef = { ...item, sectionKey: section.key, sectionLabel: section.label, itemKey: item.key };
+        existingAttachments
+          .filter((attachment) => attachmentMatchesItem(attachment, itemRef))
+          .forEach((attachment) => keys.add(attachmentIdentity(attachment)));
+      });
+    });
+    return keys;
+  }, [sections, existingAttachments]);
+  const otherExistingImages = useMemo(
+    () => existingAttachments.filter((attachment) => isInspectionPhotoAttachment(attachment) && !matchedExistingImageKeys.has(attachmentIdentity(attachment))),
+    [existingAttachments, matchedExistingImageKeys]
+  );
 
   useEffect(() => {
     let alive = true;
@@ -626,6 +673,32 @@ export default function LiffInspectionPage() {
                 </div>
               </div>
             ))}
+
+            {otherExistingImages.length ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div className="body-strong text-amber-900">รูปที่ยังไม่ได้จับหัวข้อ</div>
+                  <span className="rounded-full bg-amber-100 px-3 py-1 caption-bold text-amber-800">{otherExistingImages.length} รูป</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {otherExistingImages.map((attachment, index) => {
+                    const url = attachmentUrl(attachment);
+                    const title = attachmentMetadata(attachment).itemLabel || attachmentMetadata(attachment).source || attachment.file_name || `รูป ${index + 1}`;
+                    return (
+                      <a
+                        key={attachment.id || `${url}_${index}`}
+                        href={url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="aspect-square overflow-hidden rounded-xl border border-amber-200 bg-white"
+                      >
+                        <img src={url} alt={textValue(title, `รูป ${index + 1}`)} className="h-full w-full object-cover" />
+                      </a>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
 
             {isApproved ? (
               <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-center body-strong text-emerald-700">

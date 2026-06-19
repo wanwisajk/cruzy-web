@@ -61,9 +61,12 @@ async function saveGeneratedAlert(payload) {
 
   const existing = existingRows?.[0];
   if (existing?.id) {
+    const updatePayload = { ...payload };
+    delete updatePayload.is_acknowledged;
+
     const { error } = await supabase
       .from(TABLES.attendanceAlerts)
-      .update(payload)
+      .update(updatePayload)
       .eq('id', existing.id);
     if (error) throw error;
     return;
@@ -81,7 +84,7 @@ async function syncInspectionAlerts(inspection) {
 
   if (lateMinutes > 0) {
     await saveGeneratedAlert({
-      alert_type: 'store_open_late',
+      alert_type: 'late',
       employee_id: inspection.submitted_by,
       branch_id: inspection.branch_id,
       work_date: inspection.work_date,
@@ -95,7 +98,7 @@ async function syncInspectionAlerts(inspection) {
 
   if (earlyMinutes > 0) {
     await saveGeneratedAlert({
-      alert_type: 'store_close_early',
+      alert_type: 'closed_early',
       employee_id: inspection.submitted_by,
       branch_id: inspection.branch_id,
       work_date: inspection.work_date,

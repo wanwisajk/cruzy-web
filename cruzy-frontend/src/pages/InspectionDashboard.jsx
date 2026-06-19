@@ -279,13 +279,34 @@ function attachmentMetadata(attachment) {
   return attachment?.metadata && typeof attachment.metadata === 'object' ? attachment.metadata : {};
 }
 
+function attachmentSource(attachment) {
+  const metadata = attachmentMetadata(attachment);
+  if (metadata.source) return metadata.source;
+  const text = `${attachment?.file_name || attachment?.fileName || ''} ${attachment?.storage_path || attachment?.storagePath || ''} ${attachmentUrl(attachment)}`.toLowerCase();
+  if (text.includes('open_shop') || text.includes('opening_general')) return 'opening_general';
+  if (text.includes('close_shop') || text.includes('closing_general')) return 'closing_general';
+  if (metadata.itemKey || metadata.item_key || metadata.itemLabel || metadata.item_label) return 'inspection_item';
+  return '';
+}
+
 function attachmentMatchesItem(attachment, item) {
   const metadata = attachmentMetadata(attachment);
-  if (!metadata.itemKey && !metadata.item_key) return false;
-  const attachmentItemKey = String(metadata.itemKey || metadata.item_key);
+  const attachmentItemKey = metadata.itemKey || metadata.item_key || metadata.key;
+  const attachmentItemLabel = metadata.itemLabel || metadata.item_label || metadata.label;
+  if (!attachmentItemKey && !attachmentItemLabel) return false;
   const attachmentSectionKey = metadata.sectionKey || metadata.section_key;
+  const attachmentSectionLabel = metadata.sectionLabel || metadata.section_label;
   if (attachmentSectionKey && String(attachmentSectionKey) !== String(item.sectionKey)) return false;
-  return attachmentItemKey === String(item.itemKey || item.key);
+  if (!attachmentSectionKey && attachmentSectionLabel && textValue(attachmentSectionLabel).toLowerCase() !== textValue(item.sectionLabel).toLowerCase()) return false;
+  const itemKeys = itemLookupKeys({
+    key: item.itemKey || item.key,
+    label: item.label,
+    name: item.name,
+    title: item.title,
+    id: item.id
+  });
+  return itemKeys.includes(textValue(attachmentItemKey).trim().toLowerCase())
+    || itemKeys.includes(textValue(attachmentItemLabel).trim().toLowerCase());
 }
 
 function buildSavedItemMap(inspectionItems) {
@@ -357,6 +378,20 @@ function buildDetailSections(setting, inspectionItems, attachments) {
 
 function unassignedImageAttachments(attachments = []) {
   return attachments.filter((attachment) => isImageAttachment(attachment) && !(attachmentMetadata(attachment).itemKey || attachmentMetadata(attachment).item_key));
+}
+
+function attachmentIdentity(attachment) {
+  return String(attachment?.id || attachmentUrl(attachment) || `${attachment?.entity_type || attachment?.entityType}_${attachment?.entity_id || attachment?.entityId}`);
+}
+
+function uniqueAttachments(attachments = []) {
+  const seen = new Set();
+  return attachments.filter((attachment) => {
+    const key = attachmentIdentity(attachment);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function itemLookupKeys(item) {
@@ -604,8 +639,22 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
     ? buildDetailSections(detailSetting, detailInspection.inspection_items, detailAttachments)
     : [];
   const detailUnassignedImages = unassignedImageAttachments(detailAttachments);
-  const detailOpeningImages = detailUnassignedImages.filter((attachment) => attachmentMetadata(attachment).source === 'opening_general');
-  const detailClosingImages = detailUnassignedImages.filter((attachment) => attachmentMetadata(attachment).source === 'closing_general');
+  const detailOpeningImages = detailUnassignedImages.filter((attachment) => attachmentSource(attachment) === 'opening_general');
+  const detailClosingImages = detailUnassignedImages.filter((attachment) => attachmentSource(attachment) === 'closing_general');
+  const detailMatchedImageKeys = useMemo(() => {
+    const keys = new Set();
+    [...detailOpeningImages, ...detailClosingImages].forEach((attachment) => keys.add(attachmentIdentity(attachment)));
+    detailInspectionSections.forEach((section) => {
+      section.items.forEach((item) => {
+        (item.photos || []).forEach((attachment) => keys.add(attachmentIdentity(attachment)));
+      });
+    });
+    return keys;
+  }, [detailOpeningImages, detailClosingImages, detailInspectionSections]);
+  const detailOtherImages = useMemo(
+    () => uniqueAttachments(detailAttachments.filter((attachment) => isImageAttachment(attachment) && !detailMatchedImageKeys.has(attachmentIdentity(attachment)))),
+    [detailAttachments, detailMatchedImageKeys]
+  );
   const detailInspectionRequiredCount = detailInspectionSections.reduce((sum, section) => (
     sum + section.items.reduce((itemSum, item) => itemSum + (item.photoRequired === false ? 0 : item.minPhotos), 0)
   ), 0);
@@ -1676,6 +1725,34 @@ export default function InspectionDashboard({ user, currentBranch, from, to }) {
                       )}
                     </div>
                   </div>
+                  {detailOtherImages.length ? (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 body-strong text-amber-900">
+                          <Image size={16} /> รูปที่ยังไม่ได้จับหัวข้อ
+                        </div>
+                        <Pill className="bg-amber-100 text-amber-800">{detailOtherImages.length} รูป</Pill>
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {detailOtherImages.map((attachment, index) => {
+                          const url = attachmentUrl(attachment);
+                          const metadata = attachmentMetadata(attachment);
+                          const title = metadata.itemLabel || metadata.source || attachment.file_name || `รูป ${index + 1}`;
+                          return (
+                            <button
+                              key={attachment.id || `${url}_${index}`}
+                              type="button"
+                              onClick={() => setImagePreview({ url, title })}
+                              className="overflow-hidden rounded-xl border border-amber-200 bg-white p-2 text-left"
+                            >
+                              <img src={url} alt={textValue(title, `รูป ${index + 1}`)} className="h-32 w-full rounded-lg object-cover transition hover:scale-[1.02]" />
+                              <div className="mt-2 truncate caption text-amber-800">{textValue(title, `รูป ${index + 1}`)}</div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 <div className="surface-muted p-8 text-center body-text">เลือกการตรวจร้านเพื่อดูรายละเอียด</div>
