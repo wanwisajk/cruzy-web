@@ -27,7 +27,7 @@ const SALES_REFRESH_KEYS = ['sales', 'cashDeposits', 'salesLogs', 'attachments',
 const AUTO_REFRESH_KEYS_BY_TAB = {
   schedule: ['schedules', 'employees', 'employeeBranchEligibility', 'employeeAvailabilityRules', 'employeeAvailabilityOverrides', 'branchStaffingRules'],
   employee: ['employees', 'employeeBranchEligibility', 'employeeAvailabilityRules', 'employeeAvailabilityOverrides', 'employeePayProfiles', 'leaveBalances', 'contracts', 'attendance', 'attendanceAlerts', 'warningLetters'],
-  leave: ['leaves', 'leaveBalances', 'employees', 'attachments'],
+  leave: ['leaveBalances', 'employees'],
   commission: ['sales', 'schedules', 'employees', 'employeePayProfiles', 'employeeBranchEligibility', 'salarySummaries'],
   alerts: ['attendance', 'attendanceAlerts', 'warningLetters'],
   'warning-letters': ['warningLetterTemplates', 'employees', 'branches'],
@@ -264,7 +264,7 @@ export default function App() {
           />
           <Route
             path="/alerts"
-            element={<AlertPage data={data} currentBranch={currentBranch} onRefreshData={loadData} />}
+            element={<AlertPage data={data} currentBranch={currentBranch} from={from} to={to} onRefreshData={loadData} />}
           />
           <Route
             path="/auditlog"
@@ -283,7 +283,7 @@ export default function App() {
                 {currentTab === 'sales' ? <SalesDashboard data={data} user={user} currentBranch={currentBranch} from={from} to={to} onRefreshData={refreshSalesData} /> : null}
                 {currentTab === 'commission' ? <CommissionDashboard data={data} user={user} currentBranch={currentBranch} from={from} to={to} onRefreshData={loadData} /> : null}
                 {currentTab === 'inspection' ? <InspectionDashboard user={user} currentBranch={currentBranch} from={from} to={to} onRefreshData={loadData} /> : null}
-                {currentTab === 'alerts' ? <AlertPage data={data} currentBranch={currentBranch} onRefreshData={loadData} /> : null}
+                {currentTab === 'alerts' ? <AlertPage data={data} currentBranch={currentBranch} from={from} to={to} onRefreshData={loadData} /> : null}
                 {currentTab === 'warning-letters' ? <WarningLetterPage data={data} user={user} onRefreshData={loadData} /> : null}
                 {isOwner && currentTab === 'access' ? <AccessDashboard user={user} fallbackData={data} onRefreshData={loadData} /> : null}
               </>

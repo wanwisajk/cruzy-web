@@ -1,4 +1,4 @@
-const { fetchTable, supabase } = require('../../shared/db');
+const { supabase } = require('../../shared/db');
 const { parseInteger, required, sendError } = require('../../shared/http');
 const TABLES = require('../../shared/tables');
 
@@ -17,15 +17,20 @@ function cleanAlertPayload(body) {
   };
 }
 
-exports.listAlerts = async (_req, res) => {
+exports.listAlerts = async (req, res) => {
   try {
-    res.json(await fetchTable(TABLES.attendanceAlerts, '*', {
-      order: [
-        { column: 'is_acknowledged', ascending: true },
-        { column: 'work_date', ascending: false },
-        { column: 'created_at', ascending: false }
-      ]
-    }));
+    const fromDate = req.query.from || req.query.from_date;
+    const toDate = req.query.to || req.query.to_date;
+    let query = supabase.from(TABLES.attendanceAlerts).select('*');
+    if (fromDate) query = query.gte('work_date', fromDate);
+    if (toDate) query = query.lte('work_date', toDate);
+    query = query
+      .order('is_acknowledged', { ascending: true })
+      .order('work_date', { ascending: false })
+      .order('created_at', { ascending: false });
+    const { data, error } = await query;
+    if (error) throw error;
+    res.json(data || []);
   } catch (error) {
     sendError(res, error, 'ไม่สามารถดึงข้อมูลแจ้งเตือนได้');
   }

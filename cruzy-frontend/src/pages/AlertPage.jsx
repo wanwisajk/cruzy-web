@@ -454,8 +454,9 @@ function EditAlertModal({ open, onClose, onSave, employees, branches, initialDat
   );
 }
 
-export default function AlertPage({ data, currentBranch }) {
-  const { alerts, loading, saving, error, createAlert, updateAlert, acknowledgeAlert, deleteAlert } = useAlerts(data?.attendanceAlerts || []);
+export default function AlertPage({ data, currentBranch, from, to }) {
+  const alertFilters = useMemo(() => ({ from, to }), [from, to]);
+  const { alerts, loading, saving, error, createAlert, updateAlert, acknowledgeAlert, deleteAlert } = useAlerts(alertFilters);
   const [tab, setTab] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [editorOpen, setEditorOpen] = useState(false);
@@ -470,7 +471,7 @@ export default function AlertPage({ data, currentBranch }) {
   const branches = data?.branches ?? [];
 
   const displayAlerts = useMemo(() => {
-    const persisted = (alerts?.length ? alerts : data?.attendanceAlerts || []).map(normalizePersistedAlert);
+    const persisted = (alerts || []).map(normalizePersistedAlert);
     const persistedKeys = new Set(persisted.map(alertIdentityKey));
     const derived = [
       ...buildDisciplineAlerts(data, dismissedDerivedIds),

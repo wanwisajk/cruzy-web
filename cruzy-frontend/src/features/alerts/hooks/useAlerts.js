@@ -1,34 +1,60 @@
 import { useCallback, useEffect, useState } from 'react';
 import { alertService } from '../services/alertService.js';
 
-export function useAlerts(initialAlerts = []) {
-  const hasInitialAlerts = Array.isArray(initialAlerts) && initialAlerts.length > 0;
-  const [alerts, setAlerts] = useState(() => (hasInitialAlerts ? initialAlerts : []));
-  const [loading, setLoading] = useState(!hasInitialAlerts);
+export function useAlerts(filters = {}) {
+  const [alerts, setAlerts] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const fetchAlerts = useCallback(async () => {
-    setLoading(true);
-    setError('');
+  const fetchAlerts = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) {
+      setLoading(true);
+      setError('');
+    }
     try {
-      const data = await alertService.getAlerts();
+      const data = await alertService.getAlerts(filters);
       setAlerts(Array.isArray(data) ? data : []);
     } catch (err) {
-      setError(err.message || 'ไม่สามารถโหลดแจ้งเตือนได้');
+      if (silent) {
+        console.error('Alert auto-refresh failed:', err);
+      } else {
+        setError(err.message || 'ไม่สามารถโหลดแจ้งเตือนได้');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  }, []);
+  }, [filters.from, filters.to]);
 
   useEffect(() => {
-    if (hasInitialAlerts) {
-      setAlerts(initialAlerts);
-      setLoading(false);
-      return;
-    }
     fetchAlerts();
-  }, [fetchAlerts, hasInitialAlerts, initialAlerts]);
+  }, [fetchAlerts]);
+
+  useEffect(() => {
+    let disposed = false;
+    let inFlight = false;
+    const tick = async () => {
+      if (disposed || inFlight || document.visibilityState === 'hidden') return;
+      inFlight = true;
+      try {
+        await fetchAlerts({ silent: true });
+      } finally {
+        inFlight = false;
+      }
+    };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') tick();
+    };
+    const interval = window.setInterval(tick, 30000);
+    window.addEventListener('focus', tick);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      disposed = true;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', tick);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [fetchAlerts]);
 
   const createAlert = useCallback(async (payload) => {
     setSaving(true);

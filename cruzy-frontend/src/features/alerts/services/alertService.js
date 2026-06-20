@@ -1,7 +1,13 @@
 import { request } from '../../../lib/api.js';
 
 export const alertService = {
-  getAlerts: () => request('/attendance-alerts'),
+  getAlerts: (filters = {}) => {
+    const query = new URLSearchParams();
+    if (filters.from) query.set('from', filters.from);
+    if (filters.to) query.set('to', filters.to);
+    const suffix = query.toString();
+    return request(`/attendance-alerts${suffix ? `?${suffix}` : ''}`);
+  },
   getAlert: (id) => request(`/attendance-alerts/${id}`),
   createAlert: (body) => request('/attendance-alerts', {
     method: 'POST',

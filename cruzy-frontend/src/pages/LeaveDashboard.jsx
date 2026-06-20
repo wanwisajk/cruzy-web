@@ -1,27 +1,11 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { LeaveDashboardContent } from "../features/leaves/components/LeaveDashboardContent.jsx";
 import { LeaveDashboardHeader } from "../features/leaves/components/LeaveDashboardHeader.jsx";
 import { LeaveModal } from "../features/leaves/components/LeaveModal.jsx";
 import { useLeaveDashboardData } from "../features/leaves/hooks/useLeaveDashboardData.js";
 import { useLeaves } from "../features/leaves/hooks/useLeaves.js";
 
-function normalizeHydratedLeaves(leaves) {
-  return (Array.isArray(leaves) ? leaves : []).map((leave) => {
-    if (!leave) return leave;
-    if (leave.employee_id !== undefined) return leave;
-    return {
-      ...leave,
-      employee_id: leave.empId,
-      leave_type: leave.type,
-      start_date: leave.from,
-      end_date: leave.to,
-      days_count: leave.days,
-    };
-  });
-}
-
 export default function LeaveDashboard({ data, currentBranch }) {
-  const initialLeaves = useMemo(() => normalizeHydratedLeaves(data?.leaves), [data?.leaves]);
   const {
     leaves,
     loading,
@@ -30,7 +14,7 @@ export default function LeaveDashboard({ data, currentBranch }) {
     createLeave,
     updateLeave,
     getLeaveDetail,
-  } = useLeaves(initialLeaves);
+  } = useLeaves();
   const [filters, setFilters] = useState({
     leaveType: "",
     status: "",

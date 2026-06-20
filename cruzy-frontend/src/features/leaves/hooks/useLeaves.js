@@ -9,33 +9,60 @@ function normalizeLeaves(rows) {
   });
 }
 
-export function useLeaves(initialLeaves = []) {
-  const [leaves, setLeaves] = useState(() => normalizeLeaves(initialLeaves));
-  const [loading, setLoading] = useState(() => !Array.isArray(initialLeaves) || initialLeaves.length === 0);
+export function useLeaves() {
+  const [leaves, setLeaves] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const fetchLeaves = useCallback(async () => {
-    setLoading(true);
-    setError('');
+  const fetchLeaves = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) {
+      setLoading(true);
+      setError('');
+    }
     try {
       const leavesData = await leaveService.getLeaves();
       setLeaves(normalizeLeaves(leavesData));
     } catch (err) {
-      setError(err.message || 'ไม่สามารถโหลดข้อมูลการลาได้');
+      if (silent) {
+        console.error('Leave auto-refresh failed:', err);
+      } else {
+        setError(err.message || 'ไม่สามารถโหลดข้อมูลการลาได้');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (initialLeaves?.length) {
-      setLeaves(normalizeLeaves(initialLeaves));
-      setLoading(false);
-      return;
-    }
     fetchLeaves();
-  }, [fetchLeaves, initialLeaves]);
+  }, [fetchLeaves]);
+
+  useEffect(() => {
+    let disposed = false;
+    let inFlight = false;
+    const tick = async () => {
+      if (disposed || inFlight || document.visibilityState === 'hidden') return;
+      inFlight = true;
+      try {
+        await fetchLeaves({ silent: true });
+      } finally {
+        inFlight = false;
+      }
+    };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') tick();
+    };
+    const interval = window.setInterval(tick, 30000);
+    window.addEventListener('focus', tick);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      disposed = true;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', tick);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [fetchLeaves]);
 
   const createLeave = useCallback(async (payload) => {
     setSaving(true);
