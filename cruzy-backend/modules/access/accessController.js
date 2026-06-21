@@ -16,7 +16,7 @@ function cleanManualId(value) {
 }
 
 async function fetchUsers() {
-  const rows = await fetchTable(TABLES.users, 'id, username, name, role, scope_type, scope_value, created_at');
+  const rows = await fetchTable(TABLES.users, 'id, username, name, role, scope_type, scope_value, employee_id, created_at');
   return rows.map(normalizeUser);
 }
 
@@ -71,13 +71,14 @@ exports.requireOwner = async (req, res, next) => {
 
 exports.getAccessData = async (_req, res) => {
   try {
-    const [users, branches, regions] = await Promise.all([
+    const [users, branches, regions, employees] = await Promise.all([
       fetchUsers(),
       fetchTable(TABLES.branches),
-      fetchTable(TABLES.regions)
+      fetchTable(TABLES.regions),
+      fetchTable(TABLES.employees, 'id, name, nickname, position', { order: { column: 'name', ascending: true } })
     ]);
 
-    res.json({ users, branches, regions });
+    res.json({ users, branches, regions, employees });
   } catch (error) {
     sendError(res, error, 'ไม่สามารถดึงข้อมูลสิทธิ์ได้');
   }
@@ -93,7 +94,7 @@ exports.listUsers = async (_req, res) => {
 
 exports.createUser = async (req, res) => {
   try {
-    const { username, name, role, scope_type, scope_value, password } = req.body;
+    const { username, name, role, scope_type, scope_value, password, employee_id, employeeId } = req.body;
     if (!req.body.id || !username || !name || !role || !scope_type) return res.status(400).json({ message: 'Missing required fields' });
     const userId = cleanManualId(req.body.id);
     if (!userId) return res.status(400).json({ message: 'รหัสผู้ใช้งานต้องไม่ว่างและยาวไม่เกิน 255 ตัวอักษร' });
@@ -104,6 +105,7 @@ exports.createUser = async (req, res) => {
       role,
       scope_type,
       scope_value: scope_value || null,
+      employee_id: employee_id || employeeId || null,
       password_hash: hashPassword(password)
     };
     const { data, error } = await supabase.from(TABLES.users).insert([payload]).select().limit(1);
@@ -117,12 +119,13 @@ exports.createUser = async (req, res) => {
 exports.updateUser = async (req, res) => {
   try {
     const id = req.params.id;
-    const { name, role, scope_type, scope_value, password } = req.body;
+    const { name, role, scope_type, scope_value, password, employee_id, employeeId } = req.body;
     const payload = {};
     if (name !== undefined) payload.name = name;
     if (role !== undefined) payload.role = role;
     if (scope_type !== undefined) payload.scope_type = scope_type;
     if (scope_value !== undefined) payload.scope_value = scope_value;
+    if (employee_id !== undefined || employeeId !== undefined) payload.employee_id = employee_id || employeeId || null;
     if (password !== undefined) payload.password_hash = hashPassword(password);
     const { data, error } = await supabase.from(TABLES.users).update(payload).eq('id', id).select().limit(1);
     if (error) throw error;

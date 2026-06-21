@@ -56,6 +56,11 @@ export function useLeaveDashboardData({ data, currentBranch, filters, leaves }) 
     [filteredLeaves],
   );
 
+  const resolvedLeaves = useMemo(
+    () => filteredLeaves.filter((leave) => ["approved", "rejected"].includes(leave.status)),
+    [filteredLeaves],
+  );
+
   const approvedSummary = useMemo(() => {
     const summaryMap = new Map();
 
@@ -145,6 +150,7 @@ export function useLeaveDashboardData({ data, currentBranch, filters, leaves }) 
     leaveTypes,
     months,
     pendingLeaves,
+    resolvedLeaves,
     stats,
     visibleEmployees,
   };

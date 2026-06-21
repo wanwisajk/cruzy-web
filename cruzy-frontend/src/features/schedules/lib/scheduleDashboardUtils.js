@@ -24,10 +24,11 @@ export function buildScheduleAlerts(data, branches, from) {
     });
   }
 
-  return [
-    ...alerts.filter((alert) => alert.type === "danger").slice(0, 5),
-    ...alerts.filter((alert) => alert.type === "warn").slice(0, 3),
-  ];
+  return alerts.sort((left, right) => {
+    if (left.type !== right.type) return left.type === "danger" ? -1 : 1;
+    return String(left.date).localeCompare(String(right.date)) ||
+      String(left.branch?.code || "").localeCompare(String(right.branch?.code || ""));
+  });
 }
 
 export function scheduleCandidateReason(candidate) {

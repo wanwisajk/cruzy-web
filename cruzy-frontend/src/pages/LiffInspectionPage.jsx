@@ -470,6 +470,10 @@ export default function LiffInspectionPage() {
       const updatedResult = await api.updateInspection(openingInspection.id, {
         submit_time: submitTime,
         submitted_by: form.employeeId || null,
+        line_user_id: profile?.userId || null,
+        audit_actor_type: profile?.userId ? 'line' : 'employee',
+        audit_actor_id: profile?.userId || form.employeeId || null,
+        audit_actor_name: selectedEmployee?.nickname || selectedEmployee?.name || profile?.displayName || form.employeeId || null,
         status: 'pending',
         inspection_items: nextInspectionItems,
         photo_count: Number(openingInspection.photo_count || 0) + totalSelected,
@@ -539,6 +543,10 @@ export default function LiffInspectionPage() {
         review_time: reviewTime,
         manager_note: reviewNote.trim() || null,
         line_notified: false,
+        line_user_id: profile?.userId || null,
+        audit_actor_type: profile?.userId ? 'line' : 'employee',
+        audit_actor_id: profile?.userId || form.employeeId || null,
+        audit_actor_name: reviewer,
       });
       const updated = result?.data || result;
       await api.createInspectionLog({

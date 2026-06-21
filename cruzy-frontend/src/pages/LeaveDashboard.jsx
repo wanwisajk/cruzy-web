@@ -30,6 +30,7 @@ export default function LeaveDashboard({ data, currentBranch }) {
     leaveTypes,
     months,
     pendingLeaves,
+    resolvedLeaves,
     stats,
     visibleEmployees,
   } = useLeaveDashboardData({ data, currentBranch, filters, leaves });
@@ -101,6 +102,7 @@ export default function LeaveDashboard({ data, currentBranch }) {
         onReject={handleRejectLeave}
         onViewApprovedSummary={handleViewApprovedSummary}
         pendingLeaves={pendingLeaves}
+        resolvedLeaves={resolvedLeaves}
         stats={stats}
       />
 

@@ -1,7 +1,7 @@
 const { fetchTable, supabase } = require('../../shared/db');
-const { auditFields, parseInteger, required, sendError, toNumber } = require('../../shared/http');
+const { actorFromRequest, auditFields, parseInteger, required, sendError, toNumber } = require('../../shared/http');
 const TABLES = require('../../shared/tables');
-const LEAVE_SELECT = 'id, employee_id, leave_type, start_date, end_date, days_count, reason, status, created_at';
+const LEAVE_SELECT = 'id, employee_id, leave_type, start_date, end_date, days_count, reason, status, created_at, decided_at, decided_by';
 const ATTACHMENT_SELECT = 'id, entity_type, entity_id, file_url, file_type, created_at';
 
 function hasValue(body, ...keys) {
@@ -155,7 +155,11 @@ async function setLeaveStatus(req, res, status, successMessage) {
   try {
     const id = parseInteger(req.params.id);
     if (id === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
-    const { data, error } = await supabase.from(TABLES.leaves).update({ status, ...auditFields(req) }).eq('id', id).select(LEAVE_SELECT).single();
+    const actor = actorFromRequest(req);
+    const decision = status === 'pending'
+      ? { decided_by: null, decided_at: null }
+      : { decided_by: actor.username || actor.name || actor.id, decided_at: new Date().toISOString() };
+    const { data, error } = await supabase.from(TABLES.leaves).update({ status, ...decision, ...auditFields(req) }).eq('id', id).select(LEAVE_SELECT).single();
     if (error) throw error;
     res.json({ message: successMessage, data });
   } catch (error) {

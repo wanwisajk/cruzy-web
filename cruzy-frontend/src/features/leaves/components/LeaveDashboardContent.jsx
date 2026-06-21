@@ -4,6 +4,7 @@ import { LeaveHistoryTable } from "./LeaveHistoryTable.jsx";
 import { LeaveLoadingState } from "./LeaveLoadingState.jsx";
 import { LeaveStats } from "./LeaveStats.jsx";
 import { PendingLeaveTable } from "./PendingLeaveTable.jsx";
+import { ResolvedLeaveTable } from "./ResolvedLeaveTable.jsx";
 
 export function LeaveDashboardContent({
   approvedSummary,
@@ -21,6 +22,7 @@ export function LeaveDashboardContent({
   onReject,
   onViewApprovedSummary,
   pendingLeaves,
+  resolvedLeaves,
   stats,
 }) {
   return (
@@ -47,6 +49,13 @@ export function LeaveDashboardContent({
             onReject={onReject}
             onEdit={onEdit}
           />
+          <div className="mt-4">
+            <ResolvedLeaveTable
+              leaves={resolvedLeaves}
+              employees={employees}
+              onEdit={onEdit}
+            />
+          </div>
           <div className="mt-4">
             <LeaveHistoryTable
               rows={approvedSummary}

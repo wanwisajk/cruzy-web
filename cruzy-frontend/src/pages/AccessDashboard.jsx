@@ -1,5 +1,5 @@
 import { Loader2, Shield, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Badge } from "../components/ui/Badge";
 import { Modal } from "../components/Modal";
 import { useAccess } from "../features/access/hooks/useAccess.js";
@@ -22,6 +22,7 @@ export default function AccessDashboard({ user, fallbackData }) {
     role: "branch",
     scopeType: "branch",
     scopeValue: "",
+    employeeId: "",
     password: "",
   });
 
@@ -38,6 +39,21 @@ export default function AccessDashboard({ user, fallbackData }) {
         name: region.name,
         branches: region.branches || [],
       }));
+  const employees = accessData.employees.length
+    ? accessData.employees
+    : fallbackData?.employees || [];
+  const employeeMap = useMemo(
+    () => new Map(employees.map((employee) => [String(employee.id), employee])),
+    [employees],
+  );
+  const linkedUserByEmployee = useMemo(() => {
+    const map = new Map();
+    users.forEach((item) => {
+      const employeeId = item.employeeId || item.employee_id;
+      if (employeeId) map.set(String(employeeId), item.id || item.username);
+    });
+    return map;
+  }, [users]);
   if (!isOwner) {
     return (
       <Content title="ไม่มีสิทธิ์" icon={Shield} stats={[]}>
@@ -50,8 +66,13 @@ export default function AccessDashboard({ user, fallbackData }) {
 
   const canManage = isOwner;
   const tableHeaders = canManage
-    ? ["User ID", "Username", "ชื่อ", "สิทธิ์", "ขอบเขต", ""]
-    : ["User ID", "Username", "ชื่อ", "สิทธิ์", "ขอบเขต"];
+    ? ["User ID", "Username", "ชื่อ", "พนักงาน", "สิทธิ์", "ขอบเขต", ""]
+    : ["User ID", "Username", "ชื่อ", "พนักงาน", "สิทธิ์", "ขอบเขต"];
+
+  const employeeDisplayName = (employee) => {
+    if (!employee) return "-";
+    return employee.nickname || employee.name || employee.id;
+  };
 
   const scopeLabel = (item) => {
     if (item.scope === "all") return "ทั้งหมด";
@@ -86,6 +107,7 @@ export default function AccessDashboard({ user, fallbackData }) {
       role: "branch",
       scopeType: "branch",
       scopeValue: "",
+      employeeId: "",
       password: "",
     });
     setShowUserModal(true);
@@ -102,6 +124,7 @@ export default function AccessDashboard({ user, fallbackData }) {
       scopeType: item.scope === "all" ? "all" : item.scopeType || "branch",
       scopeValue:
         item.scope === "all" ? "" : item.scope || item.scope_value || "",
+      employeeId: item.employeeId || item.employee_id || "",
       password: "",
     });
     setShowUserModal(true);
@@ -136,6 +159,7 @@ export default function AccessDashboard({ user, fallbackData }) {
           role: form.role,
           scope_type: scopeType,
           scope_value: scopeType === "all" ? null : form.scopeValue,
+          employee_id: form.employeeId || null,
           password: form.password,
         });
       } else if (selectedUser) {
@@ -144,6 +168,7 @@ export default function AccessDashboard({ user, fallbackData }) {
           role: form.role,
           scope_type: scopeType,
           scope_value: scopeType === "all" ? null : form.scopeValue,
+          employee_id: form.employeeId || null,
         };
 
         if (form.password) {
@@ -287,6 +312,28 @@ export default function AccessDashboard({ user, fallbackData }) {
                   placeholder="เช่น สมชาย ใจดี"
                 />
               </label>
+              <label className="space-y-2">
+                <span>เชื่อมพนักงาน</span>
+                <select
+                  className="input"
+                  value={form.employeeId}
+                  onChange={(event) => setField("employeeId", event.target.value)}
+                >
+                  <option value="">ไม่เชื่อมพนักงาน</option>
+                  {employees.map((employee) => {
+                    const linkedUserId = linkedUserByEmployee.get(String(employee.id));
+                    const disabled = Boolean(linkedUserId && String(linkedUserId) !== String(selectedUser?.id || ""));
+                    return (
+                      <option key={employee.id} value={employee.id} disabled={disabled}>
+                        {employeeDisplayName(employee)} ({employee.id}){disabled ? " - ถูกใช้งานแล้ว" : ""}
+                      </option>
+                    );
+                  })}
+                </select>
+                <p className="caption text-slate-500">
+                  ถ้าผู้ใช้งานนี้เป็นพนักงาน ระบบจะแสดงชื่อเล่นจากข้อมูลพนักงาน
+                </p>
+              </label>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -426,39 +473,55 @@ export default function AccessDashboard({ user, fallbackData }) {
           <div className="flex flex-col gap-4">
             <div className="table-shell overflow-hidden">
               <Table headers={tableHeaders}>
-                {users.map((item) => (
-                  <tr key={item.id || item.username}>
-                    <td className="px-3 py-2 font-mono caption">{item.id}</td>
-                    <td className="px-3 py-2 body-strong">{item.username}</td>
-                    <td className="px-3 py-2">{item.name}</td>
-                    <td className="px-3 py-2">
-                      <Badge tone={item.role === "owner" ? "green" : "blue"}>
-                        {item.role}
-                      </Badge>
-                    </td>
-                    <td className="px-3 py-2">{scopeLabel(item)}</td>
-                    {canManage ? (
+                {users.map((item) => {
+                  const linkedEmployee = employeeMap.get(String(item.employeeId || item.employee_id || ""));
+                  return (
+                    <tr key={item.id || item.username}>
+                      <td className="px-3 py-2 font-mono caption">{item.id}</td>
+                      <td className="px-3 py-2 body-strong">{item.username}</td>
                       <td className="px-3 py-2">
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() => openEditModal(item)}
-                            className="btn btn-success btn-sm"
-                          >
-                            แก้ไข
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDeleteTarget(item)}
-                            className="btn btn-danger btn-sm"
-                          >
-                            ลบ
-                          </button>
+                        <div className="flex flex-col gap-1">
+                          <span className="body-strong">{linkedEmployee ? employeeDisplayName(linkedEmployee) : item.name}</span>
+                          {linkedEmployee ? <span className="caption text-slate-500">{item.name}</span> : null}
                         </div>
                       </td>
-                    ) : null}
-                  </tr>
-                ))}
+                      <td className="px-3 py-2">
+                        {linkedEmployee ? (
+                          <div className="flex flex-col gap-1">
+                            <span>{employeeDisplayName(linkedEmployee)}</span>
+                            <span className="caption text-slate-500">{linkedEmployee.name || linkedEmployee.id}</span>
+                          </div>
+                        ) : "-"}
+                      </td>
+                      <td className="px-3 py-2">
+                        <Badge tone={item.role === "owner" ? "green" : "blue"}>
+                          {item.role}
+                        </Badge>
+                      </td>
+                      <td className="px-3 py-2">{scopeLabel(item)}</td>
+                      {canManage ? (
+                        <td className="px-3 py-2">
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => openEditModal(item)}
+                              className="btn btn-success btn-sm"
+                            >
+                              แก้ไข
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeleteTarget(item)}
+                              className="btn btn-danger btn-sm"
+                            >
+                              ลบ
+                            </button>
+                          </div>
+                        </td>
+                      ) : null}
+                    </tr>
+                  );
+                })}
               </Table>
             </div>
 

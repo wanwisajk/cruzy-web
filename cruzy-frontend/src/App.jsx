@@ -23,7 +23,7 @@ import LiffInspectionPage from './pages/LiffInspectionPage.jsx';
 
 const sessionKey = 'cruzyAdminSession';
 const ownerOnlyPaths = new Set(['/auditlog', '/access']);
-const SALES_REFRESH_KEYS = ['sales', 'cashDeposits', 'salesLogs', 'attachments', 'bankAccounts', 'bankAccountBranches'];
+const SALES_REFRESH_KEYS = ['sales', 'cashDeposits', 'salesLogs', 'attachments', 'bankAccounts', 'bankAccountBranches', 'branchCashLedger'];
 const AUTO_REFRESH_KEYS_BY_TAB = {
   schedule: ['schedules', 'employees', 'employeeBranchEligibility', 'employeeAvailabilityRules', 'employeeAvailabilityOverrides', 'branchStaffingRules'],
   employee: ['employees', 'employeeBranchEligibility', 'employeeAvailabilityRules', 'employeeAvailabilityOverrides', 'employeePayProfiles', 'leaveBalances', 'contracts', 'attendance', 'attendanceAlerts', 'warningLetters'],

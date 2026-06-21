@@ -10,7 +10,10 @@ import {
   timeText,
   rawSalesText,
   accountById,
-  employeeById
+  employeeById,
+  employeeByLineUserId,
+  employeeDisplayName,
+  actorDisplayName
 } from '../salesDashboardUtils';
 
 export function StatCard({ tone = 'green', value, label, icon: Icon }) {
@@ -63,12 +66,12 @@ export function DepositStatusBadge({ deposit, expectedAmount }) {
   );
 }
 
-export function EmployeeChip({ data, employeeId, time }) {
-  const employee = employeeById(data, employeeId);
+export function EmployeeChip({ data, employeeId, lineUserId, time, fallbackName }) {
+  const employee = employeeById(data, employeeId) || employeeByLineUserId(data, lineUserId);
   if (!employee) {
     return (
       <span className="inline-flex items-center caption text-gray-500 body-emphasis">
-        {employeeId || '—'}{time ? ` • ${timeText(time)}` : ''}
+        {fallbackName || employeeId || '—'}{time ? ` • ${timeText(time)}` : ''}
       </span>
     );
   }
@@ -163,7 +166,7 @@ export function SalesLogModal({ data, sale, onClose }) {
           <span className="absolute -left-[27px] top-0 w-3 h-3 rounded-full bg-blue-500 ring-4 ring-white" />
           <div className="caption-bold text-blue-600 tracking-wide mb-0.5">{timeText(sale.submitTime) || '—'}</div>
           <div className="body-strong text-gray-800">ระบบได้รับยอดขายอัตโนมัติ</div>
-          <div className="caption text-gray-500 mt-0.5">ส่งโดย: {employeeById(data, sale.submittedBy)?.nickname || employeeById(data, sale.submittedBy)?.name || sale.submittedBy || '—'}</div>
+          <div className="caption text-gray-500 mt-0.5">ส่งโดย: {employeeDisplayName(data, { employeeId: sale.submittedBy, lineUserId: sale.lineUserId, fallbackName: sale.submittedName })}</div>
         </div>
 
         {(sale.editLog || []).map((log, index) => (
@@ -185,7 +188,7 @@ export function SalesLogModal({ data, sale, onClose }) {
             <span className="absolute -left-[27px] top-0 w-3 h-3 rounded-full bg-emerald-500 ring-4 ring-white" />
             <div className="caption-bold text-emerald-600 tracking-wide mb-0.5">{timeText(sale.confirmTime) || '—'}</div>
             <div className="body-strong text-emerald-700 flex items-center gap-1">ตรวจสอบและยืนยันยอดเรียบร้อย <Check size={14} /></div>
-            <div className="caption text-gray-500 mt-0.5">ผู้อนุมัติ: {sale.confirmedBy}</div>
+            <div className="caption text-gray-500 mt-0.5">ผู้อนุมัติ: {actorDisplayName(data, sale.confirmedBy)}</div>
           </div>
         )}
       </div>
@@ -209,6 +212,9 @@ function normalizeSaleLocal(row) {
     qr: Number(row.qr_amount ?? row.qr ?? 0),
     credit: Number(row.credit_amount ?? row.credit ?? 0),
     submittedBy: row.submitted_by || row.submittedBy || null,
+    submittedName: row.submittedName || row.submitted_by_name || '',
+    approvalName: ['confirmed', 'rejected'].includes(row.status) ? (row.audit_actor_name || row.approvalName || '') : '',
+    lineUserId: row.line_user_id || row.lineUserId || '',
     submitTime: timeText(row.submitted_at || row.submitTime),
     confirmedBy: row.confirmed_by || row.confirmedBy || null,
     confirmTime: timeText(row.confirmed_at || row.confirmTime),
@@ -350,11 +356,11 @@ export function SalesEditorModal({ data, sale, mode, onClose, onSaved, onUpsert 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 body-text">
         <label className="flex flex-col gap-1 body-emphasis text-gray-700">วันที่ขาย<input className="px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none" type="date" value={form.sellDate} onChange={(e) => update('sellDate', e.target.value)} /></label>
         <label className="flex flex-col gap-1 body-emphasis text-gray-700">เลือกสาขา<select className="px-3 py-2 border border-gray-200 rounded-xl bg-white focus:ring-2 focus:ring-blue-500/20" value={form.branchId} onChange={(e) => update('branchId', e.target.value)}>{data.branches.map((b) => <option key={b.id} value={b.id}>{b.code} - {b.name}</option>)}</select></label>
-        <label className="flex flex-col gap-1 body-emphasis text-gray-700">เงินสด (Cash)<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="number" value={form.cashAmount} onChange={(e) => update('cashAmount', e.target.value)} /></label>
-        <label className="flex flex-col gap-1 body-emphasis text-gray-700">เงินโอน (Bank Transfer)<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="number" value={form.transferAmount} onChange={(e) => update('transferAmount', e.target.value)} /></label>
-        <label className="flex flex-col gap-1 body-emphasis text-gray-700">คิวอาร์โค้ด (QR)<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="number" value={form.qrAmount} onChange={(e) => update('qrAmount', e.target.value)} /></label>
-        <label className="flex flex-col gap-1 body-emphasis text-gray-700">บัตรเครดิต (Credit Card)<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="number" value={form.creditAmount} onChange={(e) => update('creditAmount', e.target.value)} /></label>
-        <label className="flex flex-col gap-1 body-emphasis text-gray-700">ยอดรวมทั้งสิ้น (Auto)<input className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl body-strong text-gray-900 outline-none" type="number" value={form.totalAmount} readOnly /></label>
+        <label className="flex flex-col gap-1 body-emphasis text-gray-700">เงินสด (Cash)<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="number" step="0.01" value={form.cashAmount} onChange={(e) => update('cashAmount', e.target.value)} /></label>
+        <label className="flex flex-col gap-1 body-emphasis text-gray-700">เงินโอน (Bank Transfer)<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="number" step="0.01" value={form.transferAmount} onChange={(e) => update('transferAmount', e.target.value)} /></label>
+        <label className="flex flex-col gap-1 body-emphasis text-gray-700">คิวอาร์โค้ด (QR)<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="number" step="0.01" value={form.qrAmount} onChange={(e) => update('qrAmount', e.target.value)} /></label>
+        <label className="flex flex-col gap-1 body-emphasis text-gray-700">บัตรเครดิต (Credit Card)<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="number" step="0.01" value={form.creditAmount} onChange={(e) => update('creditAmount', e.target.value)} /></label>
+        <label className="flex flex-col gap-1 body-emphasis text-gray-700">ยอดรวมทั้งสิ้น (Auto)<input className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl body-strong text-gray-900 outline-none" type="number" step="0.01" value={form.totalAmount} readOnly /></label>
         <label className="flex flex-col gap-1 body-emphasis text-gray-700">ผู้ส่งยอดขาย<select className="px-3 py-2 border border-gray-200 rounded-xl bg-white outline-none" value={form.submittedBy} onChange={(e) => update('submittedBy', e.target.value)}><option value="">- ไม่ระบุ -</option>{data.employees.map((emp) => <option key={emp.id} value={emp.id}>{emp.nickname || emp.name}</option>)}</select></label>
         <label className="flex flex-col gap-1 body-emphasis text-gray-700">เวลาส่งข้อมูล<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="time" value={form.submittedAt} onChange={(e) => update('submittedAt', e.target.value)} /></label>
         <label className="flex flex-col gap-1 body-emphasis text-gray-700">สถานะระบบ<select className="px-3 py-2 border border-gray-200 rounded-xl bg-white" value={form.status} onChange={(e) => update('status', e.target.value)}><option value="draft">รอยืนยันตรวจสอบ</option><option value="confirmed">ยืนยันยอดถูกต้อง</option><option value="edited">มีประวัติแก้ไขเสร็จแล้ว</option></select></label>
@@ -378,8 +384,13 @@ function normalizeDepositLocal(row) {
     deposited: Number(row.deposited_amount ?? row.deposited ?? 0),
     bankAccId: row.bank_account_id || row.bankAccId || null,
     depositedBy: row.deposited_by || row.depositedBy || null,
+    depositedName: row.depositedName || row.deposited_by_name || '',
+    verifiedName: ['verified', 'rejected'].includes(row.status) ? (row.audit_actor_name || row.verifiedName || '') : '',
+    lineUserId: row.line_user_id || row.lineUserId || '',
     verifiedBy: row.verified_by || row.verifiedBy || null,
     verifyTime: timeText(row.verified_at || row.verifyTime),
+    coveredDate: row.covered_date || row.coveredDate || row.covered_from_date || row.coveredFromDate || null,
+    varianceAmount: Number(row.variance_amount ?? row.varianceAmount ?? 0),
     slipUrl: row.slip_url || row.slipUrl || '',
     attachments: row.attachments || [],
     slipOcrStatus: row.slip_ocr_status || row.slipOcrStatus || 'unchecked',
@@ -416,13 +427,26 @@ function slipOcrTone(status) {
 export function DepositEditorModal({ data, deposit, mode, onClose, onSaved, onUpsert }) {
   const isLocked = deposit?.status === 'verified';
   const readonly = mode === 'view' || isLocked;
+  const initialBranchId = deposit?.bid || data.branches[0]?.id || '';
+
+  function linkedBankAccountId(branchId) {
+    const branchKey = String(branchId || '');
+    const account = data.bankAccounts.find((item) => {
+      const branchIds = (item.branchIds || []).map(String);
+      return !branchIds.length || branchIds.includes(branchKey);
+    });
+    return account?.id || '';
+  }
+
   const [form, setForm] = useState({
     depositDate: deposit?.date || new Date().toISOString().slice(0, 10),
-    branchId: deposit?.bid || data.branches[0]?.id || '',
+    branchId: initialBranchId,
     expectedAmount: deposit?.expected || 0,
     depositedAmount: deposit?.deposited || 0,
-    bankAccountId: deposit?.bankAccId || '',
+    bankAccountId: deposit?.bankAccId || linkedBankAccountId(initialBranchId),
     depositedBy: deposit?.depositedBy || '',
+    coveredDate: deposit?.coveredDate || deposit?.date || new Date().toISOString().slice(0, 10),
+    varianceAmount: deposit?.varianceAmount || 0,
     slipUrl: deposit?.slipUrl || '',
     status: deposit?.status || 'waiting',
     slipOcrStatus: deposit?.slipOcrStatus || 'unchecked',
@@ -436,10 +460,6 @@ export function DepositEditorModal({ data, deposit, mode, onClose, onSaved, onUp
   const [checkingSlip, setCheckingSlip] = useState(false);
   const [ocrMessage, setOcrMessage] = useState('');
   const [saving, setSaving] = useState(false);
-  const availableBankAccounts = data.bankAccounts.filter((account) => {
-    const branchIds = (account.branchIds || []).map(String);
-    return !branchIds.length || branchIds.includes(String(form.branchId));
-  });
 
   async function filesToDataUrls(fileList) {
     const files = Array.from(fileList || []).filter((file) => file.type.startsWith('image/'));
@@ -503,6 +523,7 @@ export function DepositEditorModal({ data, deposit, mode, onClose, onSaved, onUp
     try {
       const payload = {
         ...form,
+        bankAccountId: form.bankAccountId || linkedBankAccountId(form.branchId) || null,
         slipUrl: form.slipUrl || null,
         slipOcrAmount: form.slipOcrAmount === '' ? null : form.slipOcrAmount,
         slipOcrConfidence: form.slipOcrConfidence === '' ? null : form.slipOcrConfidence,
@@ -564,11 +585,14 @@ export function DepositEditorModal({ data, deposit, mode, onClose, onSaved, onUp
         {isLocked && <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl text-emerald-700 caption-strong flex items-center gap-1.5"><Lock size={14} /> รายการนี้นำฝากเข้าเซฟตี้โบลต์และตรวจสอบบัญชีธนาคารปลายทางแล้ว ปลอดภัยเรียบร้อย</div>}
         <ViewRows rows={[
           ['สาขาที่ทำรายการ', `${branch?.code || deposit.bid} — ${branch?.name || ''}`],
-          ['วันที่ทำรายการฝาก', shortDate(deposit.date)],
+          ['ยอดของวันที่', shortDate(deposit.coveredDate || deposit.date)],
+          ['วันที่ฝากเงินจริง', shortDate(deposit.date)],
           ['ยอดเงินสดหน้าร้าน', `฿${money(deposit.expected)}`],
           ['ยอดเงินนำฝากจริง', `฿${money(deposit.deposited)}`],
+          ['ยอดต่างจากระบบสะสม', deposit.varianceAmount ? `฿${money(deposit.varianceAmount)}` : '—'],
           ['ธนาคารบัญชีปลายทาง', account ? `${account.bankShort} (${account.accNo})` : '—'],
-          ['พนักงานผู้นำฝาก', employeeById(data, deposit.depositedBy)?.nickname || deposit.depositedBy],
+          ['พนักงานผู้นำฝาก', employeeDisplayName(data, { employeeId: deposit.depositedBy, lineUserId: deposit.lineUserId, fallbackName: deposit.depositedName })],
+          ['ผู้ตรวจสอบ', actorDisplayName(data, deposit.verifiedBy)],
           ['ตรวจสอบสลิป', deposit.slip ? 'พบคลังรูปภาพหลักฐาน' : 'ไม่มีสลิป'],
           ['ผล OCR สลิป', deposit.slipOcrStatus === 'matched' ? `ยอดตรง ฿${money(deposit.slipOcrAmount)}` : deposit.slipOcrStatus === 'mismatch' ? `ยอดไม่ตรง อ่านได้ ฿${money(deposit.slipOcrAmount)}` : deposit.slipOcrStatus === 'unreadable' ? 'อ่านสลิปไม่ได้' : 'ยังไม่ได้ตรวจ'],
           ['สถานะระบบตรวจสอบ', deposit.status]
@@ -584,13 +608,13 @@ export function DepositEditorModal({ data, deposit, mode, onClose, onSaved, onUp
   return (
     <ModalFrame title={deposit ? '✏️ แก้ไขบันทึกนำฝากเงินสด' : '➕ เพิ่มบันทึกนำฝากเงินสดใหม่'} onClose={onClose} footer={<><button className="px-4 py-2 body-emphasis text-gray-600 hover:bg-gray-100 rounded-xl transition-colors" onClick={onClose}>ยกเลิก</button><button className="px-5 py-2 body-strong bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-colors" onClick={save} disabled={saving}>{saving ? 'กำลังบันทึก...' : 'บันทึกข้อมูลนำฝาก'}</button></>}>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 body-text">
-        <label className="flex flex-col gap-1 body-emphasis text-gray-700">วันที่ฝากเงิน<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="date" value={form.depositDate} onChange={(e) => setForm({ ...form, depositDate: e.target.value })} /></label>
-        <label className="flex flex-col gap-1 body-emphasis text-gray-700">สาขาต้นทาง<select className="px-3 py-2 border border-gray-200 rounded-xl bg-white outline-none" value={form.branchId} onChange={(e) => setForm({ ...form, branchId: e.target.value, bankAccountId: '' })}>{data.branches.map((b) => <option key={b.id} value={b.id}>{b.code} - {b.name}</option>)}</select></label>
-        <label className="flex flex-col gap-1 body-emphasis text-gray-700">ยอดเงินระบบประเมิน<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="number" value={form.expectedAmount} onChange={(e) => setForm({ ...form, expectedAmount: e.target.value })} /></label>
-        <label className="flex flex-col gap-1 body-emphasis text-gray-700">ยอดนำฝากสลิปจริง<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="number" value={form.depositedAmount} onChange={(e) => setForm({ ...form, depositedAmount: e.target.value })} /></label>
-        <label className="flex flex-col gap-1 body-emphasis text-gray-700">เข้าบัญชีธนาคาร<select className="px-3 py-2 border border-gray-200 rounded-xl bg-white outline-none" value={form.bankAccountId} onChange={(e) => setForm({ ...form, bankAccountId: e.target.value })}><option value="">- เลือกบัญชีปลายทาง -</option>{availableBankAccounts.map((acc) => <option key={acc.id} value={acc.id}>{acc.bankShort} - {acc.accNo}</option>)}</select></label>
+        <label className="flex flex-col gap-1 body-emphasis text-gray-700">ยอดของวันที่<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="date" value={form.coveredDate} onChange={(e) => setForm({ ...form, coveredDate: e.target.value })} /></label>
+        <label className="flex flex-col gap-1 body-emphasis text-gray-700">วันที่ฝากเงินจริง<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="date" value={form.depositDate} onChange={(e) => setForm({ ...form, depositDate: e.target.value })} /></label>
+        <label className="flex flex-col gap-1 body-emphasis text-gray-700">สาขาต้นทาง<select className="px-3 py-2 border border-gray-200 rounded-xl bg-white outline-none" value={form.branchId} onChange={(e) => setForm({ ...form, branchId: e.target.value, bankAccountId: linkedBankAccountId(e.target.value) })}>{data.branches.map((b) => <option key={b.id} value={b.id}>{b.code} - {b.name}</option>)}</select></label>
+        <label className="flex flex-col gap-1 body-emphasis text-gray-700">ยอดเงินสด<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="number" step="0.01" value={form.expectedAmount} onChange={(e) => setForm({ ...form, expectedAmount: e.target.value })} /></label>
+        <label className="flex flex-col gap-1 body-emphasis text-gray-700">ยอดนำฝากสลิปจริง<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="number" step="0.01" value={form.depositedAmount} onChange={(e) => setForm({ ...form, depositedAmount: e.target.value })} /></label>
         <label className="flex flex-col gap-1 body-emphasis text-gray-700">พนักงานผู้นำฝาก<select className="px-3 py-2 border border-gray-200 rounded-xl bg-white outline-none" value={form.depositedBy} onChange={(e) => setForm({ ...form, depositedBy: e.target.value })}><option value="">- เลือกรายชื่อ -</option>{data.employees.map((emp) => <option key={emp.id} value={emp.id}>{emp.nickname || emp.name}</option>)}</select></label>
-
+        <label className="flex flex-col gap-1 body-emphasis text-gray-700">ยอดต่างจากระบบสะสม<input className="px-3 py-2 border border-gray-200 rounded-xl outline-none" type="number" step="0.01" value={form.varianceAmount} onChange={(e) => setForm({ ...form, varianceAmount: e.target.value })} /></label>
         <div className="sm:col-span-2 flex flex-col gap-1 body-emphasis text-gray-700">
           <span>อัปโหลดรูปภาพสลิปใบเสร็จ (เลือกได้หลายรูป)</span>
           <input className="px-3 py-2 border border-gray-200 rounded-xl caption" type="file" accept="image/*" multiple onChange={async (e) => setNewSlipImages(await filesToDataUrls(e.target.files))} />

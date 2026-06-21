@@ -9,7 +9,11 @@ export const tabs = [
 ];
 
 export function money(value) {
-  return Number(value || 0).toLocaleString('th-TH');
+  const amount = Number(value || 0);
+  return amount.toLocaleString('th-TH', {
+    minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+    maximumFractionDigits: 2
+  });
 }
 
 export function shortDate(value) {
@@ -26,7 +30,33 @@ export function branchById(data, branchId) {
 }
 
 export function employeeById(data, employeeId) {
-  return data.employees.find((employee) => employee.id === employeeId);
+  return data.employees.find((employee) => String(employee.id) === String(employeeId));
+}
+
+export function employeeByLineUserId(data, lineUserId) {
+  if (!lineUserId) return null;
+  return data.employees.find((employee) => String(employee.lineUserId || employee.line_user_id || '') === String(lineUserId));
+}
+
+export function employeeDisplayName(data, { employeeId, lineUserId, fallbackName } = {}) {
+  const employee = employeeById(data, employeeId) || employeeByLineUserId(data, lineUserId);
+  return employee?.nickname || employee?.name || fallbackName || employeeId || lineUserId || '—';
+}
+
+export function userByIdentifier(data, identifier) {
+  if (!identifier) return null;
+  return (data.users || []).find((user) => (
+    String(user.id) === String(identifier) ||
+    String(user.username) === String(identifier) ||
+    String(user.name) === String(identifier)
+  ));
+}
+
+export function actorDisplayName(data, identifier) {
+  const user = userByIdentifier(data, identifier);
+  if (!user) return identifier || '—';
+  const linkedEmployee = employeeById(data, user.employeeId || user.employee_id);
+  return linkedEmployee?.nickname || linkedEmployee?.name || user.name || user.username || identifier || '—';
 }
 
 export function accountById(data, accountId) {
@@ -61,6 +91,26 @@ export function cashByBranchAndDate(data) {
   }, {});
 }
 
+export function cashLedgerBalanceByBranch(data) {
+  return (data.branchCashLedger || []).reduce((acc, row) => {
+    const branchId = String(row.branchId || row.branch_id || '');
+    if (!branchId) return acc;
+    acc[branchId] = (acc[branchId] || 0) + Number(row.amount || 0);
+    return acc;
+  }, {});
+}
+
+export function cashLedgerBalanceForBranch(data, branchId) {
+  return Number(cashLedgerBalanceByBranch(data)[String(branchId)] || 0);
+}
+
+export function cashLedgerLabel(balance) {
+  const value = Number(balance || 0);
+  if (value > 0) return { tone: 'pending', label: `ค้างฝาก ฿${money(value)}` };
+  if (value < 0) return { tone: 'over', label: `เกินฝาก ฿${money(Math.abs(value))}` };
+  return { tone: 'clear', label: 'เคลียร์พอดี' };
+}
+
 export function statusBadge(status) {
   if (status === 'draft') return { className: 'draft', label: 'รอยืนยัน' };
   if (status === 'edited') return { className: 'edited', label: 'แก้ไข' };
@@ -71,7 +121,7 @@ export function depositStatus(deposit, expectedOverride = null) {
   if (!Number(deposit.deposited)) return { className: 'waiting', label: 'รอฝาก' };
   const expected = expectedOverride === null || expectedOverride === undefined ? Number(deposit.expected) : Number(expectedOverride);
   const diff = Number(deposit.deposited) - expected;
-  if (diff === 0) return { className: 'match', label: 'ตรง' };
+  if (Math.abs(diff) < 0.01) return { className: 'match', label: 'ตรง' };
   return { className: 'mismatch', label: `ยอด${diff > 0 ? 'เกิน' : 'ขาด'} ฿${money(Math.abs(diff))}` };
 }
 

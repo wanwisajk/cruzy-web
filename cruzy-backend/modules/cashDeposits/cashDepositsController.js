@@ -1,9 +1,11 @@
 const { fetchTable, supabase } = require('../../shared/db');
-const { parseInteger, required, sendError, toNumber, auditFields } = require('../../shared/http');
+const { syncDepositCashLedger, deleteLedgerEntry } = require('../../shared/cashLedger');
+const { actorFromRequest, parseBigintId, parseInteger, required, sendError, toNumber, auditFields } = require('../../shared/http');
 const TABLES = require('../../shared/tables');
 
 function cleanCashDepositPayload(body) {
   const branchId = body.branchId !== undefined || body.branch_id !== undefined ? parseInteger(body.branchId ?? body.branch_id) : undefined;
+  const coveredDate = body.coveredDate || body.covered_date || body.coveredFromDate || body.covered_from_date;
   return {
     deposit_date: body.depositDate || body.deposit_date,
     branch_id: branchId,
@@ -15,6 +17,8 @@ function cleanCashDepositPayload(body) {
     deposited_by: body.depositedBy || body.deposited_by,
     verified_by: body.verifiedBy || body.verified_by,
     verified_at: body.verifiedAt || body.verified_at,
+    covered_date: coveredDate,
+    variance_amount: body.varianceAmount !== undefined || body.variance_amount !== undefined ? toNumber(body.varianceAmount ?? body.variance_amount) : undefined,
     slip_ocr_status: body.slipOcrStatus || body.slip_ocr_status,
     slip_ocr_amount: body.slipOcrAmount !== undefined || body.slip_ocr_amount !== undefined ? toNumber(body.slipOcrAmount ?? body.slip_ocr_amount) : undefined,
     slip_ocr_confidence: body.slipOcrConfidence !== undefined || body.slip_ocr_confidence !== undefined ? toNumber(body.slipOcrConfidence ?? body.slip_ocr_confidence) : undefined,
@@ -23,8 +27,10 @@ function cleanCashDepositPayload(body) {
   };
 }
 
-function stripSlipOcrFields(payload) {
+function stripOptionalFields(payload) {
   const cleaned = { ...payload };
+  delete cleaned.covered_date;
+  delete cleaned.variance_amount;
   delete cleaned.slip_ocr_status;
   delete cleaned.slip_ocr_amount;
   delete cleaned.slip_ocr_confidence;
@@ -33,9 +39,9 @@ function stripSlipOcrFields(payload) {
   return cleaned;
 }
 
-function isMissingSlipOcrColumn(error) {
+function isMissingOptionalColumn(error) {
   return String(error?.code || '').toUpperCase().includes('PGRST204')
-    && String(error?.message || '').includes('slip_ocr_');
+    && /slip_ocr_|covered_date|variance_amount/.test(String(error?.message || ''));
 }
 
 exports.listCashDeposits = async (_req, res) => {
@@ -53,7 +59,7 @@ exports.listCashDeposits = async (_req, res) => {
 
 exports.getCashDeposit = async (req, res) => {
   try {
-    const id = parseInteger(req.params.id);
+    const id = parseBigintId(req.params.id);
     if (id === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
     const { data, error } = await supabase.from(TABLES.cashDeposits).select('*').eq('id', id).single();
     if (error) throw error;
@@ -66,21 +72,29 @@ exports.getCashDeposit = async (req, res) => {
 exports.createCashDeposit = async (req, res) => {
   try {
     const body = req.body;
-    if (!required(res, body, ['depositDate', 'branchId', 'expectedAmount'])) return;
+    if (!required(res, body, ['depositDate', 'branchId'])) return;
     const branchId = parseInteger(body.branchId);
     if (branchId === null) return res.status(400).json({ message: 'branchId ต้องเป็นตัวเลข' });
+    const coveredDate = body.coveredDate || body.covered_date || body.coveredFromDate || body.covered_from_date || body.depositDate;
+    const depositedAmount = toNumber(body.depositedAmount ?? body.deposited_amount, 0);
+    const varianceAmount = toNumber(body.varianceAmount ?? body.variance_amount, 0);
+    const expectedAmount = body.expectedAmount !== undefined || body.expected_amount !== undefined
+      ? toNumber(body.expectedAmount ?? body.expected_amount)
+      : depositedAmount + varianceAmount;
     
     const payload = {
       deposit_date: body.depositDate,
       branch_id: branchId,
-      expected_amount: toNumber(body.expectedAmount),
-      deposited_amount: toNumber(body.depositedAmount, 0),
+      expected_amount: expectedAmount,
+      deposited_amount: depositedAmount,
       slip_url: body.slipUrl || null,
       status: body.status || 'waiting',
       bank_account_id: body.bankAccountId || null,
       deposited_by: body.depositedBy || null,
       verified_by: body.verifiedBy || null,
       verified_at: body.verifiedAt || null,
+      covered_date: coveredDate || null,
+      variance_amount: varianceAmount,
       slip_ocr_status: body.slipOcrStatus || 'unchecked',
       slip_ocr_amount: body.slipOcrAmount !== undefined ? toNumber(body.slipOcrAmount) : null,
       slip_ocr_confidence: body.slipOcrConfidence !== undefined ? toNumber(body.slipOcrConfidence) : null,
@@ -89,12 +103,13 @@ exports.createCashDeposit = async (req, res) => {
     };
     
     let { data, error } = await supabase.from(TABLES.cashDeposits).insert([payload]).select().single();
-    if (error && isMissingSlipOcrColumn(error)) {
-      const fallback = await supabase.from(TABLES.cashDeposits).insert([stripSlipOcrFields(payload)]).select().single();
+    if (error && isMissingOptionalColumn(error)) {
+      const fallback = await supabase.from(TABLES.cashDeposits).insert([stripOptionalFields(payload)]).select().single();
       data = fallback.data;
       error = fallback.error;
     }
     if (error) throw error;
+    await syncDepositCashLedger(data);
     res.status(201).json({ message: 'บันทึกรายการฝากเงินสำเร็จ', data });
   } catch (error) {
     if (error.code === '23505' || error.code === 23505) {
@@ -109,7 +124,7 @@ exports.createCashDeposit = async (req, res) => {
 
 exports.updateCashDeposit = async (req, res) => {
   try {
-    const depositId = parseInteger(req.params.id);
+    const depositId = parseBigintId(req.params.id);
     if (depositId === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
     const { data: existing, error: getError } = await supabase.from(TABLES.cashDeposits).select('*').eq('id', depositId).single();
     if (getError) throw getError;
@@ -122,12 +137,13 @@ exports.updateCashDeposit = async (req, res) => {
     if (update.branch_id === null) return res.status(400).json({ message: 'branchId ต้องเป็นตัวเลข' });
     
     let { data, error } = await supabase.from(TABLES.cashDeposits).update(update).eq('id', depositId).select().single();
-    if (error && isMissingSlipOcrColumn(error)) {
-      const fallback = await supabase.from(TABLES.cashDeposits).update(stripSlipOcrFields(update)).eq('id', depositId).select().single();
+    if (error && isMissingOptionalColumn(error)) {
+      const fallback = await supabase.from(TABLES.cashDeposits).update(stripOptionalFields(update)).eq('id', depositId).select().single();
       data = fallback.data;
       error = fallback.error;
     }
     if (error) throw error;
+    await syncDepositCashLedger(data);
     res.json({ message: 'อัปเดตรายการฝากเงินสำเร็จ', data });
   } catch (error) {
     if (error.code === '23505' || error.code === 23505) {
@@ -142,18 +158,31 @@ exports.updateCashDeposit = async (req, res) => {
 
 async function setCashDepositStatus(req, res, status, successMessage) {
   try {
-    const id = parseInteger(req.params.id);
+    const id = parseBigintId(req.params.id);
     if (id === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
+    const actor = actorFromRequest(req);
     const payload = { status, ...auditFields(req) };
+    if (status === 'verified') {
+      payload.verified_by = actor.username || actor.name || actor.id;
+      payload.verified_at = new Date().toISOString();
+    }
     const { data, error } = await supabase.from(TABLES.cashDeposits).update(payload).eq('id', id).select().single();
     if (error) throw error;
+    await syncDepositCashLedger(data);
     res.json({ message: successMessage, data });
   } catch (error) {
     if (String(error.code || '').toUpperCase().includes('PGRST204') || String(error.message || '').includes("Could not find the 'audit_actor_id'")) {
       try {
-        const id = parseInteger(req.params.id);
-        const { data, error: err2 } = await supabase.from(TABLES.cashDeposits).update({ status }).eq('id', id).select().single();
+        const id = parseBigintId(req.params.id);
+        const actor = actorFromRequest(req);
+        const fallbackPayload = { status };
+        if (status === 'verified') {
+          fallbackPayload.verified_by = actor.username || actor.name || actor.id;
+          fallbackPayload.verified_at = new Date().toISOString();
+        }
+        const { data, error: err2 } = await supabase.from(TABLES.cashDeposits).update(fallbackPayload).eq('id', id).select().single();
         if (err2) throw err2;
+        await syncDepositCashLedger(data);
         return res.json({ message: successMessage, data });
       } catch (err2) {
         return sendError(res, err2, 'ไม่สามารถอัปเดตรายการฝากเงินได้');
@@ -182,8 +211,9 @@ exports.rejectCashDeposit = async (req, res) => {
 
 exports.deleteCashDeposit = async (req, res) => {
   try {
-    const id = parseInteger(req.params.id);
+    const id = parseBigintId(req.params.id);
     if (id === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
+    await deleteLedgerEntry('cash_deposit_id', id, 'deposit');
     const { error } = await supabase.from(TABLES.cashDeposits).delete().eq('id', id);
     if (error) throw error;
     res.json({ message: 'ลบรายการฝากเงินสำเร็จ' });

@@ -10,7 +10,9 @@ function normalizeUser(row) {
     role: row.role,
     label: labelMap[row.role] || row.role,
     scopeType: row.scope_type,
-    scope
+    scope,
+    employeeId: row.employee_id || null,
+    employee_id: row.employee_id || null
   };
 }
 

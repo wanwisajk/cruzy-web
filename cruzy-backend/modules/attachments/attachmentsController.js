@@ -1,5 +1,5 @@
 const { fetchOptionalTable, supabase } = require('../../shared/db');
-const { parseInteger, required, sendError } = require('../../shared/http');
+const { parseBigintId, parseInteger, required, sendError } = require('../../shared/http');
 const TABLES = require('../../shared/tables');
 
 const DOCUMENTS_BUCKET = 'documents';
@@ -19,7 +19,7 @@ function safeFileName(name = 'document.pdf') {
 function cleanAttachmentPayload(body) {
   return {
     entity_type: body.entityType || body.entity_type,
-    entity_id: parseInteger(body.entityId ?? body.entity_id),
+    entity_id: parseBigintId(body.entityId ?? body.entity_id),
     file_url: body.fileUrl || body.file_url,
     file_name: body.fileName || body.file_name || null,
     file_type: body.fileType || body.file_type || null,
@@ -110,7 +110,7 @@ exports.listAttachments = async (req, res) => {
     const entityType = req.query.entity_type || req.query.entityType;
     const entityId = req.query.entity_id || req.query.entityId;
     if (entityType && entityId !== undefined) {
-      const parsedEntityId = parseInteger(entityId);
+      const parsedEntityId = parseBigintId(entityId);
       if (parsedEntityId === null) return res.status(400).json({ message: 'entityId ต้องเป็นตัวเลข' });
       const { data, error } = await supabase
         .from(TABLES.attachments)
@@ -165,7 +165,7 @@ exports.createAttachments = async (req, res) => {
 exports.uploadAttachment = async (req, res) => {
   try {
     const entityType = req.body.entityType || req.body.entity_type;
-    const entityId = parseInteger(req.body.entityId ?? req.body.entity_id);
+    const entityId = parseBigintId(req.body.entityId ?? req.body.entity_id);
     const fileData = req.body.fileData || req.body.file_data;
     let fileName = req.body.fileName || req.body.file_name;
     const metadata = req.body.metadata && typeof req.body.metadata === 'object' ? req.body.metadata : {};
@@ -251,7 +251,7 @@ const { error: uploadError } = await supabase.storage
 
 exports.deleteAttachment = async (req, res) => {
   try {
-    const id = parseInteger(req.params.id);
+    const id = parseBigintId(req.params.id);
     if (id === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
     const { data: attachment, error: fetchError } = await supabase.from(TABLES.attachments).select('*').eq('id', id).maybeSingle();
     if (fetchError) throw fetchError;

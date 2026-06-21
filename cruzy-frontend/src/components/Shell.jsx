@@ -19,10 +19,19 @@ function isOwnerRole(user) {
   return String(user?.role || '').trim().toLowerCase() === 'owner';
 }
 
+function displayUserName(user, employees = []) {
+  const employeeId = user?.employeeId || user?.employee_id;
+  const employee = employeeId
+    ? employees.find((item) => String(item.id) === String(employeeId))
+    : null;
+  return employee?.nickname || employee?.name || user?.name || user?.username || '-';
+}
+
 export function Shell({ data, user, currentTab, setCurrentTab, currentBranch, setCurrentBranch, children, onLogout, alertCount, navigate }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const branches = getScopeBranches(data, user);
   const isOwner = isOwnerRole(user);
+  const userDisplayName = displayUserName(user, data?.employees || []);
   const availableMenus = menus.filter((menu) => {
     if (menu.ownerOnly) return isOwner;
     return true;
@@ -137,7 +146,7 @@ export function Shell({ data, user, currentTab, setCurrentTab, currentBranch, se
           </span>
         </div>
         <div className="nav-right">
-          <span className="nav-user hidden md:inline">{user.name}</span>
+          <span className="nav-user hidden md:inline">{userDisplayName}</span>
           <button className="nav-btn" onClick={onLogout}>
             <LogOut size={14} />
             <span className="hidden sm:inline">ออก</span>
@@ -153,7 +162,7 @@ export function Shell({ data, user, currentTab, setCurrentTab, currentBranch, se
         <aside className={`sidebar ${mobileMenuOpen ? 'open' : ''}`}>
           <div className="sb-mobile-head lg:hidden">
             <div>
-              <div className="body-strong text-gray-900">{user.name}</div>
+              <div className="body-strong text-gray-900">{userDisplayName}</div>
               <div className="caption text-gray-500">{user.label || user.role}</div>
             </div>
             <button type="button" className="icon-btn" onClick={() => setMobileMenuOpen(false)} aria-label="ปิดเมนู">

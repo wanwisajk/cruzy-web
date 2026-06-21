@@ -1,5 +1,6 @@
 const { fetchTable, supabase } = require('../../shared/db');
-const { parseInteger, required, sendError, toNumber, auditFields } = require('../../shared/http');
+const { syncSaleCashLedger, deleteLedgerEntry } = require('../../shared/cashLedger');
+const { actorFromRequest, parseBigintId, parseInteger, required, sendError, toNumber, auditFields } = require('../../shared/http');
 const TABLES = require('../../shared/tables');
 
 function cleanSalePayload(body) {
@@ -36,7 +37,7 @@ exports.listSales = async (_req, res) => {
 
 exports.getSale = async (req, res) => {
   try {
-    const id = parseInteger(req.params.id);
+    const id = parseBigintId(req.params.id);
     if (id === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
     const { data, error } = await supabase.from(TABLES.sales).select('*').eq('id', id).single();
     if (error) throw error;
@@ -70,6 +71,7 @@ exports.createSale = async (req, res) => {
     };
     const { data, error } = await supabase.from(TABLES.sales).insert([payload]).select().single();
     if (error) throw error;
+    await syncSaleCashLedger(data);
     res.status(201).json({ message: 'บันทึกยอดขายสำเร็จ', data });
   } catch (error) {
     if (error.code === '23505' || error.code === 23505) {
@@ -84,7 +86,7 @@ exports.createSale = async (req, res) => {
 
 exports.updateSale = async (req, res) => {
   try {
-    const saleId = parseInteger(req.params.id);
+    const saleId = parseBigintId(req.params.id);
     if (saleId === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
     const { data: existing, error: getError } = await supabase.from(TABLES.sales).select('*').eq('id', saleId).single();
     if (getError) throw getError;
@@ -109,6 +111,7 @@ exports.updateSale = async (req, res) => {
 
     const { data, error } = await supabase.from(TABLES.sales).update(update).eq('id', saleId).select().single();
     if (error) throw error;
+    await syncSaleCashLedger(data);
     if (logs.length) {
       const { error: logError } = await supabase.from(TABLES.salesLogs).insert(logs);
       if (logError) console.error('insert sales_logs failed:', logError);
@@ -127,19 +130,32 @@ exports.updateSale = async (req, res) => {
 
 async function setSaleStatus(req, res, status, successMessage) {
   try {
-    const id = parseInteger(req.params.id);
+    const id = parseBigintId(req.params.id);
     if (id === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
+    const actor = actorFromRequest(req);
     const payload = { status, ...auditFields(req) };
+    if (status === 'confirmed') {
+      payload.confirmed_by = actor.username || actor.name || actor.id;
+      payload.confirmed_at = new Date().toISOString();
+    }
     const { data, error } = await supabase.from(TABLES.sales).update(payload).eq('id', id).select().single();
     if (error) throw error;
+    await syncSaleCashLedger(data);
     res.json({ message: successMessage, data });
   } catch (error) {
     // If audit columns don't exist in this table, retry without audit fields
     if (String(error.code || '').toUpperCase().includes('PGRST204') || String(error.message || '').includes("Could not find the 'audit_actor_id'")) {
       try {
-        const id = parseInteger(req.params.id);
-        const { data, error: err2 } = await supabase.from(TABLES.sales).update({ status }).eq('id', id).select().single();
+        const id = parseBigintId(req.params.id);
+        const actor = actorFromRequest(req);
+        const fallbackPayload = { status };
+        if (status === 'confirmed') {
+          fallbackPayload.confirmed_by = actor.username || actor.name || actor.id;
+          fallbackPayload.confirmed_at = new Date().toISOString();
+        }
+        const { data, error: err2 } = await supabase.from(TABLES.sales).update(fallbackPayload).eq('id', id).select().single();
         if (err2) throw err2;
+        await syncSaleCashLedger(data);
         return res.json({ message: successMessage, data });
       } catch (err2) {
         return sendError(res, err2, 'ไม่สามารถอัปเดตสถานะยอดขายได้');
@@ -168,8 +184,9 @@ exports.rejectSale = async (req, res) => {
 
 exports.deleteSale = async (req, res) => {
   try {
-    const id = parseInteger(req.params.id);
+    const id = parseBigintId(req.params.id);
     if (id === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
+    await deleteLedgerEntry('sale_id', id, 'sale_cash');
     const { error } = await supabase.from(TABLES.sales).delete().eq('id', id);
     if (error) throw error;
     res.json({ message: 'ลบยอดขายสำเร็จ' });

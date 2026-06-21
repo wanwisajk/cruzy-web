@@ -13,6 +13,7 @@ const OPTIONAL_KEYS = [
   'salesLogs',
   'attachments',
   'bankAccountBranches',
+  'branchCashLedger',
   'systemAuditLogs',
   'salarySummaries'
 ];
@@ -23,6 +24,7 @@ const DATE_FILTERS = {
   contracts: 'start_date',
   sales: 'sell_date',
   cashDeposits: 'deposit_date',
+  branchCashLedger: 'ledger_date',
   attendance: 'work_date',
   attendanceAlerts: 'work_date',
   storeInspections: 'work_date',
@@ -46,7 +48,8 @@ const DEFAULT_OPTIONS = {
   salarySummaries: { order: [{ column: 'salary_month', ascending: false }, { column: 'employee_id', ascending: true }] },
   warningLetters: { order: [{ column: 'issue_date', ascending: false }, { column: 'employee_id', ascending: true }] },
   bankAccounts: { order: [{ column: 'is_active', ascending: false }, { column: 'bank_short', ascending: true }] },
-  bankAccountBranches: { order: [{ column: 'bank_account_id', ascending: true }, { column: 'branch_id', ascending: true }] }
+  bankAccountBranches: { order: [{ column: 'bank_account_id', ascending: true }, { column: 'branch_id', ascending: true }] },
+  branchCashLedger: { order: [{ column: 'ledger_date', ascending: false }, { column: 'branch_id', ascending: true }] }
 };
 
 function selectedEntries(keys) {
@@ -64,7 +67,7 @@ function selectedEntries(keys) {
 async function fetchConsoleTable({ key, table, select, fromDate, toDate }) {
   let query = supabase.from(table).select(select);
   const dateColumn = DATE_FILTERS[key];
-  if (dateColumn && fromDate) query = query.gte(dateColumn, fromDate);
+  if (dateColumn && fromDate && key !== 'branchCashLedger') query = query.gte(dateColumn, fromDate);
   if (dateColumn && toDate) query = query.lte(dateColumn, toDate);
   query = applyQueryOptions(query, DEFAULT_OPTIONS[key]);
   const { data, error } = await query;
@@ -85,7 +88,7 @@ exports.getConsoleData = async (req, res) => {
     const entries = selectedEntries(req.query.keys || req.query.tables);
     const rows = await Promise.all(entries.map(([key, table]) => {
       const select = key === 'users'
-        ? 'id, username, name, role, scope_type, scope_value, created_at'
+        ? 'id, username, name, role, scope_type, scope_value, employee_id, created_at'
         : '*';
       if (fromDate || toDate || DEFAULT_OPTIONS[key]) {
         return fetchConsoleTable({ key, table, select, fromDate, toDate });

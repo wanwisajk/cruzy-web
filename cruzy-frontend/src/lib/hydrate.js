@@ -20,6 +20,7 @@ const emptyData = {
   salesLogs: [],
   attachments: [],
   bankAccounts: [],
+  branchCashLedger: [],
   deposits: [],
   attendance: [],
   lineGroups: [],
@@ -210,6 +211,7 @@ export function hydrateConsoleData(data = {}) {
       branchIds: branchIds.map(String)
     };
   });
+  state.branchCashLedger = (data.branchCashLedger || data.branch_cash_ledger || []).map(mapBranchCashLedgerRow);
   state.deposits = (data.cashDeposits || []).map((row) => mapDepositRow(row, state.attachments));
   state.attendance = (data.attendance || []).map((row) => ({
     id: String(row.id),
@@ -276,6 +278,8 @@ export function hydrateConsoleData(data = {}) {
     scopeValue: user.scopeValue ?? user.scope_value ?? user.scope,
     scope_type: user.scope_type || user.scopeType || (user.scope === 'all' ? 'all' : undefined),
     scope_value: user.scope_value ?? user.scopeValue ?? user.scope,
+    employeeId: user.employeeId || user.employee_id || null,
+    employee_id: user.employee_id || user.employeeId || null,
     created_at: user.created_at || user.createdAt,
     label: user.label || user.role
   }));
@@ -297,6 +301,7 @@ export function hydrateConsolePatch(data = {}, current = emptyData) {
   const payProfileRows = readRows(data, 'employeePayProfiles', 'employee_pay_profiles');
   const staffingRuleRows = readRows(data, 'branchStaffingRules', 'branch_staffing_rules');
   const bankAccountBranchRows = readRows(data, 'bankAccountBranches', 'bank_account_branches');
+  const branchCashLedgerRows = readRows(data, 'branchCashLedger', 'branch_cash_ledger');
 
   if (hasAny(data, 'regions')) {
     state.regions = {};
@@ -394,6 +399,7 @@ export function hydrateConsolePatch(data = {}, current = emptyData) {
       state.bankAccounts
     );
   }
+  if (branchCashLedgerRows) state.branchCashLedger = branchCashLedgerRows.map(mapBranchCashLedgerRow);
   if (hasAny(data, 'cashDeposits')) {
     state.deposits = (data.cashDeposits || []).map((row) => mapDepositRow(row, state.attachments));
   } else if (hasAny(data, 'attachments')) {
@@ -632,6 +638,20 @@ function mapBankAccountRows(rows, bankAccountBranchRows = null, previousAccounts
   });
 }
 
+function mapBranchCashLedgerRow(row) {
+  return {
+    id: String(row.id || ''),
+    branchId: String(row.branch_id ?? row.branchId ?? ''),
+    date: row.ledger_date || row.date,
+    type: row.entry_type || row.type,
+    saleId: row.sale_id === null || row.sale_id === undefined ? null : String(row.sale_id),
+    cashDepositId: row.cash_deposit_id === null || row.cash_deposit_id === undefined ? null : String(row.cash_deposit_id),
+    amount: Number(row.amount || 0),
+    note: row.note || '',
+    createdAt: row.created_at || row.createdAt || null
+  };
+}
+
 function derivePrimaryEmployeeBranches(branchRules, scheduleRows) {
   const byEmployee = {};
   branchRules.filter((rule) => rule.canWork).sort((a, b) => Number(b.isPreferred) - Number(a.isPreferred) || b.priority - a.priority).forEach((rule) => {
@@ -743,6 +763,12 @@ function mapSaleRow(row, salesLogs = [], attachments = []) {
     qr: Number(row.qr_amount || 0),
     orders: Number(row.orders_count || 0),
     submittedBy: row.submitted_by === null || row.submitted_by === undefined ? null : String(row.submitted_by),
+    submittedName: row.submitted_by_name || '',
+    approvalName: ['confirmed', 'rejected'].includes(row.status) ? (row.audit_actor_name || '') : '',
+    lineUserId: row.line_user_id || '',
+    auditActorType: row.audit_actor_type || null,
+    auditActorId: row.audit_actor_id || null,
+    auditActorName: row.audit_actor_name || null,
     submitTime: formatDbTime(row.submitted_at),
     confirmedBy: row.confirmed_by || null,
     confirmTime: formatDbTime(row.confirmed_at),
@@ -756,7 +782,34 @@ function mapSaleRow(row, salesLogs = [], attachments = []) {
 function mapDepositRow(row, attachments = []) {
   const id = String(row.id);
   const files = attachments.filter((file) => file.entityType === 'cash_deposit' && String(file.entityId) === id);
-  return { id, date: row.deposit_date || row.date, bid: row.branch_id, expected: Number(row.expected_amount || 0), deposited: Number(row.deposited_amount || 0), slip: Boolean(row.slip_url || files.length), slipUrl: row.slip_url || files[0]?.fileUrl || '', attachments: files, bankAccId: row.bank_account_id || null, depositedBy: row.deposited_by === null || row.deposited_by === undefined ? null : String(row.deposited_by), verifiedBy: row.verified_by || null, verifyTime: formatDbTime(row.verified_at), status: row.status || 'waiting', slipOcrStatus: row.slip_ocr_status || 'unchecked', slipOcrAmount: row.slip_ocr_amount === null || row.slip_ocr_amount === undefined ? null : Number(row.slip_ocr_amount), slipOcrConfidence: row.slip_ocr_confidence === null || row.slip_ocr_confidence === undefined ? null : Number(row.slip_ocr_confidence), slipOcrText: row.slip_ocr_text || '', slipOcrCheckedAt: row.slip_ocr_checked_at || null };
+  return {
+    id,
+    date: row.deposit_date || row.date,
+    bid: row.branch_id,
+    expected: Number(row.expected_amount || 0),
+    deposited: Number(row.deposited_amount || 0),
+    slip: Boolean(row.slip_url || files.length),
+    slipUrl: row.slip_url || files[0]?.fileUrl || '',
+    attachments: files,
+    bankAccId: row.bank_account_id || null,
+    depositedBy: row.deposited_by === null || row.deposited_by === undefined ? null : String(row.deposited_by),
+    depositedName: row.deposited_by_name || '',
+    verifiedName: ['verified', 'rejected'].includes(row.status) ? (row.audit_actor_name || '') : '',
+    lineUserId: row.line_user_id || '',
+    auditActorType: row.audit_actor_type || null,
+    auditActorId: row.audit_actor_id || null,
+    auditActorName: row.audit_actor_name || null,
+    verifiedBy: row.verified_by || null,
+    verifyTime: formatDbTime(row.verified_at),
+    coveredDate: row.covered_date || row.coveredDate || row.covered_from_date || row.coveredFromDate || null,
+    varianceAmount: Number(row.variance_amount ?? row.varianceAmount ?? 0),
+    status: row.status || 'waiting',
+    slipOcrStatus: row.slip_ocr_status || 'unchecked',
+    slipOcrAmount: row.slip_ocr_amount === null || row.slip_ocr_amount === undefined ? null : Number(row.slip_ocr_amount),
+    slipOcrConfidence: row.slip_ocr_confidence === null || row.slip_ocr_confidence === undefined ? null : Number(row.slip_ocr_confidence),
+    slipOcrText: row.slip_ocr_text || '',
+    slipOcrCheckedAt: row.slip_ocr_checked_at || null
+  };
 }
 
 function mapSalesLogRow(row) {
@@ -858,6 +911,8 @@ function mapUserRow(user) {
     scopeValue: user.scopeValue ?? user.scope_value ?? user.scope,
     scope_type: user.scope_type || user.scopeType || (user.scope === 'all' ? 'all' : undefined),
     scope_value: user.scope_value ?? user.scopeValue ?? user.scope,
+    employeeId: user.employeeId || user.employee_id || null,
+    employee_id: user.employee_id || user.employeeId || null,
     created_at: user.created_at || user.createdAt,
     label: user.label || user.role
   };

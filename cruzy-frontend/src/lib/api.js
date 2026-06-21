@@ -11,9 +11,12 @@ function currentAuditHeaders() {
     const actorName = user.username || user.name;
     if (!actorName) return {};
     return {
-      'X-Cruzy-Actor-Type': user.employeeId || user.employee_id ? 'employee' : 'user',
-      'X-Cruzy-Actor-Id': String(user.employeeId || user.employee_id || user.id || user.username || ''),
-      'X-Cruzy-Actor-Name': String(actorName)
+      'X-Cruzy-Actor-Type': 'user',
+      'X-Cruzy-Actor-Id': String(user.id || user.username || ''),
+      'X-Cruzy-Actor-Name': String(user.name || user.username || ''),
+      'X-Cruzy-Actor-Username': String(user.username || ''),
+      'X-Cruzy-User-Id': String(user.id || ''),
+      ...(user.employeeId || user.employee_id ? { 'X-Cruzy-Employee-Id': String(user.employeeId || user.employee_id) } : {})
     };
   } catch (_error) {
     return {};

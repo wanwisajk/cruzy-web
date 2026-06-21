@@ -3,13 +3,18 @@ import { Plus, Eye, Pencil, Check, Lock, Unlock, FileText, AlertCircle, Wallet, 
 import { salesDashboardService } from '../features/salesDashboard/services/salesDashboardService';
 import {
   branchById,
+  actorDisplayName,
+  employeeDisplayName,
   cashByBranchAndDate,
+  cashLedgerBalanceByBranch,
+  cashLedgerLabel,
   filteredDeposits,
   filteredSales,
   money,
   shortDate,
   tabs,
-  timeText
+  timeText,
+  visibleBranchIds
 } from '../features/salesDashboard/salesDashboardUtils';
 import {
   StatCard,
@@ -87,6 +92,8 @@ export default function SaleDashboard({ data, user, currentBranch, from, to, onR
   const visibleSales = useMemo(() => filteredSales(localData, user, currentBranch, filterFrom, filterTo), [localData, user, currentBranch, filterFrom, filterTo]);
   const visibleDeposits = useMemo(() => filteredDeposits(localData, user, currentBranch, filterFrom, filterTo), [localData, user, currentBranch, filterFrom, filterTo]);
   const cashByDay = useMemo(() => cashByBranchAndDate(localData), [localData]);
+  const cashLedgerByBranch = useMemo(() => cashLedgerBalanceByBranch(localData), [localData]);
+  const scopedBranchIds = useMemo(() => visibleBranchIds(localData, user, currentBranch).map(String), [localData, user, currentBranch]);
 
   function flash(message, type = 'ok') {
     setToast({ message, type });
@@ -104,6 +111,17 @@ export default function SaleDashboard({ data, user, currentBranch, from, to, onR
     }
   }
 
+  function refreshSalesSoon() {
+    window.setTimeout(async () => {
+      try {
+        await refreshRef.current();
+        setLastRefreshed(new Date());
+      } catch (error) {
+        console.error('Sales follow-up refresh failed:', error);
+      }
+    }, 0);
+  }
+
   async function confirmSale(sale) {
     try {
       const resp = await salesDashboardService.approveSale(sale.id);
@@ -111,6 +129,7 @@ export default function SaleDashboard({ data, user, currentBranch, from, to, onR
         const updated = resp.data;
         setSales((rows) => rows.map((row) => row.id === sale.id ? { ...row, status: updated.status || 'confirmed', confirmedBy: updated.confirmed_by || user.username, confirmTime: updated.confirmed_at || new Date().toISOString() } : row));
       }
+      refreshSalesSoon();
       flash('ยืนยันยอดเงินสำเร็จคลังจัดเก็บเข้าบัญชีหลักแล้ว');
     } catch (error) {
       flash(error.message || 'ยืนยันยอดไม่สำเร็จ', 'err');
@@ -126,6 +145,7 @@ export default function SaleDashboard({ data, user, currentBranch, from, to, onR
         const updated = resp.data;
         setSales((rows) => rows.map((row) => row.id === sale.id ? { ...row, status: updated.status || 'rejected' } : row));
       }
+      refreshSalesSoon();
       flash('ปฏิเสธยอดขายเรียบร้อยแล้ว');
     } catch (error) {
       flash(error.message || 'ปฏิเสธยอดขายไม่สำเร็จ', 'err');
@@ -139,6 +159,7 @@ export default function SaleDashboard({ data, user, currentBranch, from, to, onR
         const updated = resp.data;
         setDeposits((rows) => rows.map((row) => row.id === deposit.id ? { ...row, status: updated.status || 'verified', verifiedBy: updated.verified_by || user.username, verifyTime: updated.verified_at || new Date().toISOString() } : row));
       }
+      refreshSalesSoon();
       flash('ตรวจสอบเอกสารและยืนยันรับยอดเรียบร้อย');
     } catch (error) {
       flash(error.message || 'ยืนยันสลิปไม่สำเร็จ', 'err');
@@ -155,8 +176,14 @@ export default function SaleDashboard({ data, user, currentBranch, from, to, onR
     }
   }
 
-  const upsertSale = (sale, isEdit) => setSales((rows) => isEdit ? rows.map((r) => r.id === sale.id ? { ...r, ...sale } : r) : [...rows, sale]);
-  const upsertDeposit = (dep, isEdit) => setDeposits((rows) => isEdit ? rows.map((r) => r.id === dep.id ? { ...r, ...dep } : r) : [...rows, dep]);
+  const upsertSale = (sale, isEdit) => {
+    setSales((rows) => isEdit ? rows.map((r) => r.id === sale.id ? { ...r, ...sale } : r) : [...rows, sale]);
+    refreshSalesSoon();
+  };
+  const upsertDeposit = (dep, isEdit) => {
+    setDeposits((rows) => isEdit ? rows.map((r) => r.id === dep.id ? { ...r, ...dep } : r) : [...rows, dep]);
+    refreshSalesSoon();
+  };
   const updateAccount = (acc) => setBankAccounts((rows) => rows.map((r) => r.id === acc.id ? { ...r, ...acc } : r));
 
   function bankAccountBranchText(account) {
@@ -226,7 +253,7 @@ export default function SaleDashboard({ data, user, currentBranch, from, to, onR
                       <div><div>บัตร</div><div className="text-gray-900">฿{money(rows.reduce((s, r) => s + r.credit, 0))}</div></div>
                     </div>
                     <div className="flex items-center justify-between caption text-gray-400 border-t border-gray-100 pt-2">
-                      <div className="flex items-center gap-1"><User size={10} /><span className="truncate max-w-20">{latest.submittedBy || '—'}</span></div>
+                      <div className="flex items-center gap-1"><User size={10} /><span className="truncate max-w-20">{employeeDisplayName(localData, { employeeId: latest.submittedBy, lineUserId: latest.lineUserId, fallbackName: latest.submittedName })}</span></div>
                       <div className="action-cluster">
                         <button className="icon-action" onClick={() => setEditor({ type: 'sale', mode: 'view', item: latest })}><Eye size={12} /></button>
                         <button className="icon-action info" onClick={() => setEditor({ type: 'sale', mode: 'edit', item: latest })}><Pencil size={12} /></button>
@@ -264,7 +291,7 @@ export default function SaleDashboard({ data, user, currentBranch, from, to, onR
                     <td className="p-3">฿{money(sale.cash)}</td>
                     <td className="p-3">฿{money(sale.qr + sale.transfer)}</td>
                     <td className="p-3">฿{money(sale.credit)}</td>
-                    <td className="p-3"><EmployeeChip data={localData} employeeId={sale.submittedBy} time={sale.submitTime} /></td>
+                    <td className="p-3"><EmployeeChip data={localData} employeeId={sale.submittedBy} lineUserId={sale.lineUserId} fallbackName={sale.submittedName} time={sale.submitTime} /></td>
                     <td className="p-3 text-right">
                       <div className="action-cluster">
                         <button className="icon-action" onClick={() => setEditor({ type: 'sale', mode: 'view', item: sale })}><Eye size={13} /></button>
@@ -307,11 +334,11 @@ export default function SaleDashboard({ data, user, currentBranch, from, to, onR
                     <td className="p-3">฿{money(sale.cash)}</td>
                     <td className="p-3">฿{money(sale.qr + sale.transfer)}</td>
                     <td className="p-3">฿{money(sale.credit)}</td>
-                    <td className="p-3"><EmployeeChip data={localData} employeeId={sale.submittedBy} time={sale.submitTime} /></td>
+                    <td className="p-3"><EmployeeChip data={localData} employeeId={sale.submittedBy} lineUserId={sale.lineUserId} fallbackName={sale.submittedName} time={sale.submitTime} /></td>
                     <td className="p-3">
                       <span className="inline-flex items-center gap-1 text-gray-600 body-emphasis caption">
                         <Check size={12} className="text-emerald-500" />
-                        {sale.confirmedBy} <span className="text-gray-400">({timeText(sale.confirmTime)})</span>
+                        {sale.confirmedBy ? actorDisplayName(localData, sale.confirmedBy) : sale.approvalName || '—'} <span className="text-gray-400">({timeText(sale.confirmTime)})</span>
                       </span>
                     </td>
                     <td className="p-3 text-right">
@@ -334,8 +361,15 @@ export default function SaleDashboard({ data, user, currentBranch, from, to, onR
 
   const renderDepositTab = () => {
     const done = visibleDeposits.filter((d) => Number(d.deposited) > 0).length;
-    const getExpectedCash = (deposit) => Number(cashByDay[`${String(deposit.bid)}_${deposit.date}`] ?? deposit.expected ?? 0);
-    const mismatch = visibleDeposits.filter((d) => Number(d.deposited) && Number(d.deposited) !== getExpectedCash(d)).length;
+    const getExpectedCash = (deposit) => Number(deposit.expected || cashByDay[`${String(deposit.bid)}_${deposit.coveredDate || deposit.date}`] || 0);
+    const mismatch = visibleDeposits.filter((d) => Number(d.deposited) && Math.abs(Number(d.deposited) - getExpectedCash(d)) >= 0.01).length;
+    const ledgerBalance = scopedBranchIds.reduce((sum, branchId) => sum + Number(cashLedgerByBranch[branchId] || 0), 0);
+    const ledgerStatus = cashLedgerLabel(ledgerBalance);
+    const ledgerTone = ledgerBalance > 0 ? 'red' : ledgerBalance < 0 ? 'orange' : 'green';
+    const branchLedgerBalanceAt = (branchId, date) => (localData.branchCashLedger || [])
+      .filter((row) => String(row.branchId || row.branch_id) === String(branchId) && (!date || String(row.date || row.ledger_date || '') <= String(date)))
+      .reduce((sum, row) => sum + Number(row.amount || 0), 0);
+    const branchLedgerLabel = (branchId, date) => cashLedgerLabel(branchLedgerBalanceAt(branchId, date)).label;
     const pendingDeposits = visibleDeposits.filter((d) => d.status !== 'verified');
     const verifiedDeposits = visibleDeposits.filter((d) => d.status === 'verified');
 
@@ -344,7 +378,7 @@ export default function SaleDashboard({ data, user, currentBranch, from, to, onR
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <StatCard tone="teal" value={`${done} / ${visibleDeposits.length}`} label="ส่งฝากสลิปแล้ว" icon={FileText} />
           <StatCard tone={mismatch ? 'red' : 'green'} value={mismatch} label="ยอดไม่ตรงสลิป" icon={AlertCircle} />
-          <StatCard value={`฿${money(visibleDeposits.reduce((sum, item) => sum + item.expected, 0))}`} label="ยอดเงินสดที่ต้องนำฝาก" tone="blue" icon={Wallet} />
+          <StatCard value={`฿${money(Math.abs(ledgerBalance))}`} label={ledgerStatus.label.replace(/ ฿.*/, '')} tone={ledgerTone} icon={Wallet} />
         </div>
 
         <div className="table-shell">
@@ -358,11 +392,13 @@ export default function SaleDashboard({ data, user, currentBranch, from, to, onR
               <thead>
                 <tr className="bg-gray-50 text-gray-400 border-b border-gray-100 body-strong tracking-wider uppercase caption">
                   <th className="p-3">สาขา</th>
-                  <th className="p-3">วันที่</th>
+                  <th className="p-3">ยอดของวันที่</th>
+                  <th className="p-3">ฝากเงินจริงวันที่</th>
                   <th className="p-3">เงินสดหน้าร้าน</th>
                   <th className="p-3">ยอดเงินฝากจริง</th>
                   <th className="p-3">บัญชีปลายทาง</th>
                   <th className="p-3">คนนำฝาก</th>
+                  <th className="p-3">ค้างสะสม</th>
                   <th className="p-3">สถานะตรวจ</th>
                   <th className="p-3 text-right">ระบบตรวจสอบ</th>
                 </tr>
@@ -371,11 +407,13 @@ export default function SaleDashboard({ data, user, currentBranch, from, to, onR
                 {pendingDeposits.map((deposit) => (
                   <tr key={deposit.id} className="hover:bg-gray-50/80 transition-colors">
                     <td className="p-3 body-strong text-gray-900">{branchById(localData, deposit.bid)?.code || deposit.bid}</td>
+                    <td className="p-3">{shortDate(deposit.coveredDate || deposit.date)}</td>
                     <td className="p-3">{shortDate(deposit.date)}</td>
                     <td className="p-3 body-strong text-gray-500">฿{money(getExpectedCash(deposit))}</td>
                     <td className="p-3 body-strong text-gray-900">{deposit.deposited ? `฿${money(deposit.deposited)}` : '—'}</td>
                     <td className="p-3"><BankChip data={localData} accountId={deposit.bankAccId} /></td>
-                    <td className="p-3"><EmployeeChip data={localData} employeeId={deposit.depositedBy} /></td>
+                    <td className="p-3"><EmployeeChip data={localData} employeeId={deposit.depositedBy} lineUserId={deposit.lineUserId} fallbackName={deposit.depositedName} /></td>
+                    <td className="p-3 body-strong text-gray-600">{branchLedgerLabel(deposit.bid, deposit.date)}</td>
                     <td className="p-3"><DepositStatusBadge deposit={deposit} expectedAmount={getExpectedCash(deposit)} /></td>
                     <td className="p-3 text-right">
                       <div className="action-cluster">
@@ -386,7 +424,7 @@ export default function SaleDashboard({ data, user, currentBranch, from, to, onR
                     </td>
                   </tr>
                 ))}
-                {!pendingDeposits.length && <tr><td colSpan="8" className="p-6 text-center text-gray-400">ไม่พบรายการฝากเงินที่ต้องตรวจสอบ</td></tr>}
+                {!pendingDeposits.length && <tr><td colSpan="10" className="p-6 text-center text-gray-400">ไม่พบรายการฝากเงินที่ต้องตรวจสอบ</td></tr>}
               </tbody>
             </table>
           </div>
@@ -398,18 +436,21 @@ export default function SaleDashboard({ data, user, currentBranch, from, to, onR
             <table className="w-full text-left caption text-gray-500 border-collapse">
               <thead>
                 <tr className="bg-gray-50/50 text-gray-400 border-b border-gray-100 caption uppercase body-strong">
-                  <th className="p-3">สาขา</th><th className="p-3">วันที่</th><th className="p-3">เงินสดหน้าร้าน</th><th className="p-3">ยอดเงินฝากจริง</th><th className="p-3">บัญชีปลายทาง</th><th className="p-3">คนนำฝาก</th><th className="p-3 text-right">เครื่องมือ</th>
+                  <th className="p-3">สาขา</th><th className="p-3">ยอดของวันที่</th><th className="p-3">ฝากเงินจริงวันที่</th><th className="p-3">เงินสดหน้าร้าน</th><th className="p-3">ยอดเงินฝากจริง</th><th className="p-3">บัญชีปลายทาง</th><th className="p-3">คนนำฝาก</th><th className="p-3">ค้างสะสม</th><th className="p-3">ตรวจโดย</th><th className="p-3 text-right">เครื่องมือ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 body-emphasis">
                 {verifiedDeposits.map((deposit) => (
                   <tr key={deposit.id} className="hover:bg-gray-50/40">
                     <td className="p-3 body-strong text-gray-700">{branchById(localData, deposit.bid)?.code || deposit.bid}</td>
+                    <td className="p-3">{shortDate(deposit.coveredDate || deposit.date)}</td>
                     <td className="p-3">{shortDate(deposit.date)}</td>
                     <td className="p-3">฿{money(getExpectedCash(deposit))}</td>
                     <td className="p-3 body-strong text-gray-800">฿{money(deposit.deposited)}</td>
                     <td className="p-3"><BankChip data={localData} accountId={deposit.bankAccId} /></td>
-                    <td className="p-3"><EmployeeChip data={localData} employeeId={deposit.depositedBy} /></td>
+                    <td className="p-3"><EmployeeChip data={localData} employeeId={deposit.depositedBy} lineUserId={deposit.lineUserId} fallbackName={deposit.depositedName} /></td>
+                    <td className="p-3 body-strong text-gray-600">{branchLedgerLabel(deposit.bid, deposit.date)}</td>
+                    <td className="p-3">{deposit.verifiedBy ? actorDisplayName(localData, deposit.verifiedBy) : deposit.verifiedName || '—'}</td>
                     <td className="p-3 text-right">
                       <button className="icon-action" onClick={() => setEditor({ type: 'deposit', mode: 'view', item: deposit })}><Eye size={13} /></button>
                     </td>

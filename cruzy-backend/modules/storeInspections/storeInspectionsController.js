@@ -1,11 +1,16 @@
 const { fetchOptionalTable, fetchTable, supabase } = require('../../shared/db');
-const { parseInteger, required, sendError, toNumber } = require('../../shared/http');
+const { auditFields, parseInteger, required, sendError, toNumber } = require('../../shared/http');
 const TABLES = require('../../shared/tables');
 const INSPECTION_SELECT = 'id, branch_id, work_date, submitted_by, submit_time, close_time, status, inspection_items, reviewed_by, review_time, manager_note, score, photo_count, is_late, late_minutes, created_at';
 const BRANCH_SELECT = 'id, name, code, region_id';
 const EMPLOYEE_SELECT = 'id, name, nickname, position, line_user_id';
 const SETTINGS_SELECT = 'id, branch_id, cctv_count, shelf_count, required_photos, checklists, required_products, updated_at';
 const STAFFING_RULE_SELECT = 'branch_id, day_of_week, shift_start, shift_end, is_active';
+
+function isMissingAuditActorColumn(error) {
+  return String(error?.code || '').toUpperCase().includes('PGRST204') ||
+    String(error?.message || '').includes("Could not find the 'audit_actor_id'");
+}
 
 function timeToMinutes(value) {
   if (!value) return null;
@@ -204,10 +209,19 @@ exports.getInspection = async (req, res) => {
 
 exports.saveInspection = async (req, res) => {
   try {
-    const payload = cleanInspectionPayload(req.body);
+    const payload = { ...cleanInspectionPayload(req.body), ...auditFields(req) };
     if (!required(res, payload, ['branch_id', 'work_date', 'submit_time', 'inspection_items'])) return;
     if (payload.branch_id === null) return res.status(400).json({ message: 'branchId ต้องเป็นตัวเลข' });
-    const { data, error } = await supabase.from(TABLES.storeInspections).insert([payload]).select().single();
+    let { data, error } = await supabase.from(TABLES.storeInspections).insert([payload]).select().single();
+    if (error && isMissingAuditActorColumn(error)) {
+      const fallback = { ...payload };
+      delete fallback.audit_actor_type;
+      delete fallback.audit_actor_id;
+      delete fallback.audit_actor_name;
+      const result = await supabase.from(TABLES.storeInspections).insert([fallback]).select().single();
+      data = result.data;
+      error = result.error;
+    }
     if (error) throw error;
     await syncInspectionAlerts(data);
     res.status(201).json({ message: 'บันทึกตรวจร้านสำเร็จ', data });
@@ -220,10 +234,19 @@ exports.updateInspection = async (req, res) => {
   try {
     const id = parseInteger(req.params.id);
     if (id === null) return res.status(400).json({ message: 'id ต้องเป็นตัวเลข' });
-    const payload = cleanInspectionPayload(req.body, { partial: true });
+    const payload = { ...cleanInspectionPayload(req.body, { partial: true }), ...auditFields(req) };
     Object.keys(payload).forEach((key) => payload[key] === undefined && delete payload[key]);
     if (payload.branch_id === null) return res.status(400).json({ message: 'branchId ต้องเป็นตัวเลข' });
-    const { data, error } = await supabase.from(TABLES.storeInspections).update(payload).eq('id', id).select().single();
+    let { data, error } = await supabase.from(TABLES.storeInspections).update(payload).eq('id', id).select().single();
+    if (error && isMissingAuditActorColumn(error)) {
+      const fallback = { ...payload };
+      delete fallback.audit_actor_type;
+      delete fallback.audit_actor_id;
+      delete fallback.audit_actor_name;
+      const result = await supabase.from(TABLES.storeInspections).update(fallback).eq('id', id).select().single();
+      data = result.data;
+      error = result.error;
+    }
     if (error) throw error;
     await syncInspectionAlerts(data);
     res.json({ message: 'อัปเดตตรวจร้านสำเร็จ', data });
