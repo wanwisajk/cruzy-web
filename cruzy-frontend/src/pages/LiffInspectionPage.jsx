@@ -296,6 +296,7 @@ export default function LiffInspectionPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [reviewing, setReviewing] = useState(false);
+  const [showReviewDetail, setShowReviewDetail] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(null);
 
@@ -337,6 +338,7 @@ export default function LiffInspectionPage() {
 
   const selectedBranch = branches.find((branch) => String(branch.id) === String(form.branchId));
   const selectedEmployee = employees.find((employee) => String(employee.id) === String(form.employeeId));
+  const lineMatchedEmployee = employees.find((employee) => profile?.userId && String(employee.line_user_id || '') === String(profile.userId));
   const selectedSetting = settings.find((setting) => String(setting.branch_id) === String(form.branchId)) || {};
   const openingInspection = inspections.find((inspection) => {
     return String(inspection.branch_id) === String(form.branchId)
@@ -350,6 +352,11 @@ export default function LiffInspectionPage() {
   const isComplete = totalRequired > 0 && totalSelected >= totalRequired;
   const submittedInspection = openingInspection && hasInspectionSubmitted(openingInspection) ? openingInspection : null;
   const isApproved = submittedInspection?.status === 'pass';
+  const isIssue = submittedInspection?.status === 'issue' || submittedInspection?.status === 'issues';
+  const isPendingReview = Boolean(submittedInspection && !isApproved && !isIssue);
+  const showSubmittedSummary = isPendingReview && !showReviewDetail;
+  const submitterEmployee = employees.find((employee) => String(employee.id) === String(submittedInspection?.submitted_by || form.employeeId));
+  const submitterName = submitterEmployee?.nickname || submitterEmployee?.name || selectedEmployee?.nickname || selectedEmployee?.name || form.employeeId || '-';
   const existingSubmittedCount = existingAttachments.filter(isInspectionPhotoAttachment).length;
   const matchedExistingImageKeys = useMemo(() => {
     const keys = new Set();
@@ -390,6 +397,7 @@ export default function LiffInspectionPage() {
 
   useEffect(() => {
     setReviewNote(openingInspection?.manager_note || '');
+    setShowReviewDetail(false);
   }, [openingInspection?.id, openingInspection?.manager_note]);
 
   async function addImages(item, fileList) {
@@ -466,15 +474,17 @@ export default function LiffInspectionPage() {
       delete nextInspectionItems.approval_flex_sent_at;
       delete nextInspectionItems.approval_flex_target_count;
       const submitTime = new Date().toTimeString().slice(0, 5);
+      const submitterDisplayName = selectedEmployee?.nickname || selectedEmployee?.name || lineMatchedEmployee?.nickname || lineMatchedEmployee?.name || profile?.displayName || form.employeeId || 'LIFF';
 
       const updatedResult = await api.updateInspection(openingInspection.id, {
         submit_time: submitTime,
         submitted_by: form.employeeId || null,
+        status: 'pending',
+        line_notified: false,
         line_user_id: profile?.userId || null,
         audit_actor_type: profile?.userId ? 'line' : 'employee',
         audit_actor_id: profile?.userId || form.employeeId || null,
-        audit_actor_name: selectedEmployee?.nickname || selectedEmployee?.name || profile?.displayName || form.employeeId || null,
-        status: 'pending',
+        audit_actor_name: submitterDisplayName,
         inspection_items: nextInspectionItems,
         photo_count: Number(openingInspection.photo_count || 0) + totalSelected,
       });
@@ -507,7 +517,7 @@ export default function LiffInspectionPage() {
       }
       await api.createInspectionLog({
         inspection_id: openingInspection.id,
-        user_name: profile?.displayName || form.employeeId || 'LIFF',
+        user_name: submitterDisplayName,
         action: 'create',
         description: 'บันทึกรูปตรวจร้านจาก LIFF',
         source: 'liff',
@@ -516,6 +526,7 @@ export default function LiffInspectionPage() {
         id: updated?.id || openingInspection.id,
         branch: selectedBranch?.name || selectedBranch?.code || form.branchId,
         count: attachments.length,
+        waitingReview: true,
       });
       setInspections((current) => current.map((inspection) => (
         String(inspection.id) === String(openingInspection.id)
@@ -523,6 +534,7 @@ export default function LiffInspectionPage() {
           : inspection
       )));
       setItemImages({});
+      setShowReviewDetail(false);
     } catch (err) {
       setError(err.message || 'ไม่สามารถบันทึกตรวจร้านได้');
     } finally {
@@ -536,7 +548,7 @@ export default function LiffInspectionPage() {
     setError('');
     try {
       const reviewTime = new Date().toTimeString().slice(0, 8);
-      const reviewer = profile?.displayName || selectedEmployee?.nickname || selectedEmployee?.name || 'LIFF';
+      const reviewer = lineMatchedEmployee?.nickname || lineMatchedEmployee?.name || profile?.displayName || selectedEmployee?.nickname || selectedEmployee?.name || 'LIFF';
       const result = await api.updateInspection(submittedInspection.id, {
         status,
         reviewed_by: reviewer,
@@ -617,16 +629,36 @@ export default function LiffInspectionPage() {
           <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-emerald-800">
             <div className="flex items-center gap-2 body-strong">
               <CheckCircle2 size={18} />
-              {success.reviewStatus ? 'บันทึกผลตรวจแล้ว' : 'ส่งรูปตรวจร้านแล้ว'}
+              {success.waitingReview ? 'ส่งผลตรวจแล้ว' : success.reviewStatus === 'pass' ? 'บันทึกผลตรวจแล้ว' : success.reviewStatus ? 'บันทึกผลตรวจแล้ว' : 'ส่งรูปตรวจร้านแล้ว'}
             </div>
             <div className="mt-1 caption">
               เลขที่ #{success.id} · {success.branch} · {success.count} รูป
-              {success.reviewStatus ? ` · ${success.reviewStatus === 'pass' ? 'อนุมัติ' : 'มีปัญหา'}` : ''}
+              {success.waitingReview ? ' · กำลังรอตรวจ' : success.reviewStatus ? ` · ${success.reviewStatus === 'pass' ? 'อนุมัติ' : 'มีปัญหา'}` : ''}
             </div>
           </div>
         ) : null}
 
-        {submittedInspection ? (
+        {showSubmittedSummary ? (
+          <div className="flex min-h-[68vh] flex-col items-center justify-center rounded-2xl border border-emerald-100 bg-emerald-500 px-5 py-10 text-center text-white shadow-sm">
+            <span className="flex h-20 w-20 items-center justify-center rounded-full bg-white/20">
+              <CheckCircle2 size={44} />
+            </span>
+            <div className="mt-5 text-3xl font-bold">ส่งผลตรวจแล้ว</div>
+            <div className="mt-2 body-text text-white/85">กำลังรอตรวจและอนุมัติ</div>
+            <div className="mt-6 grid w-full max-w-sm gap-2 rounded-2xl bg-white/15 p-4 caption text-white/90">
+              <div>เลขที่ #{submittedInspection.id}</div>
+              <div>{selectedBranch?.name || selectedBranch?.code || form.branchId} · {form.workDate}</div>
+              <div>รูปตรวจร้าน {existingSubmittedCount || success?.count || 0} รูป</div>
+            </div>
+            <button
+              type="button"
+              className="btn mt-6 min-h-12 w-full max-w-sm bg-white text-emerald-700 hover:bg-emerald-50"
+              onClick={() => setShowReviewDetail(true)}
+            >
+              ดูรายละเอียดเพื่ออนุมัติ
+            </button>
+          </div>
+        ) : submittedInspection ? (
           <div className="grid gap-4">
             <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
               <div className="flex items-start justify-between gap-3">
@@ -647,7 +679,7 @@ export default function LiffInspectionPage() {
                 </span>
               </div>
               <div className="mt-3 grid gap-2 rounded-xl bg-slate-50 p-3 caption text-slate-600">
-                <div>ผู้ตรวจ: {selectedEmployee?.nickname || selectedEmployee?.name || form.employeeId || '-'}</div>
+                <div>ผู้ส่งผลตรวจ: {submitterName}</div>
                 <div>รูปตรวจร้าน: {existingSubmittedCount} รูป</div>
                 {submittedInspection.reviewed_by ? <div>ผู้อนุมัติ/ผู้ตรวจสอบ: {submittedInspection.reviewed_by}</div> : null}
                 {submittedInspection.manager_note ? <div>หมายเหตุเดิม: {submittedInspection.manager_note}</div> : null}
