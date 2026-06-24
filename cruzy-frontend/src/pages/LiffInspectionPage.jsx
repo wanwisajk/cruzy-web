@@ -191,40 +191,6 @@ function today() {
   return fmtDate(new Date());
 }
 
-function mergeSearchParams(target, source) {
-  source.forEach((value, key) => {
-    if (!target.has(key)) target.set(key, value);
-  });
-}
-
-function searchParamsFromText(value) {
-  const raw = String(value || '').trim();
-  if (!raw) return new URLSearchParams();
-  const searchIndex = raw.indexOf('?');
-  const hashIndex = raw.indexOf('#');
-  const startIndex = searchIndex >= 0 ? searchIndex + 1 : (raw.startsWith('?') ? 1 : 0);
-  const endIndex = hashIndex > startIndex ? hashIndex : raw.length;
-  return new URLSearchParams(raw.slice(startIndex, endIndex));
-}
-
-function getLiffInspectionQuery() {
-  const query = new URLSearchParams(window.location.search);
-  if (window.location.hash) {
-    mergeSearchParams(query, searchParamsFromText(window.location.hash.replace(/^#/, '')));
-  }
-
-  const state = query.get('liff.state') || query.get('liffState') || '';
-  if (!state) return query;
-
-  try {
-    mergeSearchParams(query, searchParamsFromText(decodeURIComponent(state)));
-  } catch (err) {
-    console.warn('Unable to parse LIFF state query:', err);
-  }
-
-  return query;
-}
-
 function hasOpeningMarker(inspection) {
   const items = inspection?.inspection_items;
   if (Array.isArray(items)) {
@@ -310,7 +276,7 @@ function attachmentMatchesItem(attachment, item) {
 }
 
 export default function LiffInspectionPage() {
-  const query = useMemo(() => getLiffInspectionQuery(), []);
+  const query = useMemo(() => new URLSearchParams(window.location.search), []);
   const lockedBranchId = query.get('branchId') || query.get('branch') || '';
   const lockedEmployeeId = query.get('employeeId') || query.get('employee') || '';
   const [branches, setBranches] = useState([]);
